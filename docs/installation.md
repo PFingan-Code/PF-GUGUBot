@@ -68,7 +68,7 @@ MCDR 会自动下载并安装 GUGUBot 及其依赖插件。
 
 #### 步骤 1：下载插件
 
-1. 前往 [Releases 页面](https://github.com/LoosePrince/PF-GUGUBot/releases)
+1. 前往 [Releases 页面](https://github.com/PFingan-Code/PF-GUGUBot/releases)
 2. 下载最新版本的 `gugubot-vX.X.X.mcdr` 文件
 
 #### 步骤 2：下载依赖插件
@@ -109,7 +109,7 @@ MCDReforged/
 
 ```bash
 cd /path/to/MCDReforged/plugins
-git clone https://github.com/LoosePrince/PF-GUGUBot.git
+git clone https://github.com/PFingan-Code/PF-GUGUBot.git
 ```
 
 #### 步骤 2：安装依赖
@@ -318,7 +318,7 @@ connector:
 
 **解决方案**：
 1. 第一次加载插件时会自动生成默认配置
-2. 如果没有生成，手动下载：[default_config.yml](https://github.com/LoosePrince/PF-GUGUBot/blob/main/GUGUbot/gugubot/config/defaults/default_config.yml)
+2. 如果没有生成，手动下载：[default_config.yml](https://github.com/PFingan-Code/PF-GUGUBot/blob/main/GUGUbot/gugubot/config/defaults/default_config.yml)
 3. 将其重命名为 `config.yml` 并放入 `/config/GUGUbot/` 目录
 
 ---
@@ -339,5 +339,5 @@ connector:
 
 - 查看 [疑难解答](troubleshooting.md)
 - 加入 QQ 交流群：[726741344](https://qm.qq.com/q/TqmRHmTmcU)
-- 提交 [GitHub Issue](https://github.com/LoosePrince/PF-GUGUBot/issues)
+- 提交 [GitHub Issue](https://github.com/PFingan-Code/PF-GUGUBot/issues)
 

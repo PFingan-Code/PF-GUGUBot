@@ -705,7 +705,7 @@ def save_data(self):
 ## 参考资源
 
 - [MCDReforged 文档](https://mcdreforged.readthedocs.io/)
-- [GUGUBot GitHub](https://github.com/LoosePrince/PF-GUGUBot)
+- [GUGUBot GitHub](https://github.com/PFingan-Code/PF-GUGUBot)
 - [CQ 码格式说明](https://docs.go-cqhttp.org/cqcode/)
 
 ---
@@ -716,5 +716,5 @@ def save_data(self):
 
 - 查看源代码中的其他系统实现
 - 加入 QQ 交流群：[726741344](https://qm.qq.com/q/TqmRHmTmcU)
-- 提交 [GitHub Issue](https://github.com/LoosePrince/PF-GUGUBot/issues)
+- 提交 [GitHub Issue](https://github.com/PFingan-Code/PF-GUGUBot/issues)
 

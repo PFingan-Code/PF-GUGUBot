@@ -28,7 +28,7 @@ mkdocs build
 
 ## 在线文档
 
-访问 [https://looseprince.github.io/PF-GUGUBot/](https://looseprince.github.io/PF-GUGUBot/) 查看在线文档。
+访问 [https://pfingan-code.github.io/PF-GUGUBot/](https://pfingan-code.github.io/PF-GUGUBot/) 查看在线文档。
 
 ## 文档结构
 

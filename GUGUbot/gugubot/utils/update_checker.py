@@ -10,7 +10,7 @@ def check_plugin_version(server: PluginServerInterface):
     async def check_plugin_version():
         try:
             response = requests.get(
-                "https://api.github.com/repos/LoosePrince/PF-GUGUBot/releases/latest"
+                "https://api.github.com/repos/PFingan-Code/PF-GUGUBot/releases/latest"
             )
             if response.status_code != 200:
                 server.logger.warning(

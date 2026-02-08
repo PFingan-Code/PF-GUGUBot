@@ -241,7 +241,7 @@ style:
 
 ### 自定义风格
 
-你可以在 `config/GUGUbot/style/` 目录下创建自定义风格文件（xx风格.yml 格式），格式与[语言文件](https://github.com/LoosePrince/PF-GUGUBot/blob/main/GUGUbot/lang/zh_cn.yml)相同。
+你可以在 `config/GUGUbot/style/` 目录下创建自定义风格文件（xx风格.yml 格式），格式与[语言文件](https://github.com/PFingan-Code/PF-GUGUBot/blob/main/GUGUbot/lang/zh_cn.yml)相同。
 
 示例 `config/GUGUbot/style/可爱.yml`：
 

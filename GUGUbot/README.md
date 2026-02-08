@@ -5,16 +5,16 @@
 [![Visitor Count](https://count.getloli.com/get/@PF-GUGUBot)] 
 
 [![查看次数起始时间](https://img.shields.io/badge/查看次数统计起始于-2023%2F9%2F2-1?style=flat-square)](/)
-[![仓库大小](https://img.shields.io/github/repo-size/LoosePrince/PF-GUGUBot?style=flat-square&label=仓库占用)](/) 
-[![最新版](https://img.shields.io/github/v/release/LoosePrince/PF-GUGUBot?style=flat-square&label=最新版)](https://github.com/LoosePrince/PF-GUGUBot/releases/latest/download/GUGUbot.mcdr)
-[![议题](https://img.shields.io/github/issues/LoosePrince/PF-GUGUBot?style=flat-square&label=Issues)](https://github.com/LoosePrince/PF-GUGUBot/issues) 
-[![已关闭issues](https://img.shields.io/github/issues-closed/LoosePrince/PF-GUGUBot?style=flat-square&label=已关闭%20Issues)](https://github.com/LoosePrince/PF-GUGUBot/issues?q=is%3Aissue+is%3Aclosed)
-[![下载量](https://img.shields.io/github/downloads/LoosePrince/PF-GUGUBot/total?style=flat-square&label=下载量)](https://github.com/LoosePrince/PF-GUGUBot/releases)
-[![最新发布下载量](https://img.shields.io/github/downloads/LoosePrince/PF-GUGUBot/latest/total?style=flat-square&label=最新版本下载量)](https://github.com/LoosePrince/PF-GUGUBot/releases/latest)
+[![仓库大小](https://img.shields.io/github/repo-size/PFingan-Code/PF-GUGUBot?style=flat-square&label=仓库占用)](/) 
+[![最新版](https://img.shields.io/github/v/release/PFingan-Code/PF-GUGUBot?style=flat-square&label=最新版)](https://github.com/PFingan-Code/PF-GUGUBot/releases/latest/download/GUGUbot.mcdr)
+[![议题](https://img.shields.io/github/issues/PFingan-Code/PF-GUGUBot?style=flat-square&label=Issues)](https://github.com/PFingan-Code/PF-GUGUBot/issues) 
+[![已关闭issues](https://img.shields.io/github/issues-closed/PFingan-Code/PF-GUGUBot?style=flat-square&label=已关闭%20Issues)](https://github.com/PFingan-Code/PF-GUGUBot/issues?q=is%3Aissue+is%3Aclosed)
+[![下载量](https://img.shields.io/github/downloads/PFingan-Code/PF-GUGUBot/total?style=flat-square&label=下载量)](https://github.com/PFingan-Code/PF-GUGUBot/releases)
+[![最新发布下载量](https://img.shields.io/github/downloads/PFingan-Code/PF-GUGUBot/latest/total?style=flat-square&label=最新版本下载量)](https://github.com/PFingan-Code/PF-GUGUBot/releases/latest)
 
 **一个功能强大的 MCDR 插件，实现 Minecraft 服务器与 QQ 群的无缝互通**
 
-[快速开始](#快速开始) • [功能特性](#功能特性) • [完整文档](https://looseprince.github.io/PF-GUGUBot/) • [问题反馈](https://github.com/LoosePrince/PF-GUGUBot/issues)
+[快速开始](#快速开始) • [功能特性](#功能特性) • [完整文档](https://pfingan-code.github.io/PF-GUGUBot/) • [问题反馈](https://github.com/PFingan-Code/PF-GUGUBot/issues)
 
 </div>
 
@@ -73,7 +73,7 @@ GUGUBot 是一个专为 MCDReforged 设计的 QQ 机器人插件，支持离线�
 #### 方式二：手动安装
 
 1. 下载前置插件并放入 `/plugins` 目录
-2. 前往 [Releases](https://github.com/LoosePrince/PF-GUGUBot/releases) 下载 `gugubot-vX.X.X.mcdr`
+2. 前往 [Releases](https://github.com/PFingan-Code/PF-GUGUBot/releases) 下载 `gugubot-vX.X.X.mcdr`
 3. 将 `gugubot-vX.X.X.mcdr` 放入 `/plugins` 目录
 4. 按照上述步骤配置文件
 5. 重启或重载插件
@@ -106,7 +106,7 @@ connector:
 ```
 
 > [!TIP]
-> 完整配置说明请查看 [在线文档 - 配置指南](https://looseprince.github.io/PF-GUGUBot/configuration/)
+> 完整配置说明请查看 [在线文档 - 配置指南](https://pfingan-code.github.io/PF-GUGUBot/configuration/)
 
 ---
 
@@ -166,7 +166,7 @@ connector:
 - **不活跃检查**：定期检查不活跃玩家并通知
 - **未绑定提醒**：提醒新成员绑定账号
 
-查看更多功能详情，请访问 [完整文档 - 功能列表](https://looseprince.github.io/PF-GUGUBot/features/)
+查看更多功能详情，请访问 [完整文档 - 功能列表](https://pfingan-code.github.io/PF-GUGUBot/features/)
 
 ---
 
@@ -186,19 +186,19 @@ connector:
       port: 8787
 ```
 
-详细配置请参考 [多服互联教程](https://looseprince.github.io/PF-GUGUBot/multi-server/)
+详细配置请参考 [多服互联教程](https://pfingan-code.github.io/PF-GUGUBot/multi-server/)
 
 ---
 
 ## 文档
 
-- 📖 [完整在线文档](https://looseprince.github.io/PF-GUGUBot/)
-- 📝 [安装指南](https://looseprince.github.io/PF-GUGUBot/installation/)
-- ⚙️ [配置说明](https://looseprince.github.io/PF-GUGUBot/configuration/)
-- 🎯 [功能详解](https://looseprince.github.io/PF-GUGUBot/features/)
-- 🔧 [API 文档](https://looseprince.github.io/PF-GUGUBot/api/)
-- ❓ [疑难解答](https://looseprince.github.io/PF-GUGUBot/troubleshooting/)
-- 🔗 [多服互联](https://looseprince.github.io/PF-GUGUBot/multi-server/)
+- 📖 [完整在线文档](https://pfingan-code.github.io/PF-GUGUBot/)
+- 📝 [安装指南](https://pfingan-code.github.io/PF-GUGUBot/installation/)
+- ⚙️ [配置说明](https://pfingan-code.github.io/PF-GUGUBot/configuration/)
+- 🎯 [功能详解](https://pfingan-code.github.io/PF-GUGUBot/features/)
+- 🔧 [API 文档](https://pfingan-code.github.io/PF-GUGUBot/api/)
+- ❓ [疑难解答](https://pfingan-code.github.io/PF-GUGUBot/troubleshooting/)
+- 🔗 [多服互联](https://pfingan-code.github.io/PF-GUGUBot/multi-server/)
 
 ---
 
@@ -208,7 +208,7 @@ connector:
 
 GUGUBot 提供了丰富的 API 接口，方便开发者进行二次开发或集成。
 
-查看 [API 文档](https://looseprince.github.io/PF-GUGUBot/api/) 了解更多。
+查看 [API 文档](https://pfingan-code.github.io/PF-GUGUBot/api/) 了解更多。
 
 ### 贡献代码
 
@@ -245,15 +245,15 @@ PF-GUGUBot/
 
 ### 遇到问题？
 
-1. 查看 [疑难解答](https://looseprince.github.io/PF-GUGUBot/troubleshooting/)
-2. 搜索 [已有 Issues](https://github.com/LoosePrince/PF-GUGUBot/issues)
-3. 提交新的 [Issue](https://github.com/LoosePrince/PF-GUGUBot/issues/new)
+1. 查看 [疑难解答](https://pfingan-code.github.io/PF-GUGUBot/troubleshooting/)
+2. 搜索 [已有 Issues](https://github.com/PFingan-Code/PF-GUGUBot/issues)
+3. 提交新的 [Issue](https://github.com/PFingan-Code/PF-GUGUBot/issues/new)
 
 ### 联系方式
 
 - **QQ**：[1377820366](http://wpa.qq.com/msgrd?v=3&uin=1377820366&site=qq&menu=yes)
 - **QQ 群**：[726741344](https://qm.qq.com/q/TqmRHmTmcU)
-- **GitHub Issues**：[提交问题](https://github.com/LoosePrince/PF-GUGUBot/issues)
+- **GitHub Issues**：[提交问题](https://github.com/PFingan-Code/PF-GUGUBot/issues)
 
 ---
 
@@ -279,8 +279,8 @@ PF-GUGUBot/
 
 ## TODO
 
-- [ ] [多服聚合](https://github.com/LoosePrince/PF-GUGUBot/issues/106)
-- [ ] [联动 WebUI](https://github.com/LoosePrince/PF-GUGUBot/issues/107) & [WebUI 开发](https://github.com/LoosePrince/PF-MCDR-WebUI/issues/8)
+- [ ] [多服聚合](https://github.com/PFingan-Code/PF-GUGUBot/issues/106)
+- [ ] [联动 WebUI](https://github.com/PFingan-Code/PF-GUGUBot/issues/107) & [WebUI 开发](https://github.com/LoosePrince/PF-MCDR-WebUI/issues/8)
 
 ---
 

@@ -60,7 +60,7 @@ source /path/to/venv/bin/activate  # Linux/Mac
 **解决方案**：
 
 1. 手动下载默认配置文件：
-   [default_config.yml](https://github.com/LoosePrince/PF-GUGUBot/blob/main/GUGUbot/gugubot/config/defaults/default_config.yml)
+   [default_config.yml](https://github.com/PFingan-Code/PF-GUGUBot/blob/main/GUGUbot/gugubot/config/defaults/default_config.yml)
 
 2. 重命名为 `config.yml` 并放入 `config/GUGUbot/` 目录
 
@@ -716,7 +716,7 @@ GUGUBot 会将常见表情转换为文字，如 `[呲牙]`、`[大笑]` 等。
 ### 1. 查看 GitHub Issues
 
 搜索类似的问题：
-[https://github.com/LoosePrince/PF-GUGUBot/issues](https://github.com/LoosePrince/PF-GUGUBot/issues)
+[https://github.com/PFingan-Code/PF-GUGUBot/issues](https://github.com/PFingan-Code/PF-GUGUBot/issues)
 
 ### 2. 加入 QQ 交流群
 
@@ -732,7 +732,7 @@ GUGUBot 会将常见表情转换为文字，如 `[呲牙]`、`[大笑]` 等。
 ### 3. 提交 Issue
 
 在 GitHub 上提交详细的问题报告：
-[https://github.com/LoosePrince/PF-GUGUBot/issues/new](https://github.com/LoosePrince/PF-GUGUBot/issues/new)
+[https://github.com/PFingan-Code/PF-GUGUBot/issues/new](https://github.com/PFingan-Code/PF-GUGUBot/issues/new)
 
 包含以下信息：
 - 问题描述
@@ -852,7 +852,7 @@ tar -czf gugubot_backup_$(date +%Y%m%d).tar.gz config/GUGUbot/
 
 ### 4. 阅读更新日志
 
-更新前查看 [Release Notes](https://github.com/LoosePrince/PF-GUGUBot/releases) 了解变更。
+更新前查看 [Release Notes](https://github.com/PFingan-Code/PF-GUGUBot/releases) 了解变更。
 
 ---
 

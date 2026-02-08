@@ -10,7 +10,7 @@
 		"XueK__",
 		"LoosePrince"
 	],
-	"link": "https://github.com/LoosePrince/PF-GUGUBot",
+	"link": "https://github.com/PFingan-Code/PF-GUGUBot",
 	"dependencies": {
 		"whitelist_api": ">=1.3.0",
 		"mg_events": ">=0.2.3",

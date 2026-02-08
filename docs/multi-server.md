@@ -663,6 +663,6 @@ minecraft_bridge:
 多服互联配置相对复杂，如果遇到问题：
 
 - 加入 QQ 交流群：[726741344](https://qm.qq.com/q/TqmRHmTmcU)
-- 提交 [GitHub Issue](https://github.com/LoosePrince/PF-GUGUBot/issues)
+- 提交 [GitHub Issue](https://github.com/PFingan-Code/PF-GUGUBot/issues)
 - 查看 [疑难解答](troubleshooting.md) 文档
 

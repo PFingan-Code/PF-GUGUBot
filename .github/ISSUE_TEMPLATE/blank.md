@@ -3,7 +3,7 @@ name: 空白模板
 about: 没有合适的模板？那从这里开始吧！
 title: "反馈："
 labels: 
-assignees: LoosePrince
+assignees: XueK__
 
 ---
 

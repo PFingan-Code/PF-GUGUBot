@@ -4,8 +4,8 @@
 
 <strong>一个功能强大的 MCDR 插件，实现 Minecraft 服务器与 QQ 群的无缝互通</strong>
 
-<a href="https://github.com/LoosePrince/PF-GUGUBot/releases/latest"><img src="https://img.shields.io/github/v/release/LoosePrince/PF-GUGUBot?style=flat-square&label=最新版" alt="最新版"></a>
-<a href="https://github.com/LoosePrince/PF-GUGUBot/releases"><img src="https://img.shields.io/github/downloads/LoosePrince/PF-GUGUBot/total?style=flat-square&label=下载量" alt="下载量"></a>
+<a href="https://github.com/PFingan-Code/PF-GUGUBot/releases/latest"><img src="https://img.shields.io/github/v/release/PFingan-Code/PF-GUGUBot?style=flat-square&label=最新版" alt="最新版"></a>
+<a href="https://github.com/PFingan-Code/PF-GUGUBot/releases"><img src="https://img.shields.io/github/downloads/PFingan-Code/PF-GUGUBot/total?style=flat-square&label=下载量" alt="下载量"></a>
 
 
 </div>
@@ -181,9 +181,9 @@ connector:
 
 ### 获取帮助
 
-- 📖 [完整文档](https://looseprince.github.io/PF-GUGUBot/)
+- 📖 [完整文档](https://pfingan-code.github.io/PF-GUGUBot/)
 - 💬 [QQ 交流群](https://qm.qq.com/q/TqmRHmTmcU) - 726741344
-- 🐛 [问题反馈](https://github.com/LoosePrince/PF-GUGUBot/issues)
+- 🐛 [问题反馈](https://github.com/PFingan-Code/PF-GUGUBot/issues)
 
 ### 参与贡献
 
@@ -215,7 +215,7 @@ GUGUBot 是开源项目，欢迎各种形式的贡献：
 
 ## 许可证
 
-本项目基于 [GPL-3.0 许可证](https://github.com/LoosePrince/PF-GUGUBot/blob/main/LICENSE.txt) 开源。
+本项目基于 [GPL-3.0 许可证](https://github.com/PFingan-Code/PF-GUGUBot/blob/main/LICENSE.txt) 开源。
 
 ---
 

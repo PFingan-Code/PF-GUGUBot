@@ -4,7 +4,7 @@
 
 ## 📚 查看在线文档
 
-访问：[https://looseprince.github.io/PF-GUGUBot/](https://looseprince.github.io/PF-GUGUBot/)
+访问：[https://pfingan-code.github.io/PF-GUGUBot/](https://pfingan-code.github.io/PF-GUGUBot/)
 
 ## 🚀 本地预览文档
 
@@ -213,5 +213,5 @@ plugins:
 **需要帮助？**
 
 - QQ 交流群：[726741344](https://qm.qq.com/q/TqmRHmTmcU)
-- GitHub Issues：[提交问题](https://github.com/LoosePrince/PF-GUGUBot/issues)
+- GitHub Issues：[提交问题](https://github.com/PFingan-Code/PF-GUGUBot/issues)
 

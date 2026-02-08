@@ -1,11 +1,11 @@
 site_name: GUGUBot 文档
 site_description: 功能强大的 MCDR QQ 机器人插件
 site_author: LoosePrince & XueK__
-site_url: https://LoosePrince.github.io/PF-GUGUBot/
+site_url: https://pfingan-code.github.io/PF-GUGUBot/
 
 # 仓库信息
-repo_name: LoosePrince/PF-GUGUBot
-repo_url: https://github.com/LoosePrince/PF-GUGUBot
+repo_name: PFingan-Code/PF-GUGUBot
+repo_url: https://github.com/PFingan-Code/PF-GUGUBot
 edit_uri: edit/main/docs/
 
 # 版权信息
@@ -87,9 +87,9 @@ nav:
   - 开发者:
     - API 文档: api.md
   - 关于:
-    - GitHub: https://github.com/LoosePrince/PF-GUGUBot
+    - GitHub: https://github.com/PFingan-Code/PF-GUGUBot
     - QQ 交流群: https://qm.qq.com/q/TqmRHmTmcU
-    - 问题反馈: https://github.com/LoosePrince/PF-GUGUBot/issues
+    - 问题反馈: https://github.com/PFingan-Code/PF-GUGUBot/issues
 
 # Markdown 扩展
 markdown_extensions:
@@ -125,7 +125,7 @@ markdown_extensions:
   - pymdownx.keys               # 键盘按键
   - pymdownx.magiclink:         # 自动链接
       repo_url_shorthand: true
-      user: LoosePrince
+      user: PFingan-Code
       repo: PF-GUGUBot
   - pymdownx.mark               # 标记
   - pymdownx.smartsymbols       # 智能符号
@@ -160,7 +160,7 @@ extra:
   # 社交链接
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/LoosePrince/PF-GUGUBot
+      link: https://github.com/PFingan-Code/PF-GUGUBot
       name: GitHub 仓库
     - icon: fontawesome/brands/qq
       link: https://qm.qq.com/q/TqmRHmTmcU
