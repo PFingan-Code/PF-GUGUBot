@@ -1,16 +1,11 @@
-import json
-import time
 import asyncio
-import threading
+import json
 from typing import Any, Dict
 
-from mcdreforged.api.types import Info
-
-from gugubot.builder import McMessageBuilder
-from gugubot.connector.basic_connector import BasicConnector
 from gugubot.config.BotConfig import BotConfig
-from gugubot.utils.types import ProcessedInfo, BoardcastInfo, Source
+from gugubot.connector.basic_connector import BasicConnector
 from gugubot.parser.mc_parser import MCParser
+from gugubot.utils.types import BroadcastInfo, ProcessedInfo, Source
 from gugubot.ws import WebSocketFactory
 
 
@@ -191,7 +186,7 @@ class BridgeConnector(BasicConnector):
                         time.sleep(self.reconnect)
 
                         if not self.enable or (
-                            self.ws_client and self.ws_client.is_connected()
+                                self.ws_client and self.ws_client.is_connected()
                         ):
                             return
 
@@ -243,8 +238,8 @@ class BridgeConnector(BasicConnector):
             message_data = json.loads(message) if isinstance(message, str) else message
 
             if (
-                isinstance(message_data, dict)
-                and message_data.get("type") == "server_shutdown"
+                    isinstance(message_data, dict)
+                    and message_data.get("type") == "server_shutdown"
             ):
                 return
 
@@ -267,7 +262,7 @@ class BridgeConnector(BasicConnector):
             # 添加当前 connector 作为接收来源
             source.add(self.source)
 
-            processed_info = BoardcastInfo(
+            processed_info = BroadcastInfo(
                 event_type="message",
                 event_sub_type=message_data.get("event_sub_type", "group"),
                 message=message_data.get("processed_message", []),
@@ -341,7 +336,7 @@ class BridgeConnector(BasicConnector):
         except Exception as e:
             self.logger.warning(f"{self.log_prefix} 断开连接时出错: {e}")
 
-    async def on_message(self, raw: Any) -> BoardcastInfo:
+    async def on_message(self, raw: Any) -> BroadcastInfo:
         """处理接收到的消息"""
         if not self.enable:
             return None

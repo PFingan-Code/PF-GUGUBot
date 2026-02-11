@@ -1,13 +1,12 @@
 import re
 import traceback
+from typing import Optional
 
-from typing import Any, Optional
-
-from mcdreforged.api.types import PluginServerInterface, Info
+from mcdreforged.api.types import Info, PluginServerInterface
 
 from gugubot.builder import CQHandler
 from gugubot.parser.basic_parser import BasicParser
-from gugubot.utils.types import BoardcastInfo, Source
+from gugubot.utils.types import BroadcastInfo, Source
 
 
 class MCParser(BasicParser):
@@ -16,7 +15,7 @@ class MCParser(BasicParser):
     处理来自Minecraft服务器的消息，包括玩家聊天、系统消息等。
     """
 
-    async def parse(self, raw_message: Info, server: PluginServerInterface) -> Optional[BoardcastInfo]:
+    async def parse(self, raw_message: Info, server: PluginServerInterface) -> Optional[BroadcastInfo]:
         """解析Minecraft消息。
 
         Parameters
@@ -26,7 +25,7 @@ class MCParser(BasicParser):
 
         Returns
         -------
-        Optional[BoardcastInfo]
+        Optional[BroadcastInfo]
             解析后的广播信息对象
         """
         try:
@@ -42,7 +41,7 @@ class MCParser(BasicParser):
                 f"内容: {content}"
             )
 
-            boardcast_info = BoardcastInfo(
+            broadcast_info = BroadcastInfo(
                 event_type="message",
                 event_sub_type="group",
                 message=CQHandler.parse(content),
@@ -56,7 +55,7 @@ class MCParser(BasicParser):
                 is_admin=await self.connector._is_admin(raw_message.player)
             )
 
-            return boardcast_info
+            return broadcast_info
 
         except Exception as e:
             error_msg = str(e) + "\n" + traceback.format_exc()
@@ -78,4 +77,3 @@ class MCParser(BasicParser):
             if re.match(pattern, content):
                 return True
         return False
-

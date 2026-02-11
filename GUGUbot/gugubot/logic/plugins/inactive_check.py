@@ -13,13 +13,12 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 import requests
-
 from mcdreforged.api.types import PluginServerInterface
 
 from gugubot.builder import MessageBuilder
 from gugubot.config import BasicConfig
 from gugubot.logic.system.basic_system import BasicSystem
-from gugubot.utils.types import BoardcastInfo
+from gugubot.utils.types import BroadcastInfo
 
 
 class InactiveCheckSystem(BasicConfig, BasicSystem):
@@ -102,18 +101,18 @@ class InactiveCheckSystem(BasicConfig, BasicSystem):
         """设置活跃白名单系统引用"""
         self.active_whitelist_system = active_whitelist_system
 
-    async def process_boardcast_info(self, boardcast_info: BoardcastInfo) -> bool:
+    async def process_broadcast_info(self, broadcast_info: BroadcastInfo) -> bool:
         """处理接收到的命令。
 
         Parameters
         ----------
-        boardcast_info: BoardcastInfo
+        broadcast_info: BroadcastInfo
             广播信息，包含消息内容
         """
-        if boardcast_info.event_type != "message":
+        if broadcast_info.event_type != "message":
             return False
 
-        message = boardcast_info.message
+        message = broadcast_info.message
 
         if not message:
             return False
@@ -123,28 +122,28 @@ class InactiveCheckSystem(BasicConfig, BasicSystem):
             return False
 
         # 先检查是否是开启/关闭命令
-        if await self.handle_enable_disable(boardcast_info):
+        if await self.handle_enable_disable(broadcast_info):
             return True
 
-        return await self._handle_msg(boardcast_info)
+        return await self._handle_msg(broadcast_info)
 
-    async def _handle_msg(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_msg(self, broadcast_info: BroadcastInfo) -> bool:
         """处理消息"""
         if not self.enable:
             return False
 
-        if self.is_command(boardcast_info):
-            return await self._handle_command(boardcast_info)
+        if self.is_command(broadcast_info):
+            return await self._handle_command(broadcast_info)
 
         return False
 
-    async def _handle_command(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_command(self, broadcast_info: BroadcastInfo) -> bool:
         """处理不活跃检查相关命令"""
 
-        if not boardcast_info.is_admin:
+        if not broadcast_info.is_admin:
             return False
 
-        command = boardcast_info.message[0].get("data", {}).get("text", "")
+        command = broadcast_info.message[0].get("data", {}).get("text", "")
         command_prefix = self.config.get("GUGUBot", {}).get("command_prefix", "#")
         system_name = self.get_tr("name")
 
@@ -157,46 +156,46 @@ class InactiveCheckSystem(BasicConfig, BasicSystem):
         command = command.replace(system_name, "", 1).strip()
 
         if command.startswith(self.get_tr("check")):
-            return await self._handle_check(boardcast_info)
+            return await self._handle_check(broadcast_info)
         elif command.startswith(self.get_tr("next")):
-            return await self._handle_next(boardcast_info)
+            return await self._handle_next(broadcast_info)
 
-        return await self._handle_help(boardcast_info)
+        return await self._handle_help(broadcast_info)
 
-    async def _handle_check(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_check(self, broadcast_info: BroadcastInfo) -> bool:
         """处理手动检查命令（仅管理员）"""
         # 检查是否正在检查中
         if self._checking:
             await self.reply(
-                boardcast_info, [MessageBuilder.text(self.get_tr("checking"))]
+                broadcast_info, [MessageBuilder.text(self.get_tr("checking"))]
             )
             return True
 
         # 检查依赖
         if not self.qq_connector:
             await self.reply(
-                boardcast_info,
+                broadcast_info,
                 [MessageBuilder.text(self.get_tr("qq_connector_not_found"))],
             )
             return True
 
         if not self.bound_system:
             await self.reply(
-                boardcast_info,
+                broadcast_info,
                 [MessageBuilder.text(self.get_tr("bound_system_not_found"))],
             )
             return True
 
         if not self.whitelist_system or not self.whitelist_system._api:
             await self.reply(
-                boardcast_info,
+                broadcast_info,
                 [MessageBuilder.text(self.get_tr("whitelist_not_found"))],
             )
             return True
 
         # 开始检查
         await self.reply(
-            boardcast_info, [MessageBuilder.text(self.get_tr("check_start"))]
+            broadcast_info, [MessageBuilder.text(self.get_tr("check_start"))]
         )
 
         # 执行检查
@@ -217,7 +216,7 @@ class InactiveCheckSystem(BasicConfig, BasicSystem):
             total_count = total_inactive + total_never_played
 
             await self.reply(
-                boardcast_info,
+                broadcast_info,
                 [
                     MessageBuilder.text(
                         self.get_tr(
@@ -231,16 +230,16 @@ class InactiveCheckSystem(BasicConfig, BasicSystem):
             )
         else:
             await self.reply(
-                boardcast_info,
+                broadcast_info,
                 [MessageBuilder.text(self.get_tr("no_inactive_players"))],
             )
 
         await self.reply(
-            boardcast_info, [MessageBuilder.text(self.get_tr("manual_check_success"))]
+            broadcast_info, [MessageBuilder.text(self.get_tr("manual_check_success"))]
         )
         return True
 
-    async def _handle_next(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_next(self, broadcast_info: BroadcastInfo) -> bool:
         """处理查看下次检查时间命令"""
         last_check_time = self.get("last_check_time", 0)
         check_interval = self.config.get_keys(
@@ -252,12 +251,12 @@ class InactiveCheckSystem(BasicConfig, BasicSystem):
             "%Y-%m-%d %H:%M:%S"
         )
         await self.reply(
-            boardcast_info,
+            broadcast_info,
             [MessageBuilder.text(self.get_tr("next_check_time", time=next_check_str))],
         )
         return True
 
-    async def _handle_help(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_help(self, broadcast_info: BroadcastInfo) -> bool:
         """不活跃检查指令帮助"""
         command_prefix = self.config.get("GUGUBot", {}).get("command_prefix", "#")
         system_name = self.get_tr("name")
@@ -275,7 +274,7 @@ class InactiveCheckSystem(BasicConfig, BasicSystem):
             check=check_cmd,
             next=next_cmd,
         )
-        await self.reply(boardcast_info, [MessageBuilder.text(help_msg)])
+        await self.reply(broadcast_info, [MessageBuilder.text(help_msg)])
         return True
 
     def _get_player_uuid(self, player_name: str) -> Optional[str]:
@@ -540,7 +539,7 @@ class InactiveCheckSystem(BasicConfig, BasicSystem):
 
                     # 检查玩家是否是管理员或在管理群中，如果是则跳过
                     if any(
-                        str(qq_account) in skip_user_ids for qq_account in qq_accounts
+                            str(qq_account) in skip_user_ids for qq_account in qq_accounts
                     ):
                         self.logger.debug(
                             f"玩家 {player.name} 是管理员或在管理群中，跳过不活跃检查"
@@ -552,8 +551,8 @@ class InactiveCheckSystem(BasicConfig, BasicSystem):
                         # 检查玩家的所有名称（Java和Bedrock）是否在活跃白名单中
                         player_names = player.java_name + player.bedrock_name
                         if any(
-                            self.active_whitelist_system.is_in_whitelist(name)
-                            for name in player_names
+                                self.active_whitelist_system.is_in_whitelist(name)
+                                for name in player_names
                         ):
                             self.logger.debug(
                                 f"玩家 {player.name} 在活跃白名单中，跳过不活跃检查"
@@ -724,7 +723,7 @@ class InactiveCheckSystem(BasicConfig, BasicSystem):
         return inactive_players_dict
 
     async def _send_notification(
-        self, inactive_players_dict: Dict[int, Dict[str, List[Dict]]]
+            self, inactive_players_dict: Dict[int, Dict[str, List[Dict]]]
     ) -> None:
         """发送通知到配置的目标
 
@@ -935,9 +934,9 @@ class InactiveCheckSystem(BasicConfig, BasicSystem):
 
                 # 检查依赖
                 if (
-                    not self.qq_connector
-                    or not self.bound_system
-                    or not self.whitelist_system
+                        not self.qq_connector
+                        or not self.bound_system
+                        or not self.whitelist_system
                 ):
                     self.logger.warning("依赖系统未初始化，跳过本次检查")
                     continue

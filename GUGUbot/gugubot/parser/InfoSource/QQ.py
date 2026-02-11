@@ -2,12 +2,13 @@ from mcdreforged.api.event import LiteralEvent
 
 from gugubot.parser.InfoSource.basicConstructor import BasicConstructor
 
+
 class QQInfo(BasicConstructor):
     parser_name = "QQ"
 
     PROCESS_POST_TYPE = [
         "message",
-        "request", 
+        "request",
         "notice"
     ]
 
@@ -15,11 +16,11 @@ class QQInfo(BasicConstructor):
         super().__init__(raw_data)
 
         self.server = server
-        self.bot = bot 
+        self.bot = bot
 
         if self.post_type not in self.PROCESS_POST_TYPE:
             return
-        
+
         if self.post_type == "message":
             self.source_id = self.user_id if self.message_type == "private" else self.group_id
 
@@ -27,6 +28,3 @@ class QQInfo(BasicConstructor):
             LiteralEvent("gugubot.on_qq_message"),
             (self, self.bot)
         )
-
-        
-        

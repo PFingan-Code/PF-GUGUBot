@@ -1,10 +1,11 @@
-from mcdreforged.api.types import PluginServerInterface
 from typing import Optional
+
+from mcdreforged.api.types import PluginServerInterface
 
 from gugubot.builder import MessageBuilder
 from gugubot.config.BotConfig import BotConfig
 from gugubot.logic.system.basic_system import BasicSystem
-from gugubot.utils.types import BoardcastInfo
+from gugubot.utils.types import BroadcastInfo
 
 
 class WhitelistSystem(BasicSystem):
@@ -14,7 +15,7 @@ class WhitelistSystem(BasicSystem):
     """
 
     def __init__(
-        self, server: PluginServerInterface, config: Optional[BotConfig] = None
+            self, server: PluginServerInterface, config: Optional[BotConfig] = None
     ) -> None:
         """初始化白名单系统。"""
         super().__init__("whitelist", enable=False, config=config)
@@ -35,22 +36,22 @@ class WhitelistSystem(BasicSystem):
             self.logger.error(f"初始化白名单API失败: {e}")
             self._api = None
 
-    async def process_boardcast_info(self, boardcast_info: BoardcastInfo) -> bool:
+    async def process_broadcast_info(self, broadcast_info: BroadcastInfo) -> bool:
         """处理接收到的命令。
 
         Parameters
         ----------
-        boardcast_info: BoardcastInfo
+        broadcast_info: BroadcastInfo
             广播信息，包含消息内容
         """
         # 先检查是否是开启/关闭命令
-        if await self.handle_enable_disable(boardcast_info):
+        if await self.handle_enable_disable(broadcast_info):
             return True
 
-        if boardcast_info.event_type != "message":
+        if broadcast_info.event_type != "message":
             return False
 
-        message = boardcast_info.message
+        message = broadcast_info.message
 
         if not message:
             return False
@@ -59,25 +60,25 @@ class WhitelistSystem(BasicSystem):
         if first_message.get("type") != "text":
             return False
 
-        return await self._handle_msg(boardcast_info)
+        return await self._handle_msg(broadcast_info)
 
-    async def _handle_msg(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_msg(self, broadcast_info: BroadcastInfo) -> bool:
         """处理消息"""
-        content = boardcast_info.message[0].get("data", {}).get("text", "")
+        content = broadcast_info.message[0].get("data", {}).get("text", "")
 
-        if self.is_command(boardcast_info):
-            return await self._handle_command(boardcast_info)
+        if self.is_command(broadcast_info):
+            return await self._handle_command(broadcast_info)
 
         return False
 
-    async def _handle_command(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_command(self, broadcast_info: BroadcastInfo) -> bool:
         """处理白名单相关命令"""
-        is_admin = boardcast_info.is_admin
+        is_admin = broadcast_info.is_admin
 
         if not is_admin:
             return False
 
-        command = boardcast_info.message[0].get("data", {}).get("text", "")
+        command = broadcast_info.message[0].get("data", {}).get("text", "")
         command_prefix = self.config.get("GUGUBot", {}).get("command_prefix", "#")
         system_name = self.get_tr("name")
 
@@ -89,24 +90,24 @@ class WhitelistSystem(BasicSystem):
         command = command.replace(system_name, "", 1).strip()
 
         if command.startswith(self.get_tr("add")):
-            return await self._handle_add(boardcast_info)
+            return await self._handle_add(broadcast_info)
         elif command.startswith(self.get_tr("remove")):
-            return await self._handle_remove(boardcast_info)
+            return await self._handle_remove(broadcast_info)
         elif command.startswith(self.get_tr("list")):
-            return await self._handle_list(boardcast_info)
+            return await self._handle_list(broadcast_info)
         elif command.startswith(self.get_tr("gugubot.enable", global_key=True)):
-            return await self._handle_enable(boardcast_info)
+            return await self._handle_enable(broadcast_info)
         elif command.startswith(self.get_tr("gugubot.disable", global_key=True)):
-            return await self._handle_disable(boardcast_info)
+            return await self._handle_disable(broadcast_info)
 
-        return await self._handle_help(boardcast_info)
+        return await self._handle_help(broadcast_info)
 
     def add_player(
-        self,
-        player_name: str,
-        force_online: bool = False,
-        force_offline: bool = False,
-        force_bedrock: bool = False,
+            self,
+            player_name: str,
+            force_online: bool = False,
+            force_offline: bool = False,
+            force_bedrock: bool = False,
     ) -> bool:
         """添加玩家到白名单
 
@@ -172,9 +173,9 @@ class WhitelistSystem(BasicSystem):
             self.logger.error(f"从白名单移除玩家失败: {e}")
             return False
 
-    async def _handle_add(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_add(self, broadcast_info: BroadcastInfo) -> bool:
         """处理添加玩家命令"""
-        command = boardcast_info.message[0].get("data", {}).get("text", "")
+        command = broadcast_info.message[0].get("data", {}).get("text", "")
         command_prefix = self.config.get("GUGUBot", {}).get("command_prefix", "#")
         system_name = self.get_tr("name")
         add_command = self.get_tr("add")
@@ -184,7 +185,7 @@ class WhitelistSystem(BasicSystem):
 
         if not command:
             await self.reply(
-                boardcast_info, [MessageBuilder.text(self.get_tr("add_instruction"))]
+                broadcast_info, [MessageBuilder.text(self.get_tr("add_instruction"))]
             )
             return True
 
@@ -212,18 +213,18 @@ class WhitelistSystem(BasicSystem):
         )
         if success:
             await self.reply(
-                boardcast_info, [MessageBuilder.text(self.get_tr("add_success"))]
+                broadcast_info, [MessageBuilder.text(self.get_tr("add_success"))]
             )
         else:
             await self.reply(
-                boardcast_info, [MessageBuilder.text(self.get_tr("add_existed"))]
+                broadcast_info, [MessageBuilder.text(self.get_tr("add_existed"))]
             )
 
         return True
 
-    async def _handle_remove(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_remove(self, broadcast_info: BroadcastInfo) -> bool:
         """处理移除玩家命令"""
-        command = boardcast_info.message[0].get("data", {}).get("text", "")
+        command = broadcast_info.message[0].get("data", {}).get("text", "")
         command_prefix = self.config.get("GUGUBot", {}).get("command_prefix", "#")
         system_name = self.get_tr("name")
         remove_command = self.get_tr("remove")
@@ -233,27 +234,27 @@ class WhitelistSystem(BasicSystem):
 
         if not command:
             await self.reply(
-                boardcast_info, [MessageBuilder.text(self.get_tr("remove_instruction"))]
+                broadcast_info, [MessageBuilder.text(self.get_tr("remove_instruction"))]
             )
             return True
 
         success = self.remove_player(command)
         if success:
             await self.reply(
-                boardcast_info, [MessageBuilder.text(self.get_tr("remove_success"))]
+                broadcast_info, [MessageBuilder.text(self.get_tr("remove_success"))]
             )
         else:
             await self.reply(
-                boardcast_info, [MessageBuilder.text(self.get_tr("remove_not_exist"))]
+                broadcast_info, [MessageBuilder.text(self.get_tr("remove_not_exist"))]
             )
 
         return True
 
-    async def _handle_list(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_list(self, broadcast_info: BroadcastInfo) -> bool:
         """处理显示白名单列表命令"""
         if not self._api:
             await self.reply(
-                boardcast_info, [MessageBuilder.text(self.get_tr("api_not_available"))]
+                broadcast_info, [MessageBuilder.text(self.get_tr("api_not_available"))]
             )
             return True
 
@@ -261,15 +262,15 @@ class WhitelistSystem(BasicSystem):
             whitelist = self._api.get_whitelist_names()
             if not whitelist:
                 await self.reply(
-                    boardcast_info, [MessageBuilder.text(self.get_tr("list_empty"))]
+                    broadcast_info, [MessageBuilder.text(self.get_tr("list_empty"))]
                 )
                 return True
 
             player_list = "\n".join(
-                f"{i+1}. {name}" for i, name in enumerate(sorted(whitelist))
+                f"{i + 1}. {name}" for i, name in enumerate(sorted(whitelist))
             )
             await self.reply(
-                boardcast_info,
+                broadcast_info,
                 [
                     MessageBuilder.text(
                         self.get_tr("list_content", player_list=player_list)
@@ -279,54 +280,54 @@ class WhitelistSystem(BasicSystem):
         except Exception as e:
             self.logger.error(f"获取白名单列表失败: {e}")
             await self.reply(
-                boardcast_info, [MessageBuilder.text(self.get_tr("list_failed"))]
+                broadcast_info, [MessageBuilder.text(self.get_tr("list_failed"))]
             )
 
         return True
 
-    async def _handle_enable(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_enable(self, broadcast_info: BroadcastInfo) -> bool:
         """处理启用白名单命令"""
         if not self._api:
             await self.reply(
-                boardcast_info, [MessageBuilder.text(self.get_tr("api_not_available"))]
+                broadcast_info, [MessageBuilder.text(self.get_tr("api_not_available"))]
             )
             return True
 
         try:
             self._api.enable_whitelist()
             await self.reply(
-                boardcast_info, [MessageBuilder.text(self.get_tr("enable_success"))]
+                broadcast_info, [MessageBuilder.text(self.get_tr("enable_success"))]
             )
         except Exception as e:
             self.logger.error(f"启用白名单失败: {e}")
             await self.reply(
-                boardcast_info, [MessageBuilder.text(self.get_tr("enable_failed"))]
+                broadcast_info, [MessageBuilder.text(self.get_tr("enable_failed"))]
             )
 
         return True
 
-    async def _handle_disable(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_disable(self, broadcast_info: BroadcastInfo) -> bool:
         """处理禁用白名单命令"""
         if not self._api:
             await self.reply(
-                boardcast_info, [MessageBuilder.text(self.get_tr("api_not_available"))]
+                broadcast_info, [MessageBuilder.text(self.get_tr("api_not_available"))]
             )
             return True
 
         try:
             self._api.disable_whitelist()
             await self.reply(
-                boardcast_info, [MessageBuilder.text(self.get_tr("disable_success"))]
+                broadcast_info, [MessageBuilder.text(self.get_tr("disable_success"))]
             )
         except Exception as e:
             self.logger.error(f"禁用白名单失败: {e}")
             await self.reply(
-                boardcast_info, [MessageBuilder.text(self.get_tr("disable_failed"))]
+                broadcast_info, [MessageBuilder.text(self.get_tr("disable_failed"))]
             )
 
         return True
 
-    async def _handle_help(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_help(self, broadcast_info: BroadcastInfo) -> bool:
         """白名单指令帮助"""
         command_prefix = self.config.get("GUGUBot", {}).get("command_prefix", "#")
         system_name = self.get_tr("name")
@@ -345,5 +346,5 @@ class WhitelistSystem(BasicSystem):
             enable=enable_command,
             disable=disable_command,
         )
-        await self.reply(boardcast_info, [MessageBuilder.text(help_msg)])
+        await self.reply(broadcast_info, [MessageBuilder.text(help_msg)])
         return True

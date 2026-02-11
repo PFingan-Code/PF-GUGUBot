@@ -11,7 +11,7 @@ from mcdreforged.api.types import PluginServerInterface
 from gugubot.builder import MessageBuilder
 from gugubot.config.BotConfig import BotConfig
 from gugubot.logic.system.basic_system import BasicSystem
-from gugubot.utils.types import BoardcastInfo
+from gugubot.utils.types import BroadcastInfo
 
 
 class StyleSystem(BasicSystem):
@@ -30,10 +30,10 @@ class StyleSystem(BasicSystem):
     """
 
     def __init__(
-        self,
-        server: PluginServerInterface,
-        style_manager,
-        config: Optional[BotConfig] = None,
+            self,
+            server: PluginServerInterface,
+            style_manager,
+            config: Optional[BotConfig] = None,
     ) -> None:
         """初始化风格系统。
 
@@ -54,12 +54,12 @@ class StyleSystem(BasicSystem):
         """初始化系统，加载配置等"""
         return
 
-    async def process_boardcast_info(self, boardcast_info: BoardcastInfo) -> bool:
+    async def process_broadcast_info(self, broadcast_info: BroadcastInfo) -> bool:
         """处理接收到的命令。
 
         Parameters
         ----------
-        boardcast_info: BoardcastInfo
+        broadcast_info: BroadcastInfo
             广播信息，包含消息内容
 
         Returns
@@ -67,20 +67,20 @@ class StyleSystem(BasicSystem):
         bool
             是否处理了该消息
         """
-        if boardcast_info.event_type != "message":
+        if broadcast_info.event_type != "message":
             return False
 
-        if not self.is_command(boardcast_info):
+        if not self.is_command(broadcast_info):
             return False
 
-        return await self._handle_command(boardcast_info)
+        return await self._handle_command(broadcast_info)
 
-    async def _handle_command(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_command(self, broadcast_info: BroadcastInfo) -> bool:
         """处理风格命令
 
         Parameters
         ----------
-        boardcast_info : BoardcastInfo
+        broadcast_info : BroadcastInfo
             广播信息
 
         Returns
@@ -88,7 +88,7 @@ class StyleSystem(BasicSystem):
         bool
             是否处理了命令
         """
-        message = boardcast_info.message
+        message = broadcast_info.message
         if not message or message[0].get("type") != "text":
             return False
 
@@ -106,7 +106,7 @@ class StyleSystem(BasicSystem):
         # 处理不同的命令
         if not command:
             # 显示帮助
-            await self._handle_help(boardcast_info)
+            await self._handle_help(broadcast_info)
             return True
 
         # 获取命令关键词翻译
@@ -116,22 +116,22 @@ class StyleSystem(BasicSystem):
 
         if command == list_cmd:
             # 列出所有风格
-            await self._handle_list(boardcast_info)
+            await self._handle_list(broadcast_info)
             return True
         elif command == reload_cmd:
             # 重新加载风格
-            await self._handle_reload(boardcast_info)
+            await self._handle_reload(broadcast_info)
             return True
         elif command == help_cmd:
             # 显示帮助
-            await self._handle_help(boardcast_info)
+            await self._handle_help(broadcast_info)
             return True
 
         # 切换到指定风格
-        await self._handle_switch(boardcast_info, command)
+        await self._handle_switch(broadcast_info, command)
         return True
 
-    async def _handle_list(self, boardcast_info: BoardcastInfo) -> None:
+    async def _handle_list(self, broadcast_info: BroadcastInfo) -> None:
         """列出所有可用风格"""
         styles = self.style_manager.list_styles()
         current_style = self.style_manager.get_current_style()
@@ -149,16 +149,16 @@ class StyleSystem(BasicSystem):
 
             msg = self.get_tr("style_list", style_list="\n".join(style_list))
 
-        await self.reply(boardcast_info, [MessageBuilder.text(msg)])
+        await self.reply(broadcast_info, [MessageBuilder.text(msg)])
 
     async def _handle_switch(
-        self, boardcast_info: BoardcastInfo, style_name: str
+            self, broadcast_info: BroadcastInfo, style_name: str
     ) -> None:
         """切换到指定风格
 
         Parameters
         ----------
-        boardcast_info : BoardcastInfo
+        broadcast_info : BroadcastInfo
             广播信息
         style_name : str
             要切换到的风格名称
@@ -180,9 +180,9 @@ class StyleSystem(BasicSystem):
             else:
                 msg = self.get_tr("switch_failed", style_name=style_name)
 
-        await self.reply(boardcast_info, [MessageBuilder.text(msg)])
+        await self.reply(broadcast_info, [MessageBuilder.text(msg)])
 
-    async def _handle_reload(self, boardcast_info: BoardcastInfo) -> None:
+    async def _handle_reload(self, broadcast_info: BroadcastInfo) -> None:
         """重新加载所有风格文件"""
         try:
             self.style_manager.reload_styles()
@@ -192,9 +192,9 @@ class StyleSystem(BasicSystem):
         except Exception as e:
             msg = self.get_tr("reload_failed", error=str(e))
 
-        await self.reply(boardcast_info, [MessageBuilder.text(msg)])
+        await self.reply(broadcast_info, [MessageBuilder.text(msg)])
 
-    async def _handle_help(self, boardcast_info: BoardcastInfo) -> None:
+    async def _handle_help(self, broadcast_info: BroadcastInfo) -> None:
         """显示帮助信息"""
         command_prefix = self.config.get("GUGUBot", {}).get("command_prefix", "#")
 
@@ -207,4 +207,4 @@ class StyleSystem(BasicSystem):
             help=self.get_tr("help"),
         )
 
-        await self.reply(boardcast_info, [MessageBuilder.text(help_msg)])
+        await self.reply(broadcast_info, [MessageBuilder.text(help_msg)])

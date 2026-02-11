@@ -1,16 +1,14 @@
-import re
 import logging
-
-import asyncio
+import re
 import traceback
+from typing import List, Optional
 
 from mcdreforged.api.types import PluginServerInterface
-from typing import Dict, List, Optional
 
 from gugubot.config.BotConfig import BotConfig
 from gugubot.connector.connector_manager import ConnectorManager
 from gugubot.logic.system.basic_system import BasicSystem
-from gugubot.utils.types import BoardcastInfo
+from gugubot.utils.types import BroadcastInfo
 
 
 class SystemManager:
@@ -27,11 +25,11 @@ class SystemManager:
     """
 
     def __init__(
-        self,
-        server: PluginServerInterface,
-        logger: Optional[logging.Logger] = None,
-        connector_manager: Optional[ConnectorManager] = None,
-        config: Optional[BotConfig] = None,
+            self,
+            server: PluginServerInterface,
+            logger: Optional[logging.Logger] = None,
+            connector_manager: Optional[ConnectorManager] = None,
+            config: Optional[BotConfig] = None,
     ) -> None:
         """初始化系统管理器。
 
@@ -59,10 +57,10 @@ class SystemManager:
         return None
 
     def register_system(
-        self,
-        system: BasicSystem,
-        before: Optional[List[str]] = None,
-        after: Optional[List[str]] = None,
+            self,
+            system: BasicSystem,
+            before: Optional[List[str]] = None,
+            after: Optional[List[str]] = None,
     ) -> None:
         """添加一个新的系统实例。
 
@@ -135,16 +133,16 @@ class SystemManager:
         return False
 
     async def broadcast_command(
-        self,
-        boardcast_info: BoardcastInfo,
-        include: Optional[List[str]] = None,
-        exclude: Optional[List[str]] = None,
+            self,
+            broadcast_info: BroadcastInfo,
+            include: Optional[List[str]] = None,
+            exclude: Optional[List[str]] = None,
     ) -> bool:
         """向所有系统广播命令。
 
         Parameters
         ----------
-        boardcast_info : BoardcastInfo
+        broadcast_info : BroadcastInfo
             要广播的命令信息
         include : Optional[List[str]]
             仅向这些名称的系统发送命令（如果为None，则发送给所有系统）
@@ -169,14 +167,14 @@ class SystemManager:
             ]
 
         system_info = f"广播命令到系统: {to_systems}"
-        command_info = f"命令内容: {boardcast_info}"
+        command_info = f"命令内容: {broadcast_info}"
         debug_msg = system_info + "\n" + command_info
         self.logger.debug(debug_msg)
 
         # 创建处理任务
         result = False
         for system in to_systems:
-            result = await self._safe_process_boardcast_info(system, boardcast_info)
+            result = await self._safe_process_broadcast_info(system, broadcast_info)
 
             if result:
                 break
@@ -184,8 +182,8 @@ class SystemManager:
         # 判断是否有系统成功处理了命令
         return result
 
-    async def _safe_process_boardcast_info(
-        self, system: BasicSystem, boardcast_info: BoardcastInfo
+    async def _safe_process_broadcast_info(
+            self, system: BasicSystem, broadcast_info: BroadcastInfo
     ) -> bool:
         """安全地向单个系统发送命令。
 
@@ -193,7 +191,7 @@ class SystemManager:
         ----------
         system : BasicSystem
             目标系统
-        boardcast_info : BoardcastInfo
+        broadcast_info : BroadcastInfo
             要处理的命令信息
 
         Returns
@@ -202,7 +200,7 @@ class SystemManager:
             命令是否成功处理
         """
         try:
-            result = await system.process_boardcast_info(boardcast_info)
+            result = await system.process_broadcast_info(broadcast_info)
             return result if isinstance(result, bool) else False
         except Exception as e:
             error_msg = str(e) + "\n" + traceback.format_exc()

@@ -13,7 +13,7 @@ from gugubot.builder import MessageBuilder
 from gugubot.config import BasicConfig
 from gugubot.config.BotConfig import BotConfig
 from gugubot.logic.system.basic_system import BasicSystem
-from gugubot.utils.types import BoardcastInfo
+from gugubot.utils.types import BroadcastInfo
 
 
 class ActiveWhiteListSystem(BasicConfig, BasicSystem):
@@ -43,18 +43,18 @@ class ActiveWhiteListSystem(BasicConfig, BasicSystem):
         self.load()
         self.logger.info("活跃白名单系统已加载")
 
-    async def process_boardcast_info(self, boardcast_info: BoardcastInfo) -> bool:
+    async def process_broadcast_info(self, broadcast_info: BroadcastInfo) -> bool:
         """处理接收到的命令。
 
         Parameters
         ----------
-        boardcast_info: BoardcastInfo
+        broadcast_info: BroadcastInfo
             广播信息，包含消息内容
         """
-        if boardcast_info.event_type != "message":
+        if broadcast_info.event_type != "message":
             return False
 
-        message = boardcast_info.message
+        message = broadcast_info.message
 
         if not message:
             return False
@@ -64,28 +64,28 @@ class ActiveWhiteListSystem(BasicConfig, BasicSystem):
             return False
 
         # 先检查是否是开启/关闭命令
-        if await self.handle_enable_disable(boardcast_info):
+        if await self.handle_enable_disable(broadcast_info):
             return True
 
-        return await self._handle_msg(boardcast_info)
+        return await self._handle_msg(broadcast_info)
 
-    async def _handle_msg(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_msg(self, broadcast_info: BroadcastInfo) -> bool:
         """处理消息"""
         if not self.enable:
             return False
 
-        if self.is_command(boardcast_info):
-            return await self._handle_command(boardcast_info)
+        if self.is_command(broadcast_info):
+            return await self._handle_command(broadcast_info)
 
         return False
 
-    async def _handle_command(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_command(self, broadcast_info: BroadcastInfo) -> bool:
         """处理活跃白名单相关命令"""
 
-        if not boardcast_info.is_admin:
+        if not broadcast_info.is_admin:
             return False
 
-        command = boardcast_info.message[0].get("data", {}).get("text", "")
+        command = broadcast_info.message[0].get("data", {}).get("text", "")
         command_prefix = self.config.get("GUGUBot", {}).get("command_prefix", "#")
         system_name = self.get_tr("name")
 
@@ -97,17 +97,17 @@ class ActiveWhiteListSystem(BasicConfig, BasicSystem):
         command = command.replace(system_name, "", 1).strip()
 
         if command.startswith(self.get_tr("add")):
-            return await self._handle_add(boardcast_info)
+            return await self._handle_add(broadcast_info)
         elif command.startswith(self.get_tr("remove")):
-            return await self._handle_remove(boardcast_info)
+            return await self._handle_remove(broadcast_info)
         elif command.startswith(self.get_tr("list")):
-            return await self._handle_list(boardcast_info)
+            return await self._handle_list(broadcast_info)
 
-        return await self._handle_help(boardcast_info)
+        return await self._handle_help(broadcast_info)
 
-    async def _handle_add(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_add(self, broadcast_info: BroadcastInfo) -> bool:
         """处理添加玩家命令"""
-        command = boardcast_info.message[0].get("data", {}).get("text", "")
+        command = broadcast_info.message[0].get("data", {}).get("text", "")
         command_prefix = self.config.get("GUGUBot", {}).get("command_prefix", "#")
         system_name = self.get_tr("name")
 
@@ -117,7 +117,7 @@ class ActiveWhiteListSystem(BasicConfig, BasicSystem):
 
         if not command:
             await self.reply(
-                boardcast_info, [MessageBuilder.text(self.get_tr("add_usage"))]
+                broadcast_info, [MessageBuilder.text(self.get_tr("add_usage"))]
             )
             return True
 
@@ -125,7 +125,7 @@ class ActiveWhiteListSystem(BasicConfig, BasicSystem):
 
         if player in self:
             await self.reply(
-                boardcast_info,
+                broadcast_info,
                 [
                     MessageBuilder.text(
                         self.get_tr("player_already_in_list", player_name=player)
@@ -136,14 +136,14 @@ class ActiveWhiteListSystem(BasicConfig, BasicSystem):
 
         self[player] = True
         await self.reply(
-            boardcast_info,
+            broadcast_info,
             [MessageBuilder.text(self.get_tr("player_added", player_name=player))],
         )
         return True
 
-    async def _handle_remove(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_remove(self, broadcast_info: BroadcastInfo) -> bool:
         """处理移除玩家命令"""
-        command = boardcast_info.message[0].get("data", {}).get("text", "")
+        command = broadcast_info.message[0].get("data", {}).get("text", "")
         command_prefix = self.config.get("GUGUBot", {}).get("command_prefix", "#")
         system_name = self.get_tr("name")
 
@@ -153,7 +153,7 @@ class ActiveWhiteListSystem(BasicConfig, BasicSystem):
 
         if not command:
             await self.reply(
-                boardcast_info, [MessageBuilder.text(self.get_tr("remove_usage"))]
+                broadcast_info, [MessageBuilder.text(self.get_tr("remove_usage"))]
             )
             return True
 
@@ -161,7 +161,7 @@ class ActiveWhiteListSystem(BasicConfig, BasicSystem):
 
         if player not in self:
             await self.reply(
-                boardcast_info,
+                broadcast_info,
                 [
                     MessageBuilder.text(
                         self.get_tr("player_not_in_list", player_name=player)
@@ -172,23 +172,23 @@ class ActiveWhiteListSystem(BasicConfig, BasicSystem):
 
         del self[player]
         await self.reply(
-            boardcast_info,
+            broadcast_info,
             [MessageBuilder.text(self.get_tr("player_removed", player_name=player))],
         )
         return True
 
-    async def _handle_list(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_list(self, broadcast_info: BroadcastInfo) -> bool:
         """处理查看列表命令"""
         if len(self) == 0:
             await self.reply(
-                boardcast_info, [MessageBuilder.text(self.get_tr("list_empty"))]
+                broadcast_info, [MessageBuilder.text(self.get_tr("list_empty"))]
             )
             return True
 
         players = list(self.keys())
         players_str = "\n".join(players)
         await self.reply(
-            boardcast_info,
+            broadcast_info,
             [
                 MessageBuilder.text(
                     self.get_tr("list_content", count=len(players), players=players_str)
@@ -197,7 +197,7 @@ class ActiveWhiteListSystem(BasicConfig, BasicSystem):
         )
         return True
 
-    async def _handle_help(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_help(self, broadcast_info: BroadcastInfo) -> bool:
         """处理帮助命令"""
         command_prefix = self.config.get("GUGUBot", {}).get("command_prefix", "#")
         system_name = self.get_tr("name")
@@ -213,7 +213,7 @@ class ActiveWhiteListSystem(BasicConfig, BasicSystem):
             remove=remove_cmd,
             list=list_cmd,
         )
-        await self.reply(boardcast_info, [MessageBuilder.text(help_msg)])
+        await self.reply(broadcast_info, [MessageBuilder.text(help_msg)])
         return True
 
     def add_player(self, player: str) -> bool:

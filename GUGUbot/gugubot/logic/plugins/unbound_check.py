@@ -16,7 +16,7 @@ from mcdreforged.api.types import PluginServerInterface
 from gugubot.builder import MessageBuilder
 from gugubot.config import BasicConfig
 from gugubot.logic.system.basic_system import BasicSystem
-from gugubot.utils.types import BoardcastInfo
+from gugubot.utils.types import BroadcastInfo
 
 
 class UnboundCheckSystem(BasicConfig, BasicSystem):
@@ -73,18 +73,18 @@ class UnboundCheckSystem(BasicConfig, BasicSystem):
         """设置QQ连接器引用"""
         self.qq_connector = qq_connector
 
-    async def process_boardcast_info(self, boardcast_info: BoardcastInfo) -> bool:
+    async def process_broadcast_info(self, broadcast_info: BroadcastInfo) -> bool:
         """处理接收到的命令。
 
         Parameters
         ----------
-        boardcast_info: BoardcastInfo
+        broadcast_info: BroadcastInfo
             广播信息，包含消息内容
         """
-        if boardcast_info.event_type != "message":
+        if broadcast_info.event_type != "message":
             return False
 
-        message = boardcast_info.message
+        message = broadcast_info.message
 
         if not message:
             return False
@@ -94,28 +94,28 @@ class UnboundCheckSystem(BasicConfig, BasicSystem):
             return False
 
         # 先检查是否是开启/关闭命令
-        if await self.handle_enable_disable(boardcast_info):
+        if await self.handle_enable_disable(broadcast_info):
             return True
 
-        return await self._handle_msg(boardcast_info)
+        return await self._handle_msg(broadcast_info)
 
-    async def _handle_msg(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_msg(self, broadcast_info: BroadcastInfo) -> bool:
         """处理消息"""
         if not self.enable:
             return False
 
-        if self.is_command(boardcast_info):
-            return await self._handle_command(boardcast_info)
+        if self.is_command(broadcast_info):
+            return await self._handle_command(broadcast_info)
 
         return False
 
-    async def _handle_command(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_command(self, broadcast_info: BroadcastInfo) -> bool:
         """处理未绑定检查相关命令"""
 
-        if not boardcast_info.is_admin:
+        if not broadcast_info.is_admin:
             return False
 
-        command = boardcast_info.message[0].get("data", {}).get("text", "")
+        command = broadcast_info.message[0].get("data", {}).get("text", "")
         command_prefix = self.config.get("GUGUBot", {}).get("command_prefix", "#")
         system_name = self.get_tr("name")
 
@@ -128,39 +128,39 @@ class UnboundCheckSystem(BasicConfig, BasicSystem):
         command = command.replace(system_name, "", 1).strip()
 
         if command.startswith(self.get_tr("check")):
-            return await self._handle_check(boardcast_info)
+            return await self._handle_check(broadcast_info)
         elif command.startswith(self.get_tr("next")):
-            return await self._handle_next(boardcast_info)
+            return await self._handle_next(broadcast_info)
 
-        return await self._handle_help(boardcast_info)
+        return await self._handle_help(broadcast_info)
 
-    async def _handle_check(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_check(self, broadcast_info: BroadcastInfo) -> bool:
         """处理手动检查命令（仅管理员）"""
         # 检查是否正在检查中
         if self._checking:
             await self.reply(
-                boardcast_info, [MessageBuilder.text(self.get_tr("checking"))]
+                broadcast_info, [MessageBuilder.text(self.get_tr("checking"))]
             )
             return True
 
         # 检查依赖
         if not self.qq_connector:
             await self.reply(
-                boardcast_info,
+                broadcast_info,
                 [MessageBuilder.text(self.get_tr("qq_connector_not_found"))],
             )
             return True
 
         if not self.bound_system:
             await self.reply(
-                boardcast_info,
+                broadcast_info,
                 [MessageBuilder.text(self.get_tr("bound_system_not_found"))],
             )
             return True
 
         # 开始检查
         await self.reply(
-            boardcast_info, [MessageBuilder.text(self.get_tr("check_start"))]
+            broadcast_info, [MessageBuilder.text(self.get_tr("check_start"))]
         )
 
         # 执行检查
@@ -173,7 +173,7 @@ class UnboundCheckSystem(BasicConfig, BasicSystem):
             # 统计总数
             total_count = sum(len(users) for users in unbound_users_dict.values())
             await self.reply(
-                boardcast_info,
+                broadcast_info,
                 [
                     MessageBuilder.text(
                         self.get_tr("check_complete", total_count=total_count)
@@ -182,15 +182,15 @@ class UnboundCheckSystem(BasicConfig, BasicSystem):
             )
         else:
             await self.reply(
-                boardcast_info, [MessageBuilder.text(self.get_tr("no_unbound_users"))]
+                broadcast_info, [MessageBuilder.text(self.get_tr("no_unbound_users"))]
             )
 
         await self.reply(
-            boardcast_info, [MessageBuilder.text(self.get_tr("manual_check_success"))]
+            broadcast_info, [MessageBuilder.text(self.get_tr("manual_check_success"))]
         )
         return True
 
-    async def _handle_next(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_next(self, broadcast_info: BroadcastInfo) -> bool:
         """处理查看下次检查时间命令"""
         last_check_time = self.get("last_check_time", 0)
         check_interval = self.config.get_keys(
@@ -202,12 +202,12 @@ class UnboundCheckSystem(BasicConfig, BasicSystem):
             "%Y-%m-%d %H:%M:%S"
         )
         await self.reply(
-            boardcast_info,
+            broadcast_info,
             [MessageBuilder.text(self.get_tr("next_check_time", time=next_check_str))],
         )
         return True
 
-    async def _handle_help(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_help(self, broadcast_info: BroadcastInfo) -> bool:
         """未绑定检查指令帮助"""
         command_prefix = self.config.get("GUGUBot", {}).get("command_prefix", "#")
         system_name = self.get_tr("name")
@@ -225,7 +225,7 @@ class UnboundCheckSystem(BasicConfig, BasicSystem):
             check=check_cmd,
             next=next_cmd,
         )
-        await self.reply(boardcast_info, [MessageBuilder.text(help_msg)])
+        await self.reply(broadcast_info, [MessageBuilder.text(help_msg)])
         return True
 
     async def _check_unbound_users(self) -> Dict[int, List[Dict]]:
@@ -303,8 +303,8 @@ class UnboundCheckSystem(BasicConfig, BasicSystem):
                     )
 
                     if (
-                        not member_list_result
-                        or member_list_result.get("status") != "ok"
+                            not member_list_result
+                            or member_list_result.get("status") != "ok"
                     ):
                         self.logger.warning(f"获取群 {group_id} 成员列表失败")
                         continue
@@ -363,7 +363,7 @@ class UnboundCheckSystem(BasicConfig, BasicSystem):
         return unbound_users_dict
 
     async def _send_notification(
-        self, unbound_users_dict: Dict[int, List[Dict]]
+            self, unbound_users_dict: Dict[int, List[Dict]]
     ) -> None:
         """发送通知到配置的目标
 
@@ -411,16 +411,16 @@ class UnboundCheckSystem(BasicConfig, BasicSystem):
 
                 # 构建完整消息
                 notification_msg = (
-                    self.get_tr("notification_title")
-                    + "\n"
-                    + self.get_tr(
-                        "notification_group",
-                        group_name=group_name,
-                        group_id=group_id,
-                        count=len(unbound_users),
-                        days=timeout_days,
-                        user_list=user_list_str,
-                    )
+                        self.get_tr("notification_title")
+                        + "\n"
+                        + self.get_tr(
+                    "notification_group",
+                    group_name=group_name,
+                    group_id=group_id,
+                    count=len(unbound_users),
+                    days=timeout_days,
+                    user_list=user_list_str,
+                )
                 )
 
                 # 发送到私聊管理员

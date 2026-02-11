@@ -8,7 +8,7 @@
 import copy
 
 from gugubot.logic.system.basic_system import BasicSystem
-from gugubot.utils.types import BoardcastInfo, ProcessedInfo
+from gugubot.utils.types import BroadcastInfo, ProcessedInfo
 
 
 class CrossBroadcastSystem(BasicSystem):
@@ -24,16 +24,16 @@ class CrossBroadcastSystem(BasicSystem):
     def initialize(self) -> None:
         return
 
-    async def process_boardcast_info(self, boardcast_info: BoardcastInfo) -> bool:
-        if boardcast_info.event_type != "message":
+    async def process_broadcast_info(self, broadcast_info: BroadcastInfo) -> bool:
+        if broadcast_info.event_type != "message":
             return False
-        if not boardcast_info.message or boardcast_info.message[0].get("type") != "text":
+        if not broadcast_info.message or broadcast_info.message[0].get("type") != "text":
             return False
         if not self.enable:
             return False
 
-        text = (boardcast_info.message[0].get("data") or {}).get("text", "").strip()
-        source_name = boardcast_info.receiver_source or boardcast_info.source.origin
+        text = (broadcast_info.message[0].get("data") or {}).get("text", "").strip()
+        source_name = broadcast_info.receiver_source or broadcast_info.source.origin
 
         # QQ 端: #mc <消息> -> 仅广播到 MC
         qq_source = self.config.get_keys(["connector", "QQ", "source_name"], "QQ")
@@ -41,15 +41,15 @@ class CrossBroadcastSystem(BasicSystem):
         command_prefix = self.config.get("GUGUBot", {}).get("command_prefix", "#")
         mc_cmd = self.config.get_keys(["system", "cross_broadcast", "mc_command"], "mc")
 
-        if source_name == qq_source and text.startswith(command_prefix+mc_cmd):
-            remaining = self._strip_command(boardcast_info.message, command_prefix + mc_cmd)
-            return await self._broadcast_to_mc(boardcast_info, remaining)
+        if source_name == qq_source and text.startswith(command_prefix + mc_cmd):
+            remaining = self._strip_command(broadcast_info.message, command_prefix + mc_cmd)
+            return await self._broadcast_to_mc(broadcast_info, remaining)
 
         # MC 端: !!qq <消息> -> 仅广播到 QQ
         qq_cmd = self.config.get_keys(["system", "cross_broadcast", "qq_command"], "!!qq")
         if source_name == mc_source and text.startswith(qq_cmd):
-            remaining = self._strip_command(boardcast_info.message, qq_cmd)
-            return await self._broadcast_to_qq(boardcast_info, remaining)
+            remaining = self._strip_command(broadcast_info.message, qq_cmd)
+            return await self._broadcast_to_qq(broadcast_info, remaining)
 
         return False
 
@@ -68,7 +68,7 @@ class CrossBroadcastSystem(BasicSystem):
         return result
 
     async def _broadcast_to_mc(
-        self, boardcast_info: BoardcastInfo, message: list
+            self, broadcast_info: BroadcastInfo, message: list
     ) -> bool:
         mc_source = self.config.get_keys(["connector", "minecraft", "source_name"], "Minecraft")
         connector = self.system_manager.connector_manager.get_connector(mc_source)
@@ -76,14 +76,14 @@ class CrossBroadcastSystem(BasicSystem):
             return False
         processed_info = ProcessedInfo(
             processed_message=message,
-            _source=boardcast_info.source,
-            source_id=boardcast_info.source_id,
-            sender=boardcast_info.sender,
-            raw=boardcast_info.raw,
-            server=boardcast_info.server,
-            logger=boardcast_info.logger,
-            event_sub_type=boardcast_info.event_sub_type,
-            sender_id=boardcast_info.sender_id,
+            _source=broadcast_info.source,
+            source_id=broadcast_info.source_id,
+            sender=broadcast_info.sender,
+            raw=broadcast_info.raw,
+            server=broadcast_info.server,
+            logger=broadcast_info.logger,
+            event_sub_type=broadcast_info.event_sub_type,
+            sender_id=broadcast_info.sender_id,
         )
         await self.system_manager.connector_manager.broadcast_processed_info(
             processed_info, include=[mc_source]
@@ -91,7 +91,7 @@ class CrossBroadcastSystem(BasicSystem):
         return True
 
     async def _broadcast_to_qq(
-        self, boardcast_info: BoardcastInfo, message: list
+            self, broadcast_info: BroadcastInfo, message: list
     ) -> bool:
         qq_source = self.config.get_keys(["connector", "QQ", "source_name"], "QQ")
         connector = self.system_manager.connector_manager.get_connector(qq_source)
@@ -99,14 +99,14 @@ class CrossBroadcastSystem(BasicSystem):
             return False
         processed_info = ProcessedInfo(
             processed_message=message,
-            _source=boardcast_info.source,
-            source_id=boardcast_info.source_id,
-            sender=boardcast_info.sender,
-            raw=boardcast_info.raw,
-            server=boardcast_info.server,
-            logger=boardcast_info.logger,
-            event_sub_type=boardcast_info.event_sub_type,
-            sender_id=boardcast_info.sender_id,
+            _source=broadcast_info.source,
+            source_id=broadcast_info.source_id,
+            sender=broadcast_info.sender,
+            raw=broadcast_info.raw,
+            server=broadcast_info.server,
+            logger=broadcast_info.logger,
+            event_sub_type=broadcast_info.event_sub_type,
+            sender_id=broadcast_info.sender_id,
         )
         await self.system_manager.connector_manager.broadcast_processed_info(
             processed_info, include=[qq_source]

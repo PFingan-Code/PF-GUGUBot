@@ -2,45 +2,16 @@
 # +---------------------------------------------------------------------+
 from pathlib import Path
 
-# from gugubot.logic.bot_core import GUGUBotCore
-from gugubot.connector import (
-    ConnectorManager,
-    MCConnector,
-    QQWebSocketConnector,
-    TestConnector,
-    BridgeConnector,
-)
-from gugubot.logic.system import (
-    BanWordSystem,
-    BoundSystem,
-    BoundNoticeSystem,
-    EchoSystem,
-    ExecuteSystem,
-    GeneralHelpSystem,
-    KeyWordSystem,
-    StartupCommandSystem,
-    SystemManager,
-    WhitelistSystem,
-    StyleSystem,
-    TodoSystem,
-    PlayerListSystem,
-)
-from gugubot.logic.plugins import (
-    UnboundCheckSystem,
-    InactiveCheckSystem,
-    ActiveWhiteListSystem,
-    CrossBroadcastSystem,
-)
-from gugubot.config import BotConfig
-from gugubot.utils import (
-    check_plugin_version,
-    StyleManager,
-    migrate_config_v1_to_v2,
-    help_msg_register,
-)
+from mcdreforged.api.types import Info, PluginServerInterface
 
-from mcdreforged.api.types import PluginServerInterface, Info
-from mcdreforged.api.command import *
+from gugubot.config import BotConfig
+# from gugubot.logic.bot_core import GUGUBotCore
+from gugubot.connector import (BridgeConnector, ConnectorManager, MCConnector, QQWebSocketConnector, TestConnector)
+from gugubot.logic.plugins import (ActiveWhiteListSystem, CrossBroadcastSystem, InactiveCheckSystem, UnboundCheckSystem)
+from gugubot.logic.system import (BanWordSystem, BoundNoticeSystem, BoundSystem, EchoSystem, ExecuteSystem,
+                                  GeneralHelpSystem, KeyWordSystem, PlayerListSystem, StartupCommandSystem, StyleSystem,
+                                  SystemManager, TodoSystem, WhitelistSystem)
+from gugubot.utils import (StyleManager, check_plugin_version, help_msg_register, migrate_config_v1_to_v2)
 
 connector_manager: ConnectorManager = None
 mc_connector: MCConnector = None
@@ -66,7 +37,7 @@ async def on_load(server: PluginServerInterface, old) -> None:
     if config_path.exists():
         try:
             with server.open_bundled_file(
-                "gugubot/config/defaults/default_config.yml"
+                    "gugubot/config/defaults/default_config.yml"
             ) as file_handler:
                 default_config_content = file_handler.read().decode("utf-8")
             migrate_config_v1_to_v2(
@@ -76,7 +47,7 @@ async def on_load(server: PluginServerInterface, old) -> None:
             server.logger.error(f"迁移配置失败: {e}")
 
     gugubot_config = BotConfig(config_path)
-    gugubot_config.addNewConfig(server)
+    gugubot_config.add_new_config(server)
 
     is_main_server = gugubot_config.get_keys(
         ["connector", "minecraft_bridge", "is_main_server"], True
@@ -280,7 +251,7 @@ async def on_server_startup(server: PluginServerInterface) -> None:
 
 
 async def on_server_stop(
-    server: PluginServerInterface, server_return_code: int
+        server: PluginServerInterface, server_return_code: int
 ) -> None:
     """服务器停止时的回调函数。"""
     try:
@@ -289,6 +260,5 @@ async def on_server_stop(
             await broadcast_server_stop(server, connector_manager, gugubot_config)
     except Exception as e:
         server.logger.error(f"[GUGUBot] 服务器停止通知失败: {e}")
-
 
 # +---------------------------------------------------------------------+

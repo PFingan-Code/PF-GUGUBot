@@ -1,8 +1,6 @@
 import requests
-
-from packaging import version
-
 from mcdreforged.api.types import PluginServerInterface
+from packaging import version
 
 
 # 检查插件版本

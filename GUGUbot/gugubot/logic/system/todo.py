@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Optional
 
 from mcdreforged.api.types import PluginServerInterface
 
@@ -9,7 +9,7 @@ from gugubot.builder import MessageBuilder
 from gugubot.config import BasicConfig
 from gugubot.config.BotConfig import BotConfig
 from gugubot.logic.system.basic_system import BasicSystem
-from gugubot.utils.types import BoardcastInfo
+from gugubot.utils.types import BroadcastInfo
 
 
 class TodoSystem(BasicConfig, BasicSystem):
@@ -19,7 +19,7 @@ class TodoSystem(BasicConfig, BasicSystem):
     """
 
     def __init__(
-        self, server: PluginServerInterface, config: Optional[BotConfig] = None
+            self, server: PluginServerInterface, config: Optional[BotConfig] = None
     ) -> None:
         """初始化待办系统。"""
         BasicSystem.__init__(self, "todo", enable=True, config=config)
@@ -57,18 +57,18 @@ class TodoSystem(BasicConfig, BasicSystem):
 
         self.logger.debug(f"已加载 {len(self.get('todos', {}))} 个待办事项")
 
-    async def process_boardcast_info(self, boardcast_info: BoardcastInfo) -> bool:
+    async def process_broadcast_info(self, broadcast_info: BroadcastInfo) -> bool:
         """处理接收到的命令。
 
         Parameters
         ----------
-        boardcast_info: BoardcastInfo
+        broadcast_info: BroadcastInfo
             广播信息，包含消息内容
         """
-        if boardcast_info.event_type != "message":
+        if broadcast_info.event_type != "message":
             return False
 
-        message = boardcast_info.message
+        message = broadcast_info.message
 
         if not message:
             return False
@@ -77,20 +77,20 @@ class TodoSystem(BasicConfig, BasicSystem):
         if first_message.get("type") != "text":
             return False
 
-        return await self._handle_msg(boardcast_info)
+        return await self._handle_msg(broadcast_info)
 
-    async def _handle_msg(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_msg(self, broadcast_info: BroadcastInfo) -> bool:
         """处理消息"""
-        if self.is_command(boardcast_info):
-            return await self._handle_command(boardcast_info)
+        if self.is_command(broadcast_info):
+            return await self._handle_command(broadcast_info)
 
         return False
 
-    async def _handle_command(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_command(self, broadcast_info: BroadcastInfo) -> bool:
         """处理待办相关命令"""
         # 所有用户都可以使用，不检查is_admin权限
 
-        command = boardcast_info.message[0].get("data", {}).get("text", "")
+        command = broadcast_info.message[0].get("data", {}).get("text", "")
         command_prefix = self.config.get("GUGUBot", {}).get("command_prefix", "#")
         system_name = self.get_tr("name")
 
@@ -102,21 +102,21 @@ class TodoSystem(BasicConfig, BasicSystem):
         command = command.replace(system_name, "", 1).strip()
 
         if command.startswith(self.get_tr("add")):
-            return await self._handle_add(boardcast_info)
+            return await self._handle_add(broadcast_info)
         elif command.startswith(self.get_tr("remove")):
-            return await self._handle_remove(boardcast_info)
+            return await self._handle_remove(broadcast_info)
         elif command.startswith(self.get_tr("complete")):
-            return await self._handle_complete(boardcast_info)
+            return await self._handle_complete(broadcast_info)
         elif command.startswith(self.get_tr("undo")):
-            return await self._handle_undo(boardcast_info)
+            return await self._handle_undo(broadcast_info)
         elif command.startswith(self.get_tr("list")):
-            return await self._handle_list(boardcast_info)
+            return await self._handle_list(broadcast_info)
 
-        return await self._handle_help(boardcast_info)
+        return await self._handle_help(broadcast_info)
 
-    async def _handle_add(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_add(self, broadcast_info: BroadcastInfo) -> bool:
         """处理添加待办命令"""
-        command = boardcast_info.message[0].get("data", {}).get("text", "")
+        command = broadcast_info.message[0].get("data", {}).get("text", "")
         command_prefix = self.config.get("GUGUBot", {}).get("command_prefix", "#")
         system_name = self.get_tr("name")
         add_command = self.get_tr("add")
@@ -126,14 +126,14 @@ class TodoSystem(BasicConfig, BasicSystem):
 
         if not command:
             await self.reply(
-                boardcast_info, [MessageBuilder.text(self.get_tr("add_instruction"))]
+                broadcast_info, [MessageBuilder.text(self.get_tr("add_instruction"))]
             )
             return True
 
         # 创建待办项
         todo_id = str(self._next_id)
         created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        created_by = boardcast_info.sender or self.get_tr("unknown")
+        created_by = broadcast_info.sender or self.get_tr("unknown")
 
         # 确保todos字典存在
         if "todos" not in self:
@@ -154,7 +154,7 @@ class TodoSystem(BasicConfig, BasicSystem):
         self.save()
 
         await self.reply(
-            boardcast_info,
+            broadcast_info,
             [
                 MessageBuilder.text(
                     self.get_tr("add_success", id=todo_id, content=command)
@@ -163,9 +163,9 @@ class TodoSystem(BasicConfig, BasicSystem):
         )
         return True
 
-    async def _handle_remove(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_remove(self, broadcast_info: BroadcastInfo) -> bool:
         """处理删除待办命令"""
-        command = boardcast_info.message[0].get("data", {}).get("text", "")
+        command = broadcast_info.message[0].get("data", {}).get("text", "")
         command_prefix = self.config.get("GUGUBot", {}).get("command_prefix", "#")
         system_name = self.get_tr("name")
         remove_command = self.get_tr("remove")
@@ -175,7 +175,7 @@ class TodoSystem(BasicConfig, BasicSystem):
 
         if not command:
             await self.reply(
-                boardcast_info, [MessageBuilder.text(self.get_tr("remove_instruction"))]
+                broadcast_info, [MessageBuilder.text(self.get_tr("remove_instruction"))]
             )
             return True
 
@@ -184,7 +184,7 @@ class TodoSystem(BasicConfig, BasicSystem):
 
         if command not in todos:
             await self.reply(
-                boardcast_info,
+                broadcast_info,
                 [MessageBuilder.text(self.get_tr("remove_not_exist", id=command))],
             )
             return True
@@ -195,14 +195,14 @@ class TodoSystem(BasicConfig, BasicSystem):
         self.save()
 
         await self.reply(
-            boardcast_info,
+            broadcast_info,
             [MessageBuilder.text(self.get_tr("remove_success", id=command))],
         )
         return True
 
-    async def _handle_complete(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_complete(self, broadcast_info: BroadcastInfo) -> bool:
         """处理完成待办命令"""
-        command = boardcast_info.message[0].get("data", {}).get("text", "")
+        command = broadcast_info.message[0].get("data", {}).get("text", "")
         command_prefix = self.config.get("GUGUBot", {}).get("command_prefix", "#")
         system_name = self.get_tr("name")
         complete_command = self.get_tr("complete")
@@ -212,7 +212,7 @@ class TodoSystem(BasicConfig, BasicSystem):
 
         if not command:
             await self.reply(
-                boardcast_info,
+                broadcast_info,
                 [MessageBuilder.text(self.get_tr("complete_instruction"))],
             )
             return True
@@ -222,7 +222,7 @@ class TodoSystem(BasicConfig, BasicSystem):
 
         if command not in todos:
             await self.reply(
-                boardcast_info,
+                broadcast_info,
                 [MessageBuilder.text(self.get_tr("complete_not_exist", id=command))],
             )
             return True
@@ -232,7 +232,7 @@ class TodoSystem(BasicConfig, BasicSystem):
         # 检查是否已完成
         if todo.get("completed", False):
             await self.reply(
-                boardcast_info,
+                broadcast_info,
                 [MessageBuilder.text(self.get_tr("complete_already", id=command))],
             )
             return True
@@ -245,14 +245,14 @@ class TodoSystem(BasicConfig, BasicSystem):
         self.save()
 
         await self.reply(
-            boardcast_info,
+            broadcast_info,
             [MessageBuilder.text(self.get_tr("complete_success", id=command))],
         )
         return True
 
-    async def _handle_undo(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_undo(self, broadcast_info: BroadcastInfo) -> bool:
         """处理撤回完成命令"""
-        command = boardcast_info.message[0].get("data", {}).get("text", "")
+        command = broadcast_info.message[0].get("data", {}).get("text", "")
         command_prefix = self.config.get("GUGUBot", {}).get("command_prefix", "#")
         system_name = self.get_tr("name")
         undo_command = self.get_tr("undo")
@@ -262,7 +262,7 @@ class TodoSystem(BasicConfig, BasicSystem):
 
         if not command:
             await self.reply(
-                boardcast_info, [MessageBuilder.text(self.get_tr("undo_instruction"))]
+                broadcast_info, [MessageBuilder.text(self.get_tr("undo_instruction"))]
             )
             return True
 
@@ -271,7 +271,7 @@ class TodoSystem(BasicConfig, BasicSystem):
 
         if command not in todos:
             await self.reply(
-                boardcast_info,
+                broadcast_info,
                 [MessageBuilder.text(self.get_tr("undo_not_exist", id=command))],
             )
             return True
@@ -281,7 +281,7 @@ class TodoSystem(BasicConfig, BasicSystem):
         # 检查是否未完成
         if not todo.get("completed", False):
             await self.reply(
-                boardcast_info,
+                broadcast_info,
                 [MessageBuilder.text(self.get_tr("undo_not_completed", id=command))],
             )
             return True
@@ -294,18 +294,18 @@ class TodoSystem(BasicConfig, BasicSystem):
         self.save()
 
         await self.reply(
-            boardcast_info,
+            broadcast_info,
             [MessageBuilder.text(self.get_tr("undo_success", id=command))],
         )
         return True
 
-    async def _handle_list(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_list(self, broadcast_info: BroadcastInfo) -> bool:
         """处理显示待办列表命令"""
         todos = self.get("todos", {})
 
         if not todos:
             await self.reply(
-                boardcast_info, [MessageBuilder.text(self.get_tr("list_empty"))]
+                broadcast_info, [MessageBuilder.text(self.get_tr("list_empty"))]
             )
             return True
 
@@ -355,13 +355,13 @@ class TodoSystem(BasicConfig, BasicSystem):
 
         if not todo_list_parts:
             await self.reply(
-                boardcast_info, [MessageBuilder.text(self.get_tr("list_empty"))]
+                broadcast_info, [MessageBuilder.text(self.get_tr("list_empty"))]
             )
             return True
 
         todo_list_text = "\n\n".join(todo_list_parts)
         await self.reply(
-            boardcast_info,
+            broadcast_info,
             [
                 MessageBuilder.text(
                     self.get_tr("list_content", todo_list=todo_list_text)
@@ -370,7 +370,7 @@ class TodoSystem(BasicConfig, BasicSystem):
         )
         return True
 
-    async def _handle_help(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_help(self, broadcast_info: BroadcastInfo) -> bool:
         """待办指令帮助"""
         command_prefix = self.config.get("GUGUBot", {}).get("command_prefix", "#")
         system_name = self.get_tr("name")
@@ -389,5 +389,5 @@ class TodoSystem(BasicConfig, BasicSystem):
             undo=undo_cmd,
             list=list_cmd,
         )
-        await self.reply(boardcast_info, [MessageBuilder.text(help_msg)])
+        await self.reply(broadcast_info, [MessageBuilder.text(help_msg)])
         return True

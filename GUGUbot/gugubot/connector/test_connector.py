@@ -1,8 +1,8 @@
 import logging
 from typing import Any, Optional
 
-from gugubot.connector.basic_connector import BasicConnector, BoardcastInfo
 from gugubot.config import BotConfig
+from gugubot.connector.basic_connector import BasicConnector, BroadcastInfo
 
 
 class TestConnector(BasicConnector):
@@ -19,10 +19,10 @@ class TestConnector(BasicConnector):
     """
 
     def __init__(
-        self,
-        server: Any,
-        config: BotConfig = None,
-        logger: Optional[logging.Logger] = None,
+            self,
+            server: Any,
+            config: BotConfig = None,
+            logger: Optional[logging.Logger] = None,
     ) -> None:
         """初始化TEST连接器。
 
@@ -55,14 +55,14 @@ class TestConnector(BasicConnector):
         """
         self.logger.info("TEST连接器已断开")
 
-    async def send_message(self, boardcast_info: BoardcastInfo) -> None:
+    async def send_message(self, broadcast_info: BroadcastInfo) -> None:
         """向TEST服务器发送消息。
 
         Parameters
         ----------
         message : Any
             要发送的消息。如果是字符串，直接发送；
-            如果是dict，应包含'content'键。
+            如果是dict，应包含"content"键。
 
         Raises
         ------
@@ -72,8 +72,8 @@ class TestConnector(BasicConnector):
         if not self.enable:
             return
 
-        self.logger.info(f"[GUGUBot]发送消息: {boardcast_info}")
-        # self.logger.info(f"[GUGUBot]发送消息: {getattr(boardcast_info, 'processed_message', '')}")
+        self.logger.info(f"[GUGUBot]发送消息: {broadcast_info}")
+        # self.logger.info(f"[GUGUBot]发送消息: {getattr(broadcast_info, 'processed_message', '')}")
 
     async def on_message(self, raw: Any) -> None:
         """处理从TEST服务器接收的消息。

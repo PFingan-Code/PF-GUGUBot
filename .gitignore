@@ -3,3 +3,4 @@
 **.mcdr
 **.docx
 tests/build_deploy.py
+.idea/

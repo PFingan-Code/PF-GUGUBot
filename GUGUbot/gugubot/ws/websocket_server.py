@@ -6,9 +6,9 @@
 
 import json
 import logging
-import traceback
 import threading
-from typing import Any, Optional, Callable, Dict, List
+import traceback
+from typing import Any, Callable, Dict, List, Optional
 
 try:
     from websocket_server import WebsocketServer
@@ -39,13 +39,13 @@ class WebSocketServer:
     """
 
     def __init__(
-        self,
-        host: str = "0.0.0.0",
-        port: int = 8787,
-        on_message: Optional[Callable] = None,
-        on_client_connect: Optional[Callable] = None,
-        on_client_disconnect: Optional[Callable] = None,
-        logger: Optional[logging.Logger] = None,
+            self,
+            host: str = "0.0.0.0",
+            port: int = 8787,
+            on_message: Optional[Callable] = None,
+            on_client_connect: Optional[Callable] = None,
+            on_client_disconnect: Optional[Callable] = None,
+            logger: Optional[logging.Logger] = None,
     ):
         """初始化WebSocket服务器
 

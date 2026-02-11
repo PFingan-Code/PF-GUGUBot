@@ -42,20 +42,20 @@ GUGUBot
 ### 消息流程
 
 ```
-QQ消息 → QQ Connector → QQ Parser → BoardcastInfo → System Manager → Systems → Response
-MC消息 → MC Connector → MC Parser → BoardcastInfo → System Manager → Systems → Response
+QQ消息 → QQ Connector → QQ Parser → BroadcastInfo → System Manager → Systems → Response
+MC消息 → MC Connector → MC Parser → BroadcastInfo → System Manager → Systems → Response
 ```
 
 ---
 
 ## 数据结构
 
-### BoardcastInfo
+### BroadcastInfo
 
 广播信息，包含接收到的消息和相关信息。
 
 ```python
-class BoardcastInfo:
+class BroadcastInfo:
     def __init__(
         self,
         message: List[Dict],           # 消息内容（CQ码格式）
@@ -75,7 +75,7 @@ class BoardcastInfo:
 **示例**：
 
 ```python
-boardcast_info = BoardcastInfo(
+broadcast_info = BroadcastInfo(
     message=[{"type": "text", "data": {"text": "你好"}}],
     source="QQ",
     source_id="123456789",  # 群号
@@ -121,28 +121,29 @@ class ProcessedInfo:
 
 ```python
 from gugubot.logic.system.basic_system import BasicSystem
-from gugubot.utils.types import BoardcastInfo
+from gugubot.utils.types import BroadcastInfo
 from gugubot.builder import MessageBuilder
+
 
 class MyCustomSystem(BasicSystem):
     """自定义系统"""
-    
+
     def __init__(self, server, config=None):
         # 系统名称和是否启用
         BasicSystem.__init__(self, "my_custom", enable=True, config=config)
         self.server = server
         self.logger = server.logger
-    
+
     def initialize(self):
         """初始化系统"""
         self.logger.info("自定义系统已初始化")
-    
-    async def process_boardcast_info(self, boardcast_info: BoardcastInfo) -> bool:
+
+    async def process_broadcast_info(self, broadcast_info: BroadcastInfo) -> bool:
         """处理接收到的消息
         
         Parameters
         ----------
-        boardcast_info : BoardcastInfo
+        broadcast_info : BroadcastInfo
             广播信息
         
         Returns
@@ -151,30 +152,30 @@ class MyCustomSystem(BasicSystem):
             是否已处理该消息（True表示已处理，不传递给其他系统）
         """
         # 检查是否是命令
-        if not self.is_command(boardcast_info):
+        if not self.is_command(broadcast_info):
             return False
-        
-        message = boardcast_info.message
+
+        message = broadcast_info.message
         if not message or message[0].get("type") != "text":
             return False
-        
+
         content = message[0].get("data", {}).get("text", "")
         command_prefix = self.config.get("GUGUBot", {}).get("command_prefix", "#")
-        
+
         # 解析命令
         if content.startswith(f"{command_prefix}hello"):
-            await self._handle_hello(boardcast_info)
+            await self._handle_hello(broadcast_info)
             return True
-        
+
         return False
-    
-    async def _handle_hello(self, boardcast_info: BoardcastInfo):
+
+    async def _handle_hello(self, broadcast_info: BroadcastInfo):
         """处理 hello 命令"""
         # 构建回复消息
         reply_msg = [MessageBuilder.text("你好！这是自定义系统的回复")]
-        
+
         # 发送回复
-        await self.reply(boardcast_info, reply_msg)
+        await self.reply(broadcast_info, reply_msg)
 ```
 
 ### 注册系统
@@ -264,12 +265,12 @@ msg = [
 在自定义系统中，使用 `reply` 方法：
 
 ```python
-async def _handle_command(self, boardcast_info: BoardcastInfo):
+async def _handle_command(self, broadcast_info: BroadcastInfo):
     # 构建消息
     message = [MessageBuilder.text("回复内容")]
     
     # 发送到原消息来源
-    await self.reply(boardcast_info, message)
+    await self.reply(broadcast_info, message)
 ```
 
 ### 通过 Connector 发送
@@ -377,9 +378,9 @@ def _is_admin(self, sender_id: str) -> bool:
     return str(sender_id) in [str(id) for id in admin_ids]
 
 # 使用
-async def process_boardcast_info(self, boardcast_info: BoardcastInfo) -> bool:
-    if not self._is_admin(boardcast_info.sender_id):
-        await self.reply(boardcast_info, [MessageBuilder.text("权限不足")])
+async def process_broadcast_info(self, broadcast_info: BroadcastInfo) -> bool:
+    if not self._is_admin(broadcast_info.sender_id):
+        await self.reply(broadcast_info, [MessageBuilder.text("权限不足")])
         return True
     
     # 执行管理员操作
@@ -511,70 +512,71 @@ players = await rcon_manager.get_online_players()
 ```python
 from gugubot.logic.system.basic_system import BasicSystem
 from gugubot.config import BasicConfig
-from gugubot.utils.types import BoardcastInfo
+from gugubot.utils.types import BroadcastInfo
 from gugubot.builder import MessageBuilder
 from pathlib import Path
 from datetime import datetime
 
+
 class CheckInSystem(BasicConfig, BasicSystem):
     """签到系统"""
-    
+
     def __init__(self, server, config=None):
         BasicSystem.__init__(self, "checkin", enable=True, config=config)
-        
+
         # 初始化数据存储
         data_path = Path(server.get_data_folder()) / "system" / "checkin.json"
         data_path.parent.mkdir(parents=True, exist_ok=True)
         BasicConfig.__init__(self, data_path)
-        
+
         self.server = server
         self.logger = server.logger
-    
+
     def initialize(self):
         """初始化系统"""
         self.load()
         if "check_in_data" not in self.config_dict:
             self.config_dict["check_in_data"] = {}
         self.logger.info("签到系统已初始化")
-    
-    async def process_boardcast_info(self, boardcast_info: BoardcastInfo) -> bool:
+
+    async def process_broadcast_info(self, broadcast_info: BroadcastInfo) -> bool:
         """处理消息"""
-        if not self.is_command(boardcast_info):
+        if not self.is_command(broadcast_info):
             return False
-        
-        message = boardcast_info.message
+
+        message = broadcast_info.message
         if not message or message[0].get("type") != "text":
             return False
-        
+
         content = message[0].get("data", {}).get("text", "")
         command_prefix = self.config.get("GUGUBot", {}).get("command_prefix", "#")
-        
+
         # 签到命令
         if content.startswith(f"{command_prefix}签到"):
-            await self._handle_checkin(boardcast_info)
+            await self._handle_checkin(broadcast_info)
             return True
-        
+
         # 查询签到
         if content.startswith(f"{command_prefix}签到记录"):
-            await self._handle_checkin_record(boardcast_info)
+            await self._handle_checkin_record(broadcast_info)
             return True
-        
+
         return False
-    
-    async def _handle_checkin(self, boardcast_info: BoardcastInfo):
+
+    async def _handle_checkin(self, broadcast_info: BroadcastInfo):
         """处理签到"""
-        user_id = boardcast_info.sender_id
+        user_id = broadcast_info.sender_id
         today = datetime.now().strftime("%Y-%m-%d")
-        
+
         # 获取用户签到数据
         if user_id not in self.config_dict["check_in_data"]:
             self.config_dict["check_in_data"][user_id] = {
                 "days": 0,
                 "last_date": ""
             }
-        
+
         user_data = self.config_dict["check_in_data"][user_id]
-        
+
         # 检查今天是否已签到
         if user_data["last_date"] == today:
             msg = [MessageBuilder.text("你今天已经签到过了！")]
@@ -583,18 +585,18 @@ class CheckInSystem(BasicConfig, BasicSystem):
             user_data["days"] += 1
             user_data["last_date"] = today
             self.save()
-            
+
             msg = [
                 MessageBuilder.at(user_id),
                 MessageBuilder.text(f" 签到成功！已连续签到 {user_data['days']} 天")
             ]
-        
-        await self.reply(boardcast_info, msg)
-    
-    async def _handle_checkin_record(self, boardcast_info: BoardcastInfo):
+
+        await self.reply(broadcast_info, msg)
+
+    async def _handle_checkin_record(self, broadcast_info: BroadcastInfo):
         """查询签到记录"""
-        user_id = boardcast_info.sender_id
-        
+        user_id = broadcast_info.sender_id
+
         if user_id in self.config_dict["check_in_data"]:
             user_data = self.config_dict["check_in_data"][user_id]
             msg = [
@@ -603,8 +605,8 @@ class CheckInSystem(BasicConfig, BasicSystem):
             ]
         else:
             msg = [MessageBuilder.text("你还没有签到记录")]
-        
-        await self.reply(boardcast_info, msg)
+
+        await self.reply(broadcast_info, msg)
 ```
 
 ### 注册系统
@@ -658,7 +660,7 @@ GUGUBot:
 始终使用 try-except 包裹可能出错的代码：
 
 ```python
-async def process_boardcast_info(self, boardcast_info: BoardcastInfo) -> bool:
+async def process_broadcast_info(self, broadcast_info: BroadcastInfo) -> bool:
     try:
         # 处理逻辑
         pass
@@ -683,8 +685,8 @@ def initialize(self):
 敏感操作前检查权限：
 
 ```python
-if not self._is_admin(boardcast_info.sender_id):
-    await self.reply(boardcast_info, [MessageBuilder.text("权限不足")])
+if not self._is_admin(broadcast_info.sender_id):
+    await self.reply(broadcast_info, [MessageBuilder.text("权限不足")])
     return True
 ```
 

@@ -1,12 +1,11 @@
 import asyncio
+import logging
 import re
 import traceback
-import logging
-
 from typing import Dict, List, Optional
 
-from gugubot.connector.basic_connector import BasicConnector, BoardcastInfo
 from gugubot.config.BotConfig import BotConfig
+from gugubot.connector.basic_connector import BasicConnector
 from gugubot.utils.types import ProcessedInfo
 
 
@@ -24,7 +23,7 @@ class ConnectorManager:
     """
 
     def __init__(
-        self, server, bot_config: BotConfig, logger: Optional[logging.Logger] = None
+            self, server, bot_config: BotConfig, logger: Optional[logging.Logger] = None
     ) -> None:
         """初始化连接器管理器。
 
@@ -127,16 +126,16 @@ class ConnectorManager:
             raise
 
     async def broadcast_processed_info(
-        self,
-        processed_info: ProcessedInfo,
-        include: Optional[List[str]] = None,
-        exclude: Optional[List[str]] = None,
+            self,
+            processed_info: ProcessedInfo,
+            include: Optional[List[str]] = None,
+            exclude: Optional[List[str]] = None,
     ) -> Dict[str, Exception]:
         """向所有连接器广播消息。
 
         Parameters
         ----------
-        message : Any
+        processed_info : Any
             要广播的消息
         include : Optional[List[str]]
             仅向这些源的连接器发送消息（如果为None，则发送给所有连接器）
@@ -150,28 +149,28 @@ class ConnectorManager:
         """
         failures: Dict[str, Exception] = {}
         tasks = []
-        to_conectors = self.connectors
+        to_connectors = self.connectors
 
         # 使用 re.escape 将来源名按字面匹配，避免 source_name 中的正则特殊字符（如 [ ]）导致排除/包含失效
         if include is not None:
-            to_conectors = [
-                c for c in to_conectors if any(re.match(re.escape(p), c.source) for p in include)
+            to_connectors = [
+                c for c in to_connectors if any(re.match(re.escape(p), c.source) for p in include)
             ]
 
         if exclude is not None:
-            to_conectors = [
+            to_connectors = [
                 c
-                for c in to_conectors
+                for c in to_connectors
                 if not any(re.match(re.escape(p), c.source) for p in exclude)
             ]
 
-        connector_info = f"广播消息到连接器: {to_conectors}"
+        connector_info = f"广播消息到连接器: {to_connectors}"
         message_info = f"消息内容: {processed_info}"
         debug_msg = connector_info + "\n" + message_info
         self.logger.debug(debug_msg)
 
         # 创建所有发送任务
-        for connector in to_conectors:
+        for connector in to_connectors:
             task = asyncio.create_task(self._safe_send(connector, processed_info))
             tasks.append((connector, task))
 
@@ -185,7 +184,7 @@ class ConnectorManager:
         return failures
 
     async def _safe_send(
-        self, connector: BasicConnector, message: ProcessedInfo
+            self, connector: BasicConnector, processed_info: ProcessedInfo
     ) -> None:
         """安全地向单个连接器发送消息。
 
@@ -193,7 +192,7 @@ class ConnectorManager:
         ----------
         connector : BasicConnector
             目标连接器
-        message : Any
+        processed_info : Any
             要发送的消息
 
         Raises
@@ -202,7 +201,7 @@ class ConnectorManager:
             如果发送失败
         """
         try:
-            await connector.send_message(message)
+            await connector.send_message(processed_info)
         except Exception as e:
             error_msg = str(e) + "\n" + traceback.format_exc()
             self.logger.error(f"发送消息到 {connector.source} 失败: {error_msg}")
