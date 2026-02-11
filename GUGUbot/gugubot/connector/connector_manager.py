@@ -127,7 +127,7 @@ class ConnectorManager:
 
     async def broadcast_processed_info(
         self,
-        processed_info: ProcessedInfo,
+        message: ProcessedInfo,
         include: Optional[List[str]] = None,
         exclude: Optional[List[str]] = None,
     ) -> Dict[str, Exception]:
@@ -165,13 +165,13 @@ class ConnectorManager:
             ]
 
         connector_info = f"广播消息到连接器: {to_connectors}"
-        message_info = f"消息内容: {processed_info}"
+        message_info = f"消息内容: {message}"
         debug_msg = connector_info + "\n" + message_info
         self.logger.debug(debug_msg)
 
         # 创建所有发送任务
         for connector in to_connectors:
-            task = asyncio.create_task(self._safe_send(connector, processed_info))
+            task = asyncio.create_task(self._safe_send(connector, message))
             tasks.append((connector, task))
 
         # 等待所有任务完成
