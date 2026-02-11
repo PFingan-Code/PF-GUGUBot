@@ -57,12 +57,12 @@ class MCConnector(BasicConnector):
         """
         self.logger.info(f"{self.log_prefix} 已断开 ~")
 
-    async def send_message(self, processed_info: ProcessedInfo) -> None:
+    async def send_message(self, processed_info: ProcessedInfo, **kwargs) -> None:
         """向Minecraft服务器发送消息。
 
         Parameters
         ----------
-        message : Any
+        processed_info : Any
             要发送的消息。如果是字符串，直接发送；
             如果是dict，应包含"content"键。
 

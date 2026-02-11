@@ -70,12 +70,12 @@ class BasicConnector(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def send_message(self, boardcase_info: ProcessedInfo, **kwargs) -> None:
+    async def send_message(self, processed_info: ProcessedInfo, **kwargs) -> None:
         """Send a message through the connector.
 
         Parameters
         ----------
-        message: Any
+        processed_info: ProcessedInfo
                 The message to be sent. Implementations should use self.builder
                 to transform the message if needed before sending.
 
