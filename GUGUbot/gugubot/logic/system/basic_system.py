@@ -1,6 +1,6 @@
 import logging
-from typing import List, Optional, TYPE_CHECKING
-from warnings import deprecated
+
+from typing import TYPE_CHECKING, List, Optional
 
 from gugubot.builder import MessageBuilder
 from gugubot.config.BotConfig import BotConfig
@@ -56,10 +56,6 @@ class BasicSystem:
         """
         pass
 
-    @deprecated("this method was deprecated for the incorrect name spelling. ASAP use process_broadcast_info instead.")
-    async def process_boardcast_info(self, broadcast_info: BroadcastInfo) -> bool:
-        return await self.process_broadcast_info(broadcast_info)
-
     async def process_broadcast_info(self, broadcast_info: BroadcastInfo) -> bool:
         """处理接收到的命令。
 
@@ -79,7 +75,7 @@ class BasicSystem:
 
     def is_command(self, broadcast_info: BroadcastInfo) -> bool:
         """判断是否是命令
-
+        
         Parameters
         ----------
         broadcast_info : BroadcastInfo
@@ -101,7 +97,7 @@ class BasicSystem:
         if first_message.get("type") != "text":
             return False
 
-        content = first_message.get("data", {}).get("text", "")
+        content = first_message.get("data",{}).get("text", "")
         command_prefix = self.config.get("GUGUBot", {}).get("command_prefix", "#")
 
         if not content.startswith(command_prefix):
@@ -194,12 +190,12 @@ class BasicSystem:
 
     async def handle_enable_disable(self, broadcast_info: BroadcastInfo) -> bool:
         """处理开启/关闭命令
-
+        
         Parameters
         ----------
         broadcast_info : BroadcastInfo
             广播信息
-
+            
         Returns
         -------
         bool
@@ -234,8 +230,7 @@ class BasicSystem:
         """处理开启系统命令"""
         self.enable = enable
         self._save_enable_state()
-        await self.reply(broadcast_info, [MessageBuilder.text(
-            self.get_tr(f"gugubot.enable_success" if enable else "gugubot.disable_success", global_key=True))])
+        await self.reply(broadcast_info, [MessageBuilder.text(self.get_tr(f"gugubot.enable_success" if enable else "gugubot.disable_success", global_key=True))])
         return True
 
     def _save_enable_state(self) -> None:
@@ -245,3 +240,5 @@ class BasicSystem:
             if self.name in system_config:
                 system_config[self.name]["enable"] = self.enable
                 self.config.save()
+
+
