@@ -15,7 +15,7 @@ class BotConfig(BasicConfig):
         super().load()
         self.plugin_check()
 
-    def addNewConfig(self, server):
+    def add_new_config(self, server):
         """Add new configs from latest version to current config"""
         # read the latest config file from MCDR package
         with server.open_bundled_file(

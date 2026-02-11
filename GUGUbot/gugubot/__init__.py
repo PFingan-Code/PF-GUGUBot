@@ -47,7 +47,7 @@ async def on_load(server: PluginServerInterface, old) -> None:
             server.logger.error(f"迁移配置失败: {e}")
 
     gugubot_config = BotConfig(config_path)
-    gugubot_config.addNewConfig(server)
+    gugubot_config.add_new_config(server)
 
     is_main_server = gugubot_config.get_keys(
         ["connector", "minecraft_bridge", "is_main_server"], True
