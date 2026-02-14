@@ -1355,8 +1355,8 @@ class VoteSystem(BasicSystem):
             await asyncio.sleep(countdown_total_time)
 
             # 执行关闭命令
-            # self.server.stop()
-            self.server.say("[测试] 服务器已收到关闭指令，但不执行（测试模式）")
+            self.server.stop()
+            # self.server.say("[测试] 服务器已收到关闭指令，但不执行（测试模式）")
 
         except Exception as e:
             self.logger.error(f"[VoteSystem] 关闭服务器失败: {e}")
