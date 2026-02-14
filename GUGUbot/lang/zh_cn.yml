@@ -376,3 +376,81 @@ gugubot:
             list_content: "活跃白名单成员({count}):\n{players}"
 
             help_msg: "活跃白名单系统（仅管理员）：\n{command_prefix}{name} {add} <玩家名> -> 添加玩家到活跃白名单\n{command_prefix}{name} {remove} <玩家名> -> 从活跃白名单移除玩家\n{command_prefix}{name} {list} -> 查看活跃白名单列表\n\n注意：在活跃白名单中的玩家不会被不活跃检查系统标记为不活跃"
+
+        # 投票系统
+        vote:
+            name: "投票"
+            remove: "删除"
+            removeAll: "删除所有"
+            list: "列表"
+            types: "类型"
+            abstain: "弃票"
+            vote_yes: "赞成"
+            vote_no: "反对"
+
+            # 消息提示
+            not_eligible_initiator: "您没有投票资格，无法发起投票"
+            vote_already_exists: "当前已有进行中的投票，请等待投票结束"
+            no_eligible_voters: "没有符合投票资格的玩家（需要在线且已绑定QQ）"
+            vote_create_failed: "创建投票失败，请稍后重试"
+            not_eligible: "您没有投票资格（需要在线且已绑定QQ）"
+            no_active_vote: "当前没有进行中的投票"
+            vote_not_found: "未找到序号为 {index} 的投票"
+            not_voted_yet: "您还没有对这个投票投票，无法弃票"
+            abstain_success: "{voter}撤回了对{vote_name}的投票"
+
+            # 多投票提示
+            multiple_votes_reminder: "当前有 {count} 个进行中的投票，请使用序号投票：\n{vote_list}\n例如：{yes_example} 或者 {no_example}"
+            multiple_votes_specify_yes: "当前有 {count} 个进行中的投票，请指定序号：\n{vote_list}\n例如：{yes_example}"
+            multiple_votes_specify_no: "当前有 {count} 个进行中的投票，请指定序号：\n{vote_list}\n例如：{no_example}"
+            multiple_votes_specify_abstain: "当前有 {count} 个进行中的投票，请指定序号：\n{vote_list}\n例如：{abstain_example}"
+            multiple_votes_cancel: "当前有 {count} 个进行中的投票，请使用 '{command_prefix}{name} {remove} <序号>' 来指定：\n{vote_list}"
+
+            # 管理员命令
+            admin_only: "只有管理员可以删除投票"
+            no_pending_votes: "当前没有进行中的投票"
+            vote_removed: "管理员 {admin} 删除了投票 [{index}] {description}"
+            all_votes_removed: "管理员 {admin} 删除了所有投票（共 {count} 个）"
+            specify_vote_index: "请指定要删除的投票序号：\n{vote_list}\n例如: {command_prefix}{name} {remove} 1"
+
+            # 投票列表
+            current_votes: "当前进行中的投票（共 {count} 个）:"
+            vote_list_item: "[{index}] {description}\n  发起人: {initiator}\n  进度: {yes_votes}/{total_voters}（{current_percentage}, 需要{required_percentage}）\n  剩余时间: {remaining_time}秒"
+            
+            # 投票类型列表
+            available_vote_types: "可用的投票类型（第 {page}/{total_pages} 页，共 {count} 个）:"
+            vote_type_item: "【{name}】\n  描述: {description}\n  通过要求: {required_percentage} 同意\n  超时时间: {timeout}秒\n  开始关键词: {start_keywords}\n  征求关键词: {consult_keywords}"
+            no_vote_types: "当前没有已注册的投票类型"
+            invalid_page_number: "无效的页码，请输入 1 到 {total_pages} 之间的数字"
+            page_navigation: "\n使用 '{command_prefix}{name} {types} <页码>' 查看其他页"
+
+            # 投票流程消息
+            vote_started: "{initiator}发起了{vote_name}\n- {description}\n- 需要{required_percentage}的玩家同意，有投票资格的玩家共{total_voters}人\n- 超时时间: {timeout}秒\n- 请发送 {yes_example} 投赞成票，发送 {no_example} 投反对票，重复投票按最后一票为准，发送 {withdraw_example} 撤回投票\n当前票数 - 赞成/反对/可投票/赞成率: {yes_votes}/{no_votes}/{total_voters}/{current_percentage}"
+            vote_started_consult: "{initiator}发起了{vote_name}（征求）\n- {description}\n- 需要{required_percentage}的玩家同意，有投票资格的玩家共{total_voters}人\n- 超时时间: {timeout}秒\n- 请发送 {yes_example} 投赞成票，发送 {no_example} 投反对票，重复投票按最后一票为准，发送 {withdraw_example} 撤回投票\n当前票数 - 赞成/反对/可投票/赞成率: {yes_votes}/{no_votes}/{total_voters}/{current_percentage}"
+            vote_new: "{voter}为{vote_name}投了{vote_type}票\n赞成/反对/可投票/赞成率: {yes_votes}/{no_votes}/{total_voters}/{current_percentage}"
+            vote_changed: "{voter}将{vote_name}的票改为{vote_type}\n赞成/反对/可投票/赞成率: {yes_votes}/{no_votes}/{total_voters}/{current_percentage}"
+            vote_progress: "{voter}为{vote_name}投了{vote_type}票\n赞成/反对/可投票/赞成率: {yes_votes}/{no_votes}/{total_voters}/{current_percentage}"
+            vote_passed: "{initiator}发起的{vote_name}已通过！\n赞成/可投票 {yes_votes}/{total_voters}（{current_percentage}）"
+            vote_rejected: "{initiator}发起的{vote_name}未通过\n赞成/可投票 {yes_votes}/{total_voters}，剩余可投票数不足以通过投票"
+            vote_timeout: "{initiator}发起的{vote_name}已超时\n赞成/可投票 {yes_votes}/{total_voters}，未达到要求的{required_percentage}赞成率"
+            vote_deleted: "管理员{admin}取消了{vote_name}"
+            
+            # 关服投票特殊消息
+            shutdown_name: "关服投票"
+            shutdown_description: "关闭服务器投票"
+            server_shutting_down: "服务器将在{countdown}秒后关闭...{extra_countdown_info}"
+            extra_countdown_info: "（因为存在其他不具有投票资格的玩家或存在其他投票议程，适当延长关服倒计时）"
+
+            # 帮助信息
+            help_msg: "投票系统相关指令：\n{command_prefix}{name} {enable} -> 开启投票系统\n{command_prefix}{name} {disable} -> 
+            关闭投票系统\n{command_prefix}{name} {list} -> 查看所有进行中的投票\n{command_prefix}{name} {types} [页码] -> 查看可用的投票类型\n{command_prefix}{name} {remove} <序号> -> 
+            删除指定投票（管理员）\n{command_prefix}{name} {removeAll} -> 删除所有投票（管理员）\n\n投票功能：\n• 
+            发送关键词发起投票（如：{vote_name_example}等）\n• 发送 {yes_example} 投赞成票，发送 {no_example} 投反对票\n• 
+            多个投票进行时需指定序号：{yes_example_single} 1、{no_example_single} 2\n• 重复投票按最后一票为准\n• 发送 {withdraw_example} 撤回投票\n• 
+            管理员可发送 {delete_example} 强制取消整个投票\n\n注意：正常只有在线且已绑定QQ的玩家有投票资格，管理员可以绕过在线限制发起投票"
+            user_help_msg: "投票系统相关功能：\n• 发送关键词发起投票\n• 发送 {yes_example} 投赞成票，发送 {no_example} 投反对票\n• 
+            多个投票进行时需指定序号：{yes_example} 1、{no_example} 2\n• 重复投票按最后一票为准\n• 发送 {withdraw_example} 撤回投票\n• 使用 
+            '{command_prefix}{name} {types}' 查看所有可用的投票类型\n\n注意：只有在线且已绑定QQ的玩家有投票资格"
+            
+            # 其他多语言支持
+            or: "或"

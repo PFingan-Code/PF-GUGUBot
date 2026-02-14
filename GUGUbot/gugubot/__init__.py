@@ -24,6 +24,7 @@ from gugubot.logic.system import (
     StyleSystem,
     TodoSystem,
     PlayerListSystem,
+    VoteSystem,
 )
 from gugubot.logic.plugins import (
     UnboundCheckSystem,
@@ -49,6 +50,7 @@ startup_command_system: StartupCommandSystem = None
 style_manager: StyleManager = None
 unbound_check_system: UnboundCheckSystem = None
 inactive_check_system: InactiveCheckSystem = None
+vote_system: VoteSystem = None
 
 
 # +---------------------------------------------------------------------+
@@ -60,13 +62,14 @@ async def on_load(server: PluginServerInterface, old) -> None:
     global style_manager
     global unbound_check_system
     global inactive_check_system
+    global vote_system
 
     # 尝试迁移旧版本配置
     config_path = Path(server.get_data_folder()) / "config.yml"
     if config_path.exists():
         try:
             with server.open_bundled_file(
-                "gugubot/config/defaults/default_config.yml"
+                    "gugubot/config/defaults/default_config.yml"
             ) as file_handler:
                 default_config_content = file_handler.read().decode("utf-8")
             migrate_config_v1_to_v2(
@@ -128,6 +131,7 @@ async def on_load(server: PluginServerInterface, old) -> None:
         startup_command_system = StartupCommandSystem(server, config=gugubot_config)
         style_system = StyleSystem(server, style_manager, config=gugubot_config)
         todo_system = TodoSystem(server, config=gugubot_config)
+        vote_system = VoteSystem(server, config=gugubot_config)
 
         # 创建活跃白名单系统
         active_whitelist_system = ActiveWhiteListSystem(server, config=gugubot_config)
@@ -149,6 +153,7 @@ async def on_load(server: PluginServerInterface, old) -> None:
         inactive_check_system.set_whitelist_system(whitelist_system)
         inactive_check_system.set_active_whitelist_system(active_whitelist_system)
 
+
         systems.insert(0, general_help_system)
         systems.insert(1, ban_word_system)
         systems.insert(2, bound_system)
@@ -161,6 +166,7 @@ async def on_load(server: PluginServerInterface, old) -> None:
         systems.insert(9, unbound_check_system)
         systems.insert(10, inactive_check_system)
         systems.insert(11, active_whitelist_system)
+        systems.insert(12, vote_system)
 
     # 跨平台强制广播（#mc / !!qq），放在 echo 前以便处理后可拦截不再走 echo）
     cross_broadcast_system = CrossBroadcastSystem(config=gugubot_config)
@@ -280,7 +286,7 @@ async def on_server_startup(server: PluginServerInterface) -> None:
 
 
 async def on_server_stop(
-    server: PluginServerInterface, server_return_code: int
+        server: PluginServerInterface, server_return_code: int
 ) -> None:
     """服务器停止时的回调函数。"""
     try:

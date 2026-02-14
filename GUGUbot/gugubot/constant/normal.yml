@@ -411,3 +411,65 @@ gugubot:
             list_content: "活跃白名单成员({count}):\n{players}"
 
             help_msg: "活跃白名单系统（仅管理员）：\n{command_prefix}{name} {add} <玩家名> -> 添加玩家到活跃白名单\n{command_prefix}{name} {remove} <玩家名> -> 从活跃白名单移除玩家\n{command_prefix}{name} {list} -> 查看活跃白名单列表\n\n注意：在活跃白名单中的玩家不会被不活跃检查系统标记为不活跃"
+
+        # 投票系统 / Vote system
+        vote:
+            name: "投票"
+            remove: "删除"
+            removeAll: "删除所有"
+            list: "列表"
+
+            # 全局投票关键词（适用于所有投票）
+            # Global vote keywords (apply to all votes)
+            yes: "1"  # 赞成票关键词示例
+            no: "0"   # 反对票关键词示例
+            cancel: "取消投票"  # 取消投票关键词
+
+            shutdown_description: "关闭服务器"
+            vote_yes: "赞成"
+            vote_no: "反对"
+            not_eligible_initiator: "您没有投票资格，无法发起投票"
+
+            vote_already_exists: "当前已有进行中的同类型投票，请等待投票结束"
+            no_eligible_voters: "没有符合投票资格的玩家（需要在线且已绑定QQ）"
+            vote_create_failed: "创建投票失败，请稍后重试"
+            not_eligible: "您没有投票资格（需要在线且已绑定QQ）"
+            no_active_vote: "当前没有进行中的投票"
+
+            vote_started: "{initiator} 
+            发起了{vote_name}\n- {description}\n- 需要{required_percentage}%的玩家同意，有投票资格的玩家共{total_voters}人\n- 超时时间: 
+            {timeout}秒{vote_help_text}"
+            vote_started_consult: "{initiator} 
+            发起了{vote_name}（征求）\n- {description}\n- 需要{required_percentage}%的玩家同意，有投票资格的玩家共{total_voters}人\n- 超时时间: 
+            {timeout}秒{vote_help_text}"
+            vote_help_text:  "\n- 请发送 
+            {yes_template} 投赞成票，发送 {no_template} 投反对票，重复投票按最后一票为准，发送 {cancel_template} 取消投票"
+            vote_progress: "{voter}为{vote_name}投了{vote_name}票\n赞成/反对/总数/赞成率: 
+            {yes_votes}/{no_votes}/{total_voters}/{current_percentage}"
+            vote_passed: "{initiator}发起的{vote_name}已通过！\n赞成/总数 {yes_votes}/{total_voters} 
+            ({current_percentage}%)"
+            vote_rejected: "{initiator}发起的{vote_name}未通过\n赞成/总数 {yes_votes}/{total_voters}，剩余可投票数不足以通过投票"
+            vote_timeout: "{initiator}发起的{vote_name}已超时\n赞成 {yes_votes}/{total_voters}，未达到要求的{required_percentage}%赞成率"
+            vote_cancelled: "管理员{admin}取消了{vote_name}"
+
+            help_msg: "投票系统相关指令：\n{command_prefix}{name} {enable} -> 开启投票系统\n{command_prefix}{name} {disable} -> 
+            关闭投票系统\n{command_prefix}{name} {list} -> 查看所有进行中的投票\n{command_prefix}{name} {remove} <序号> -> 
+            删除指定投票（管理员）\n{command_prefix}{name} {removeAll} -> 删除所有投票（管理员）\n\n投票功能：\n• 
+            发送关键词发起投票（如：{vote_name_template}等）\n•
+             发送 {yes_template} 投赞成票\n• 发送 {yes_template} 投反对票\n• 多个投票时需指定序号：{yes_template} 1、{no_template} 2\n• 可以改投，最后一次投票有效\n• 管理员可发送\"取消投票\"强制取消\n\n注意：只有在线且已绑定QQ的玩家有投票资格"
+            user_help_msg: "投票系统相关功能：\n• 发送关键词发起投票\n• 发送 {yes_template} 投赞成票\n• 发送 {no_template} 投反对票\n• 
+            多个投票进行时需指定序号：{yes_template} 1、{no_template} 2\n• 重复投票按最后一票为准\n\n注意：只有在线且已绑定QQ的玩家有投票资格"
+
+            vote_list: "当前进行中的投票:\n{vote_list}"
+            vote_history: "历史投票记录:\n{vote_list}"
+            vote_item: "{is_pending}{index}. {vote_name} - 发起人: {initiator} - 赞成: {yes_votes} 反对: {no_votes} 总票数: 
+            {total_voters}
+             - 赞成率: {current_percentage}% - 超时时间: {timeout}s"
+            vote_is_pending: "[进行中] "
+            vote_is_ended: "[已结束] "
+            no_vote_list: "当前没有进行中的投票"
+            no_vote_history: "暂无历史投票记录"
+
+            server_shutting_down: "服务器将在{countdown}秒后关闭...{extra_time_enabled}"
+            extra_time_enabled: "（由于有其他没有投票资格的玩家或其他投票进行中，倒计时会延长{extra_time}秒）"
+

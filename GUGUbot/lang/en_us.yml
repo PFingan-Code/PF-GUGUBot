@@ -362,3 +362,78 @@ gugubot:
             list_content: "Active whitelist members({count}):\n{players}"
 
             help_msg: "Active whitelist system (Admin only):\n{command_prefix}{name} {add} <player_name> -> Add player to active whitelist\n{command_prefix}{name} {remove} <player_name> -> Remove player from active whitelist\n{command_prefix}{name} {list} -> View active whitelist\n\nNote: Players in the active whitelist will not be marked as inactive by the inactive check system"
+
+        # Vote System
+        vote:
+            name: "vote"
+            remove: "remove"
+            removeAll: "removeAll"
+            list: "list"
+            types: "types"
+            abstain: "abstain"
+
+            # Vote type names
+            shutdown_name: "Server Shutdown Vote"
+
+            # Vote type descriptions
+            shutdown_description: "Server shutdown vote"
+            vote_yes: "yes"
+            vote_no: "no"
+
+            # Messages
+            not_eligible_initiator: "You are not eligible to vote, cannot initiate a vote"
+            vote_already_exists: "There is already an ongoing vote, please wait for it to finish"
+            no_eligible_voters: "No eligible voters (must be online and have bound QQ)"
+            vote_create_failed: "Failed to create vote, please try again later"
+            not_eligible: "You are not eligible to vote (must be online and have bound QQ)"
+            no_active_vote: "There is no active vote"
+            vote_not_found: "Vote with index {index} not found"
+            not_voted_yet: "You haven't voted on this yet, cannot abstain"
+            abstain_success: "{voter} withdrew their vote on {vote_name}"
+
+            # Multiple votes
+            multiple_votes_reminder: "There are {count} votes in progress, please use index:\n{vote_list}\nExample: {yes_example} or {no_example}"
+            multiple_votes_specify_yes: "There are {count} votes in progress, please specify index:\n{vote_list}\nExample: {yes_example}"
+            multiple_votes_specify_no: "There are {count} votes in progress, please specify index:\n{vote_list}\nExample: {no_example}"
+            multiple_votes_specify_abstain: "There are {count} votes in progress, please specify index:\n{vote_list}\nExample: {abstain_example}"
+            multiple_votes_cancel: "There are {count} votes in progress, use '{command_prefix}{name} {remove} <index>' to specify:\n{vote_list}"
+
+            # Admin commands
+            admin_only: "Only admins can remove votes"
+            no_pending_votes: "No votes in progress"
+            vote_removed: "Admin {admin} removed vote [{index}] {description}"
+            all_votes_removed: "Admin {admin} removed all votes ({count} total)"
+            specify_vote_index: "Please specify the vote index to remove:\n{vote_list}\nExample: {command_prefix}{name} {remove} 1"
+
+            # Vote list
+            current_votes: "Current votes in progress ({count} total):"
+            vote_list_item: "[{index}] {description}\n  Initiator: {initiator}\n  Progress: {yes_votes}/{total_voters} ({current_percentage}%, requires {required_percentage}%)\n  Time remaining: {remaining_time}s"
+            
+            # Vote type list
+            available_vote_types: "Available vote types (Page {page}/{total_pages}, {count} total):"
+            vote_type_item: "【{name}】\n  Description: {description}\n  Pass requirement: {required_percentage}% approval\n  Timeout: {timeout}s\n  Start keywords: {start_keywords}\n  Consult keywords: {consult_keywords}"
+            no_vote_types: "No registered vote types"
+            invalid_page_number: "Invalid page number, please enter a number between 1 and {total_pages}"
+            page_navigation: "\nUse '{command_prefix}{name} {types} <page>' to view other pages"
+
+            # Vote process messages
+            vote_started: "【Vote Started】{initiator} initiated {vote_name}\n- {description}\n- Required: {required_percentage}% approval, {total_voters} eligible voters\n- Timeout: {timeout}s\n- Send {yes_example} to vote yes, {no_example} to vote no, you can change your vote, send {withdraw_example} to withdraw\nCurrent votes - Yes/No/Total/Percentage: {yes_votes}/{no_votes}/{total_voters}/{current_percentage}"
+            vote_started_consult: "【Vote Consultation】{initiator} initiated {vote_name} (consult)\n- {description}\n- Required: {required_percentage}% approval, {total_voters} eligible voters\n- Timeout: {timeout}s\n- Send {yes_example} to vote yes, {no_example} to vote no, you can change your vote, send {withdraw_example} to withdraw\nCurrent votes - Yes/No/Total/Percentage: {yes_votes}/{no_votes}/{total_voters}/{current_percentage}"
+            vote_new: "{voter} voted {vote_type} for {vote_name}\nYes/No/Total/Percentage: {yes_votes}/{no_votes}/{total_voters}/{current_percentage}"
+            vote_changed: "{voter} changed vote to {vote_type} for {vote_name}\nYes/No/Total/Percentage: {yes_votes}/{no_votes}/{total_voters}/{current_percentage}"
+            vote_progress: "{voter} voted {vote_type} for {vote_name}\nYes/No/Total/Percentage: {yes_votes}/{no_votes}/{total_voters}/{current_percentage}"
+            vote_passed: "【Vote Passed】{initiator}'s {vote_name} passed!\nYes/Total: {yes_votes}/{total_voters} ({current_percentage}%)"
+            vote_rejected: "【Vote Failed】{initiator}'s {vote_name} failed\nYes/Total: {yes_votes}/{total_voters}, insufficient votes to pass"
+            vote_timeout: "【Vote Timeout】{initiator}'s {vote_name} timed out\nYes: {yes_votes}/{total_voters}, did not reach required {required_percentage}% approval"
+            vote_deleted: "【Vote Cancelled】Admin {admin} cancelled {vote_name}"
+            
+            # Shutdown related message
+            server_shutting_down: "Server will shutdown in {countdown} seconds...{extra_countdown_info}"
+            extra_countdown_info: "\n(Due to the presence of other players without voting rights or the existence of other voting agendas, the server shutdown countdown may be appropriately extended.)"
+
+            # Help messages
+            help_msg: "Vote system commands:\n{command_prefix}{name} {enable} -> Enable vote system\n{command_prefix}{name} {disable} -> Disable vote system\n{command_prefix}{name} {list} -> List all votes\n{command_prefix}{name} {types} [page] -> List available vote types\n{command_prefix}{name} {abstain} [index] -> Withdraw your vote (abstain)\n{command_prefix}{name} {remove} <index> -> Remove vote (admin)\n{command_prefix}{name} {removeAll} -> Remove all votes (admin)\n\nVoting:\n• Send keywords to start vote (e.g. shutdown, restart)\n• Send 1 or yes to vote yes\n• Send 0 or no to vote no\n• Multiple votes: yes 1, no 2\n• You can change your vote\n• Send abstain keywords or use command to withdraw vote\n• Admins can send \"cancel vote\" to force delete entire vote\n\nNote: Only online players with bound QQ can vote"
+            user_help_msg: "Vote system:\n• Send keywords to start vote\n• Send {yes_template} to vote yes\n• Send {no_template} to vote no\n• Multiple votes: {yes_template} 1, {no_template} 2\n• You can change your vote\n• Send {abstain_template} to withdraw your vote\n• Use '{command_prefix}{name} {types}' to view all available vote types\n\nNote: Only online players with bound QQ can vote"
+
+            # mutil-language support
+            or: "or"
