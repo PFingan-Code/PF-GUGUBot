@@ -11,403 +11,403 @@
 #    Use #风格 <style_name> command to switch style
 
 gugubot:
-    bot_name: "机器人"
-    
-    # 通用翻译 / Common translations
-    enable: "开启"
-    disable: "关闭"
-    enable_success: "系统已开启"
-    disable_success: "系统已关闭"
-    
-    # 通知消息 / Notice messages
-    # 注意：{player}、{error} 等是格式化参数，必须保留
-    # Note: {player}, {error}, etc. are format parameters and must be kept
-    notice:
-        server_start: "服务器已启动"
-        server_stop: "服务器已停止"
-        player_join: "玩家 {player} 加入了服务器"
-        player_left: "玩家 {player} 离开了服务器"
-        player_notice_error: "玩家通知失败: {error}"
-    
-    # 连接器相关翻译 / Connector related translations
-    connector:
-        name: "连接器"
-        QQ:
-            try_connect: "尝试连接到: {url}"
-            start_connect: "开始连接QQ机器人"
-            received_message: "收到消息: {message}"
-            error_connect: "连接错误: {error}"
-            close_connect: "连接关闭 (状态码: {status_code}, 原因: {reason})"
-            send_message: "发送消息: {message}"
-            send_message_failed: "发送消息失败: {error}"
-            retry_connect: "连接断开，尝试重连"
-            close_info: "QQ连接已关闭"
-            error_close: "关闭连接时出错: {error}"
-            message_handle_failed: "消息处理失败: {error}\n{trace}"
-            connect_success: "~ 连接成功 ~"
-
-    # 系统翻译 / System translations
-    # 每个系统都有自己的翻译键，你可以只修改需要改变的部分
-    # Each system has its own translation keys, you can modify only the parts you want to change
-    system:
-        # 通用帮助系统 / General help system
-        general_help:
-            name: "帮助"
-            help_command: "帮助"
-            help_msg: "GUGUBot 帮助信息\n\n快捷指令：\n• {command_prefix}{player_list} -> 显示在线玩家列表\n• {command_prefix}{key_word_add} <关键词> -> 添加关键词\n• {command_prefix}{key_word_remove} <关键词> -> 删除关键词\n• {command_prefix}{key_word_list} -> 显示关键词列表\n\n可用系统：\n• {command_prefix}{key_words} - 关键词回复系统\n• {command_prefix}{bound} - 玩家绑定系统\n• {command_prefix}{style} - 风格切换系统\n• {command_prefix}{todo} - 待办管理系统\n\n使用 {command_prefix}<系统名> 查看具体系统的帮助信息"
-            admin_help_msg: "GUGUBot 管理员帮助信息\n\n快捷指令：\n• {command_prefix}{player_list} -> 显示在线玩家列表\n• {command_prefix}{key_word_add} <关键词> -> 添加关键词\n• {command_prefix}{key_word_remove} <关键词> -> 删除关键词\n• {command_prefix}{key_word_list} -> 显示关键词列表\n\n可用系统：\n• {command_prefix}{key_words} - 关键词回复系统\n• {command_prefix}{ban_words} - 违禁词管理系统\n• {command_prefix}{bound} - 玩家绑定系统\n• {command_prefix}{bound_notice} - 绑定提醒系统\n• {command_prefix}{whitelist} - 白名单管理系统\n• {command_prefix}{active_whitelist} - 活跃白名单系统\n• {command_prefix}{startup_command} - 启动指令管理系统\n• {command_prefix}{execute} - 命令执行系统\n• {command_prefix}{style} - 风格切换系统\n• {command_prefix}{todo} - 待办管理系统\n• {command_prefix}{unbound_check} - 未绑定检查系统\n• {command_prefix}{inactive_check} - 不活跃检查系统\n\n使用 {command_prefix}<系统名> 查看具体系统的帮助信息"
-
-        # 关键词系统 / Keyword system
-        key_words:
-            name: "关键词"
-            add: "添加"
-            remove: "删除"
-            list: "列表"
-            cancel: "取消"
-
-            add_success: "添加成功"
-            add_existed: "关键词已存在"
-            add_timeout: "添加超时: {command}"
-            add_instruction: "请发送您想要添加的关键词/图片"
-
-            remove_success: "删除成功"
-            remove_not_exist: "关键词不存在"
-
-            list_empty: "关键词列表为空"
-            keyword_list: "关键词列表: \n{keyword_list}"
-
-            cancel_success: "取消成功"
-            cancel_not_exist: "未在添加过程中"
-
-            help_msg: "关键词相关指令：\n{command_prefix}{name} {enable} -> 开启关键词系统\n{command_prefix}{name} {disable} -> 关闭关键词系统\n{command_prefix}{name} {list} -> 显示关键词列表\n{command_prefix}{add} <关键词> -> 添加关键词\n{command_prefix}{remove} <关键词> -> 删除指定关键词\n{command_prefix}{cancel} -> 取消添加关键词"
-            user_help_msg: "关键词相关指令：\n{command_prefix}{name} {list} -> 显示关键词列表\n{command_prefix}{add} <关键词> -> 添加关键词\n{command_prefix}{remove} <关键词> -> 删除指定关键词\n{command_prefix}{cancel} -> 取消添加关键词"
-
-        # 转发系统 / Echo system
-        echo:
-            name: "转发"
-            help_msg: "转发系统相关指令：\n{command_prefix}{name} {enable} -> 开启转发系统\n{command_prefix}{name} {disable} -> 关闭转发系统"
-
-        # 违禁词系统 / Ban word system
-        ban_words:
-            name: "违禁词"
-            add: "添加"
-            remove: "删除"
-            list: "列表"
-            cancel: "取消"
-
-            add_success: "违禁词添加成功"
-            add_existed: "违禁词已存在"
-            add_instruction: "请发送违禁理由"
-            add_format_error: "格式错误，请使用：{command_prefix}{name} {add} <违禁词> [理由]"
-
-            remove_success: "违禁词删除成功"
-            remove_not_exist: "违禁词不存在"
-
-            list_empty: "违禁词列表为空"
-            ban_word_list: "违禁词列表:\n{ban_word_list}"
-
-            ban_word_detected: "消息包含违禁词：{ban_word}，无法转发。\n违禁理由：{reason}"
-
-            help_msg: "违禁词相关指令：\n{command_prefix}{name} {enable} -> 开启违禁词系统\n{command_prefix}{name} {disable} -> 关闭违禁词系统\n{command_prefix}{name} {list} -> 显示违禁词列表\n{command_prefix}{name} {add} <违禁词> [理由] -> 添加违禁词\n{command_prefix}{name} {remove} <违禁词> -> 删除指定违禁词"
-
-        # 绑定系统 / Bind system
-        bound:
-            name: "绑定"
-            bind: "绑定"
-            unbind: "解绑"
-            list: "列表"
-            search: "查询"
-            check_whitelist: "白名单检查"
-            remove_unbound_whitelist: "移除未绑定白名单"
-            check_extra_bound: "多余绑定检查"
-            remove_extra_bound: "移除多余绑定"
-
-            bind_success: "绑定成功"
-            bind_existed: "该玩家已存在"
-            bind_failed: "绑定失败"
-            bind_instruction: "请提供要绑定的玩家名称，格式：\n{command_prefix}{name} {bind} mc名称 [基岩] - 绑定自己\n{command_prefix}{name} {bind} [@123456] mc名称 [基岩] - 绑定他人\n示例：{command_prefix}{name} {bind} Steve bedrock"
-            bind_invalid_name: "玩家名 '{player_name}' 不符合要求的格式\n正则表达式: {pattern}"
-            bind_pattern_error: "正则表达式配置错误，请联系管理员"
-            already_bound: "该玩家已被绑定"
-            max_bound_reached: "绑定数量已达上限"
-
-            unbind_success: "解绑成功"
-            no_bindings: "您还没有绑定任何账号"
-            no_bindings_for_player: "玩家 {player_name} 没有绑定信息"
-            player_not_found: "未找到该玩家"
-            no_permission: "您没有权限解绑该玩家"
-
-            bind_list: "您的绑定列表:\n{player_list}"
-            bind_info: "玩家 {player_name} 的绑定信息:\n{info}"
-
-            search_instruction: "请提供要查询的玩家名称或QQ号"
-
-            whitelist_check_pass: "白名单检查: 所有玩家都已绑定~"
-            whitelist_check_result: "白名单检查:\n{result}"
-            whitelist_not_enabled: "白名单系统未启用"
-            no_unbound_whitelist: "没有未绑定的白名单成员~"
-            unbound_whitelist_removed: "已将未绑定的白名单成员移除:\n{result}"
-
-            extra_bound_check_pass: "多余绑定检查: 绑定成员都在群里~"
-            extra_bound_check_result: "多余绑定检查:\n{result}"
-            no_extra_bound: "绑定成员都在群里~"
-            extra_bound_removed: "已将多余已绑定成员移除:\n{result}"
-
-            help_msg: "绑定相关指令：\n{command_prefix}{name} {enable} -> 开启绑定系统\n{command_prefix}{name} {disable} -> 关闭绑定系统\n{command_prefix}{name} {bind} <玩家名> [基岩] -> 绑定玩家\n{command_prefix}{name} {bind} [@QQ号] <玩家名> [基岩] -> 为他人绑定\n{command_prefix}{name} {unbind} -> 解绑所有Java版玩家名（默认）\n{command_prefix}{name} {unbind} [玩家名] [基岩] -> 解绑玩家\n{command_prefix}{name} {unbind} 基岩 -> 解绑所有基岩版玩家名\n{command_prefix}{name} {list} -> 显示绑定列表\n\n【管理员专用命令】\n{command_prefix}{name} 白名单检查 -> 检查白名单中未绑定的玩家\n{command_prefix}{name} 移除未绑定白名单 -> 移除白名单中未绑定的玩家\n{command_prefix}{name} 多余绑定检查 -> 检查不在群里的绑定成员\n{command_prefix}{name} 移除多余绑定 -> 移除不在群里的绑定成员\n\n【参数说明】\n- 基岩版：bedrock, 基岩, be, true, 1（默认false）\n- 解绑时指定基岩版参数可只解绑对应版本的玩家名\n- 解绑 基岩 可解绑当前用户的所有基岩版玩家名"
-            user_help_msg: "绑定相关指令：\n{command_prefix}{name} {bind} <玩家名> [基岩] -> 绑定玩家\n{command_prefix}{name} {unbind} -> 解绑所有Java版玩家名（默认）\n{command_prefix}{name} {unbind} [玩家名] [基岩] -> 解绑玩家\n{command_prefix}{name} {unbind} 基岩 -> 解绑所有基岩版玩家名\n{command_prefix}{name} {list} -> 显示绑定列表\n\n参数说明：\n- 基岩版：bedrock, 基岩, be, true, 1（默认false）\n- 解绑时指定基岩版参数可只解绑对应版本的玩家名\n- 解绑 基岩 可解绑当前用户的所有基岩版玩家名"
-
-        # 绑定提醒系统 / Bound notice system
-        bound_notice:
-            name: "绑定提醒"
-            notice_message: "您还未绑定游戏账号，请使用 {command_prefix}{bound_name} 命令绑定账号以享受完整功能"
-            help_msg: "绑定提醒相关指令：\n{command_prefix}{name} {enable} -> 开启绑定提醒\n{command_prefix}{name} {disable} -> 关闭绑定提醒"
-
-        # 白名单系统 / Whitelist system
-        whitelist:
-            name: "白名单"
-            add: "添加"
-            remove: "删除"
-            list: "列表"
-
-            add_success: "玩家已添加到白名单"
-            add_existed: "玩家已在白名单中"
-            add_instruction: "请提供要添加的玩家名称，格式：玩家名 [模式]\n模式：online/offline/bedrock"
-
-            remove_success: "玩家已从白名单移除"
-            remove_not_exist: "玩家不在白名单中"
-            remove_instruction: "请提供要移除的玩家名称"
-
-            list_empty: "白名单为空"
-            list_content: "白名单列表:\n{player_list}"
-            list_failed: "获取白名单列表失败"
-
-            enable_success: "服务器白名单已启用"
-            enable_failed: "开启服务器白名单失败"
-
-            disable_success: "服务器白名单已禁用"
-            disable_failed: "关闭服务器白名单失败"
-
-            api_not_available: "白名单API不可用"
-
-            help_msg: "白名单相关指令：\n{command_prefix}{name} {list} -> 显示白名单列表\n{command_prefix}{name} {add} <玩家名> [模式] -> 添加玩家到白名单\n{command_prefix}{name} {remove} <玩家名> -> 从白名单移除玩家\n{command_prefix}{name} {enable} -> 启用服务器白名单\n{command_prefix}{name} {disable} -> 禁用服务器白名单\n\n模式说明：\n- online/在线/正版 -> 在线模式\n- offline/离线 -> 离线模式\n- bedrock/基岩/be -> 基岩版模式"
-
-        # 游戏事件系统 / Game event system
-        mg_event:
-            name: "游戏事件"
-
-        # 启动指令系统 / Startup command system
-        startup_command:
-            name: "启动指令"
-            add: "添加"
-            remove: "删除"
-            list: "列表"
-            execute: "执行"
-            help_command: "帮助"
-
-            enable_success: "启动指令系统已开启"
-            disable_success: "启动指令系统已关闭"
-
-            add_success: "启动指令添加成功"
-            add_existed: "启动指令已存在"
-            add_instruction: "请提供要添加的启动指令，格式：{command_prefix}{name} {add} <指令>"
-
-            remove_success: "启动指令删除成功"
-            remove_not_exist: "启动指令不存在"
-            remove_instruction: "请提供要删除的启动指令，格式：{command_prefix}{name} {remove} <指令>"
-
-            list_empty: "启动指令列表为空"
-            list_content: "启动指令列表:\n{command_list}"
-
-            execute_success: "成功执行 {count} 条启动指令"
-            execute_partial: "执行完成，成功 {executed} 条，失败 {failed} 条"
-            execute_empty: "没有可执行的启动指令"
-
-            help_msg: "启动指令相关指令：\n{command_prefix}{name} {enable} -> 开启启动指令系统\n{command_prefix}{name} {disable} -> 关闭启动指令系统\n{command_prefix}{name} {add} <指令> -> 添加启动指令\n{command_prefix}{name} {remove} <指令> -> 删除启动指令\n{command_prefix}{name} {list} -> 显示启动指令列表\n{command_prefix}{name} {execute} -> 执行所有启动指令"
-
-        # 命令执行系统 / Command execution system
-        execute:
-            name: "执行"
-            execute: "执行"
-            mcdr: "mcdr"
-
-            execute_instruction: "请提供要执行的 MC 原生命令，格式：{command_prefix}{execute} <命令>"
-            mcdr_instruction: "请提供要执行的 MCDR 命令，格式：{command_prefix}{mcdr} <命令>"
-            execute_success: "指令已执行"
-            execute_failed: "执行命令失败: {error}"
-            command_ignored: "该命令已被配置忽略，无法执行"
-
-            bridge_execute_success: "命令已通过 bridge 发送到 {target}"
-            bridge_execute_failed: "通过 bridge 发送命令失败: {error}"
-            bridge_target_not_found: "未找到目标服务器: {target}"
-            bridge_execute_disabled: "通过 bridge 执行命令功能已禁用"
-            bridge_not_found: "未找到 bridge 连接器"
-
-            help_msg: "命令执行相关指令：\n{command_prefix}{execute} <命令> -> 执行 MC 原生命令\n{command_prefix}{mcdr} <命令> -> 执行 MCDR 命令\n{command_prefix}{execute}@<服务器名> <命令> -> 通过 bridge 发送命令到指定服务器\n{command_prefix}{mcdr}@<服务器名> <命令> -> 通过 bridge 发送 MCDR 命令到指定服务器"
-
-        # 风格系统 / Style system
-        style:
-            name: "风格"
-            list: "列表"
-            reload: "重载"
-            help: "帮助"
-            
-            list_empty: "没有可用的风格\n请在 style 目录下放置 .yml 风格文件"
-            style_list: "可用风格列表:\n{style_list}"
-            
-            switch_success: "已切换到风格: {style_name}"
-            switch_failed: "切换风格失败: {style_name} 不存在"
-            switch_cooldown: "切换风格冷却中，请等待 {remaining} 后再试"
-            
-            reload_success: "已重新加载风格，共 {count} 个"
-            reload_failed: "重新加载风格失败: {error}"
-            
-            help_msg: "风格系统相关指令：\n{command_prefix}{name} -> 显示此帮助信息\n{command_prefix}{name} {list} -> 列出所有可用风格（显示当前风格）\n{command_prefix}{name} <风格名> -> 切换到指定风格\n{command_prefix}{name} {reload} -> 重新加载风格文件\n\n风格文件放置在 style 目录下，格式与 lang 文件相同"
-
-        # 待办系统 / Todo system
-        todo:
-            name: "待办"
-            add: "添加"
-            remove: "删除"
-            complete: "完成"
-            undo: "撤回"
-            list: "列表"
-
-            add_success: "待办事项已添加 (ID: {id})"
-            add_instruction: "请提供待办内容，格式：{command_prefix}{name} {add} <内容>"
-
-            remove_success: "待办事项已删除 (ID: {id})"
-            remove_not_exist: "待办事项不存在 (ID: {id})"
-            remove_instruction: "请提供要删除的待办ID，格式：{command_prefix}{name} {remove} <ID>"
-
-            complete_success: "待办事项已标记为完成 (ID: {id})"
-            complete_not_exist: "待办事项不存在 (ID: {id})"
-            complete_already: "待办事项已完成 (ID: {id})"
-            complete_instruction: "请提供要完成的待办ID，格式：{command_prefix}{name} {complete} <ID>"
-
-            undo_success: "已撤回待办事项的完成状态 (ID: {id})"
-            undo_not_exist: "待办事项不存在 (ID: {id})"
-            undo_not_completed: "待办事项未完成，无需撤回 (ID: {id})"
-            undo_instruction: "请提供要撤回完成的待办ID，格式：{command_prefix}{name} {undo} <ID>"
-
-            list_empty: "待办列表为空"
-            list_pending: "未完成待办:\n{todo_list}"
-            list_completed: "已完成待办:\n{todo_list}"
-            list_content: "待办列表:\n{todo_list}"
-
-            status_completed: "[完成]"
-            status_pending: "[待办]"
-            creator_label: "创建者:"
-            time_label: "时间:"
-            completed_time_label: ", 完成时间: "
-            unknown: "未知"
-
-            help_msg: "待办相关指令：\n{command_prefix}{name} {add} <内容> -> 添加待办事项\n{command_prefix}{name} {remove} <ID> -> 删除指定待办事项\n{command_prefix}{name} {complete} <ID> -> 标记待办为已完成\n{command_prefix}{name} {undo} <ID> -> 撤回待办的完成状态\n{command_prefix}{name} {list} -> 显示待办列表"
-
-        # 玩家列表系统 / Player list system
-        list:
-            name: "玩家"
-            list: "玩家"
-            bot: "假人"
-            server: "服务器"
-            help_msg: "列表相关指令：\n{command_prefix}玩家 -> 显示在线玩家列表\n{command_prefix}假人 -> 显示假人列表\n{command_prefix}服务器 -> 显示服务器完整状态"
-            query_failed: "获取列表失败: {error}"
-            rcon_not_running: "无法获取列表：RCON未连接或不支持。"
-            list_empty: "当前没有玩家和假人在线"
-            list_content: "在线玩家({count}): {players}"
-            players_empty: "当前没有玩家在线"
-            players_content: "在线玩家({count}人): {players}"
-            bots_empty: "当前没有假人在线"
-            bots_content: "在线假人({count}个): {bots}"
-            server_content: "服务器状态 (玩家{player_count}人, 假人{bot_count}个)\n\n{details}"
-            merged_list_content: "在线玩家总数: {total_count}人 ({server_count}个服务器)\n\n{details}"
-            merged_players_content: "在线玩家总数: {total_count}人 ({server_count}个服务器)\n\n{details}"
-            merged_bots_content: "在线假人总数: {total_count}个 ({server_count}个服务器)\n\n{details}"
-            merged_server_content: "服务器状态 (玩家{player_count}人, 假人{bot_count}个, {server_count}个服务器)\n\n{details}"
-            
-            # 服务器名称标签
-            server_label: "【{server_name}】"
-            server_players_count: "【{server_name}】({count}人)\n{player_list}"
-            server_bots_count: "【{server_name}】({count}个)\n{player_list}"
-            server_no_players: "【{server_name}】(0人)"
-            server_no_bots: "【{server_name}】(0个)"
-            
-            # 单服务器详情
-            local_players_label: "玩家({count}人):\n{player_list}"
-            local_bots_label: "假人({count}个):\n{player_list}"
-            local_no_players: "玩家(0人)"
-            local_no_bots: "假人(0个)"
-            
-            # 多服务器详情
-            merged_players_label: "  玩家({count}人):\n{player_list}"
-            merged_bots_label: "  假人({count}个):\n{player_list}"
-            merged_no_players: "  玩家(0人)"
-            merged_no_bots: "  假人(0个)"
-
-        # 未绑定检查系统 / Unbound check system
-        unbound_check:
-            name: "未绑定检查"
-            check: "检查"
-            next: "下次检查"
-
-            check_start: "开始检查未绑定用户..."
-            check_complete: "检查完成，共发现 {total_count} 名未绑定用户"
-            no_unbound_users: "所有群成员均已绑定"
-            checking: "正在检查中，请稍候..."
-
-            notification_title: "【未绑定用户提醒】"
-            notification_group: "群 {group_name}({group_id}) 中有 {count} 名用户入群超过 {days} 天仍未绑定：\n{user_list}"
-            user_item: "  • {nickname}({user_id}) - 入群 {days_ago} 天"
-
-            next_check_time: "下次自动检查时间: {time}"
-            manual_check_success: "手动检查已完成"
-
-            qq_connector_not_found: "QQ连接器未初始化"
-            bound_system_not_found: "绑定系统未初始化"
-
-            help_msg: "未绑定检查系统（仅管理员）：\n{command_prefix}{name} {enable} -> 开启系统\n{command_prefix}{name} {disable} -> 关闭系统\n{command_prefix}{name} {check} -> 手动检查\n{command_prefix}{name} {next} -> 查看下次检查时间"
-
-        # 不活跃检查系统 / Inactive check system
-        inactive_check:
-            name: "不活跃检查"
-            check: "检查"
-            next: "下次检查"
-
-            check_start: "开始检查不活跃玩家..."
-            check_complete: "检查完成，共发现 {total_count} 名问题玩家（不活跃: {inactive_count} 名，从未进入游戏: {never_played_count} 名）"
-            no_inactive_players: "所有玩家均活跃"
-            checking: "正在检查中，请稍候..."
-
-            notification_title: "【不活跃玩家提醒】"
-            notification_content: "群 {group_name}({group_id}) 中有 {count} 名玩家超过 {days} 天未登录游戏：\n{player_list}"
-            player_item: "  • {player_name} (QQ: {qq_accounts}) - 已不活跃 {days_inactive} 天"
-            
-            never_played_content: "群 {group_name}({group_id}) 中有 {count} 名玩家进群超过 {days} 天仍未进入游戏：\n{player_list}"
-            never_played_player_item: "  • {player_name} (QQ: {qq_accounts}) - 进群 {days_since_bind} 天后未进入游戏"
-            never_played_player_item_no_time: "  • {player_name} (QQ: {qq_accounts}) - 已绑定但从未进入游戏（无进群时间）"
-
-            next_check_time: "下次自动检查时间: {time}"
-            manual_check_success: "手动检查已完成"
-
-            qq_connector_not_found: "QQ连接器未初始化"
-            bound_system_not_found: "绑定系统未初始化"
-            whitelist_not_found: "白名单系统未初始化或未启用"
-
-            help_msg: "不活跃检查系统（仅管理员）：\n{command_prefix}{name} {enable} -> 开启系统\n{command_prefix}{name} {disable} -> 关闭系统\n{command_prefix}{name} {check} -> 手动检查\n{command_prefix}{name} {next} -> 查看下次检查时间"
-
-        # 活跃白名单系统 / Active whitelist system
-        active_whitelist:
-            name: "活跃白名单"
-            add: "添加"
-            remove: "删除"
-            list: "列表"
-
-            add_usage: "用法: {command_prefix}{name} {add} <玩家名>"
-            remove_usage: "用法: {command_prefix}{name} {remove} <玩家名>"
-            player_already_in_list: "{player_name} 已在活跃白名单中"
-            player_not_in_list: "{player_name} 不在活跃白名单中"
-            player_added: "{player_name} 已添加到活跃白名单"
-            player_removed: "{player_name} 已从活跃白名单移除"
-            list_empty: "活跃白名单为空"
-            list_content: "活跃白名单成员({count}):\n{players}"
-
-            help_msg: "活跃白名单系统（仅管理员）：\n{command_prefix}{name} {add} <玩家名> -> 添加玩家到活跃白名单\n{command_prefix}{name} {remove} <玩家名> -> 从活跃白名单移除玩家\n{command_prefix}{name} {list} -> 查看活跃白名单列表\n\n注意：在活跃白名单中的玩家不会被不活跃检查系统标记为不活跃"
+  bot_name: "机器人"
+
+  # 通用翻译 / Common translations
+  enable: "开启"
+  disable: "关闭"
+  enable_success: "系统已开启"
+  disable_success: "系统已关闭"
+
+  # 通知消息 / Notice messages
+  # 注意：{player}、{error} 等是格式化参数，必须保留
+  # Note: {player}, {error}, etc. are format parameters and must be kept
+  notice:
+    server_start: "服务器已启动"
+    server_stop: "服务器已停止"
+    player_join: "玩家 {player} 加入了服务器"
+    player_left: "玩家 {player} 离开了服务器"
+    player_notice_error: "玩家通知失败: {error}"
+
+  # 连接器相关翻译 / Connector related translations
+  connector:
+    name: "连接器"
+    QQ:
+      try_connect: "尝试连接到: {url}"
+      start_connect: "开始连接QQ机器人"
+      received_message: "收到消息: {message}"
+      error_connect: "连接错误: {error}"
+      close_connect: "连接关闭 (状态码: {status_code}, 原因: {reason})"
+      send_message: "发送消息: {message}"
+      send_message_failed: "发送消息失败: {error}"
+      retry_connect: "连接断开，尝试重连"
+      close_info: "QQ连接已关闭"
+      error_close: "关闭连接时出错: {error}"
+      message_handle_failed: "消息处理失败: {error}\n{trace}"
+      connect_success: "~ 连接成功 ~"
+
+  # 系统翻译 / System translations
+  # 每个系统都有自己的翻译键，你可以只修改需要改变的部分
+  # Each system has its own translation keys, you can modify only the parts you want to change
+  system:
+    # 通用帮助系统 / General help system
+    general_help:
+      name: "帮助"
+      help_command: "帮助"
+      help_msg: "GUGUBot 帮助信息\n\n快捷指令：\n• {command_prefix}{player_list} -> 显示在线玩家列表\n• {command_prefix}{key_word_add} <关键词> -> 添加关键词\n• {command_prefix}{key_word_remove} <关键词> -> 删除关键词\n• {command_prefix}{key_word_list} -> 显示关键词列表\n\n可用系统：\n• {command_prefix}{key_words} - 关键词回复系统\n• {command_prefix}{bound} - 玩家绑定系统\n• {command_prefix}{style} - 风格切换系统\n• {command_prefix}{todo} - 待办管理系统\n\n使用 {command_prefix}<系统名> 查看具体系统的帮助信息"
+      admin_help_msg: "GUGUBot 管理员帮助信息\n\n快捷指令：\n• {command_prefix}{player_list} -> 显示在线玩家列表\n• {command_prefix}{key_word_add} <关键词> -> 添加关键词\n• {command_prefix}{key_word_remove} <关键词> -> 删除关键词\n• {command_prefix}{key_word_list} -> 显示关键词列表\n\n可用系统：\n• {command_prefix}{key_words} - 关键词回复系统\n• {command_prefix}{ban_words} - 违禁词管理系统\n• {command_prefix}{bound} - 玩家绑定系统\n• {command_prefix}{bound_notice} - 绑定提醒系统\n• {command_prefix}{whitelist} - 白名单管理系统\n• {command_prefix}{active_whitelist} - 活跃白名单系统\n• {command_prefix}{startup_command} - 启动指令管理系统\n• {command_prefix}{execute} - 命令执行系统\n• {command_prefix}{style} - 风格切换系统\n• {command_prefix}{todo} - 待办管理系统\n• {command_prefix}{unbound_check} - 未绑定检查系统\n• {command_prefix}{inactive_check} - 不活跃检查系统\n\n使用 {command_prefix}<系统名> 查看具体系统的帮助信息"
+
+    # 关键词系统 / Keyword system
+    key_words:
+      name: "关键词"
+      add: "添加"
+      remove: "删除"
+      list: "列表"
+      cancel: "取消"
+
+      add_success: "添加成功"
+      add_existed: "关键词已存在"
+      add_timeout: "添加超时: {command}"
+      add_instruction: "请发送您想要添加的关键词/图片"
+
+      remove_success: "删除成功"
+      remove_not_exist: "关键词不存在"
+
+      list_empty: "关键词列表为空"
+      keyword_list: "关键词列表: \n{keyword_list}"
+
+      cancel_success: "取消成功"
+      cancel_not_exist: "未在添加过程中"
+
+      help_msg: "关键词相关指令：\n{command_prefix}{name} {enable} -> 开启关键词系统\n{command_prefix}{name} {disable} -> 关闭关键词系统\n{command_prefix}{name} {list} -> 显示关键词列表\n{command_prefix}{add} <关键词> -> 添加关键词\n{command_prefix}{remove} <关键词> -> 删除指定关键词\n{command_prefix}{cancel} -> 取消添加关键词"
+      user_help_msg: "关键词相关指令：\n{command_prefix}{name} {list} -> 显示关键词列表\n{command_prefix}{add} <关键词> -> 添加关键词\n{command_prefix}{remove} <关键词> -> 删除指定关键词\n{command_prefix}{cancel} -> 取消添加关键词"
+
+    # 转发系统 / Echo system
+    echo:
+      name: "转发"
+      help_msg: "转发系统相关指令：\n{command_prefix}{name} {enable} -> 开启转发系统\n{command_prefix}{name} {disable} -> 关闭转发系统"
+
+    # 违禁词系统 / Ban word system
+    ban_words:
+      name: "违禁词"
+      add: "添加"
+      remove: "删除"
+      list: "列表"
+      cancel: "取消"
+
+      add_success: "违禁词添加成功"
+      add_existed: "违禁词已存在"
+      add_instruction: "请发送违禁理由"
+      add_format_error: "格式错误，请使用：{command_prefix}{name} {add} <违禁词> [理由]"
+
+      remove_success: "违禁词删除成功"
+      remove_not_exist: "违禁词不存在"
+
+      list_empty: "违禁词列表为空"
+      ban_word_list: "违禁词列表:\n{ban_word_list}"
+
+      ban_word_detected: "消息包含违禁词：{ban_word}，无法转发。\n违禁理由：{reason}"
+
+      help_msg: "违禁词相关指令：\n{command_prefix}{name} {enable} -> 开启违禁词系统\n{command_prefix}{name} {disable} -> 关闭违禁词系统\n{command_prefix}{name} {list} -> 显示违禁词列表\n{command_prefix}{name} {add} <违禁词> [理由] -> 添加违禁词\n{command_prefix}{name} {remove} <违禁词> -> 删除指定违禁词"
+
+    # 绑定系统 / Bind system
+    bound:
+      name: "绑定"
+      bind: "绑定"
+      unbind: "解绑"
+      list: "列表"
+      search: "查询"
+      check_whitelist: "白名单检查"
+      remove_unbound_whitelist: "移除未绑定白名单"
+      check_extra_bound: "多余绑定检查"
+      remove_extra_bound: "移除多余绑定"
+
+      bind_success: "绑定成功"
+      bind_existed: "该玩家已存在"
+      bind_failed: "绑定失败"
+      bind_instruction: "请提供要绑定的玩家名称，格式：\n{command_prefix}{name} {bind} mc名称 [基岩] - 绑定自己\n{command_prefix}{name} {bind} [@123456] mc名称 [基岩] - 绑定他人\n示例：{command_prefix}{name} {bind} Steve bedrock"
+      bind_invalid_name: "玩家名 '{player_name}' 不符合要求的格式\n正则表达式: {pattern}"
+      bind_pattern_error: "正则表达式配置错误，请联系管理员"
+      already_bound: "该玩家已被绑定"
+      max_bound_reached: "绑定数量已达上限"
+
+      unbind_success: "解绑成功"
+      no_bindings: "您还没有绑定任何账号"
+      no_bindings_for_player: "玩家 {player_name} 没有绑定信息"
+      player_not_found: "未找到该玩家"
+      no_permission: "您没有权限解绑该玩家"
+
+      bind_list: "您的绑定列表:\n{player_list}"
+      bind_info: "玩家 {player_name} 的绑定信息:\n{info}"
+
+      search_instruction: "请提供要查询的玩家名称或QQ号"
+
+      whitelist_check_pass: "白名单检查: 所有玩家都已绑定~"
+      whitelist_check_result: "白名单检查:\n{result}"
+      whitelist_not_enabled: "白名单系统未启用"
+      no_unbound_whitelist: "没有未绑定的白名单成员~"
+      unbound_whitelist_removed: "已将未绑定的白名单成员移除:\n{result}"
+
+      extra_bound_check_pass: "多余绑定检查: 绑定成员都在群里~"
+      extra_bound_check_result: "多余绑定检查:\n{result}"
+      no_extra_bound: "绑定成员都在群里~"
+      extra_bound_removed: "已将多余已绑定成员移除:\n{result}"
+
+      help_msg: "绑定相关指令：\n{command_prefix}{name} {enable} -> 开启绑定系统\n{command_prefix}{name} {disable} -> 关闭绑定系统\n{command_prefix}{name} {bind} <玩家名> [基岩] -> 绑定玩家\n{command_prefix}{name} {bind} [@QQ号] <玩家名> [基岩] -> 为他人绑定\n{command_prefix}{name} {unbind} -> 解绑所有Java版玩家名（默认）\n{command_prefix}{name} {unbind} [玩家名] [基岩] -> 解绑玩家\n{command_prefix}{name} {unbind} 基岩 -> 解绑所有基岩版玩家名\n{command_prefix}{name} {list} -> 显示绑定列表\n\n【管理员专用命令】\n{command_prefix}{name} 白名单检查 -> 检查白名单中未绑定的玩家\n{command_prefix}{name} 移除未绑定白名单 -> 移除白名单中未绑定的玩家\n{command_prefix}{name} 多余绑定检查 -> 检查不在群里的绑定成员\n{command_prefix}{name} 移除多余绑定 -> 移除不在群里的绑定成员\n\n【参数说明】\n- 基岩版：bedrock, 基岩, be, true, 1（默认false）\n- 解绑时指定基岩版参数可只解绑对应版本的玩家名\n- 解绑 基岩 可解绑当前用户的所有基岩版玩家名"
+      user_help_msg: "绑定相关指令：\n{command_prefix}{name} {bind} <玩家名> [基岩] -> 绑定玩家\n{command_prefix}{name} {unbind} -> 解绑所有Java版玩家名（默认）\n{command_prefix}{name} {unbind} [玩家名] [基岩] -> 解绑玩家\n{command_prefix}{name} {unbind} 基岩 -> 解绑所有基岩版玩家名\n{command_prefix}{name} {list} -> 显示绑定列表\n\n参数说明：\n- 基岩版：bedrock, 基岩, be, true, 1（默认false）\n- 解绑时指定基岩版参数可只解绑对应版本的玩家名\n- 解绑 基岩 可解绑当前用户的所有基岩版玩家名"
+
+    # 绑定提醒系统 / Bound notice system
+    bound_notice:
+      name: "绑定提醒"
+      notice_message: "您还未绑定游戏账号，请使用 {command_prefix}{bound_name} 命令绑定账号以享受完整功能"
+      help_msg: "绑定提醒相关指令：\n{command_prefix}{name} {enable} -> 开启绑定提醒\n{command_prefix}{name} {disable} -> 关闭绑定提醒"
+
+    # 白名单系统 / Whitelist system
+    whitelist:
+      name: "白名单"
+      add: "添加"
+      remove: "删除"
+      list: "列表"
+
+      add_success: "玩家已添加到白名单"
+      add_existed: "玩家已在白名单中"
+      add_instruction: "请提供要添加的玩家名称，格式：玩家名 [模式]\n模式：online/offline/bedrock"
+
+      remove_success: "玩家已从白名单移除"
+      remove_not_exist: "玩家不在白名单中"
+      remove_instruction: "请提供要移除的玩家名称"
+
+      list_empty: "白名单为空"
+      list_content: "白名单列表:\n{player_list}"
+      list_failed: "获取白名单列表失败"
+
+      enable_success: "服务器白名单已启用"
+      enable_failed: "开启服务器白名单失败"
+
+      disable_success: "服务器白名单已禁用"
+      disable_failed: "关闭服务器白名单失败"
+
+      api_not_available: "白名单API不可用"
+
+      help_msg: "白名单相关指令：\n{command_prefix}{name} {list} -> 显示白名单列表\n{command_prefix}{name} {add} <玩家名> [模式] -> 添加玩家到白名单\n{command_prefix}{name} {remove} <玩家名> -> 从白名单移除玩家\n{command_prefix}{name} {enable} -> 启用服务器白名单\n{command_prefix}{name} {disable} -> 禁用服务器白名单\n\n模式说明：\n- online/在线/正版 -> 在线模式\n- offline/离线 -> 离线模式\n- bedrock/基岩/be -> 基岩版模式"
+
+    # 游戏事件系统 / Game event system
+    mg_event:
+      name: "游戏事件"
+
+    # 启动指令系统 / Startup command system
+    startup_command:
+      name: "启动指令"
+      add: "添加"
+      remove: "删除"
+      list: "列表"
+      execute: "执行"
+      help_command: "帮助"
+
+      enable_success: "启动指令系统已开启"
+      disable_success: "启动指令系统已关闭"
+
+      add_success: "启动指令添加成功"
+      add_existed: "启动指令已存在"
+      add_instruction: "请提供要添加的启动指令，格式：{command_prefix}{name} {add} <指令>"
+
+      remove_success: "启动指令删除成功"
+      remove_not_exist: "启动指令不存在"
+      remove_instruction: "请提供要删除的启动指令，格式：{command_prefix}{name} {remove} <指令>"
+
+      list_empty: "启动指令列表为空"
+      list_content: "启动指令列表:\n{command_list}"
+
+      execute_success: "成功执行 {count} 条启动指令"
+      execute_partial: "执行完成，成功 {executed} 条，失败 {failed} 条"
+      execute_empty: "没有可执行的启动指令"
+
+      help_msg: "启动指令相关指令：\n{command_prefix}{name} {enable} -> 开启启动指令系统\n{command_prefix}{name} {disable} -> 关闭启动指令系统\n{command_prefix}{name} {add} <指令> -> 添加启动指令\n{command_prefix}{name} {remove} <指令> -> 删除启动指令\n{command_prefix}{name} {list} -> 显示启动指令列表\n{command_prefix}{name} {execute} -> 执行所有启动指令"
+
+    # 命令执行系统 / Command execution system
+    execute:
+      name: "执行"
+      execute: "执行"
+      mcdr: "mcdr"
+
+      execute_instruction: "请提供要执行的 MC 原生命令，格式：{command_prefix}{execute} <命令>"
+      mcdr_instruction: "请提供要执行的 MCDR 命令，格式：{command_prefix}{mcdr} <命令>"
+      execute_success: "指令已执行"
+      execute_failed: "执行命令失败: {error}"
+      command_ignored: "该命令已被配置忽略，无法执行"
+
+      bridge_execute_success: "命令已通过 bridge 发送到 {target}"
+      bridge_execute_failed: "通过 bridge 发送命令失败: {error}"
+      bridge_target_not_found: "未找到目标服务器: {target}"
+      bridge_execute_disabled: "通过 bridge 执行命令功能已禁用"
+      bridge_not_found: "未找到 bridge 连接器"
+
+      help_msg: "命令执行相关指令：\n{command_prefix}{execute} <命令> -> 执行 MC 原生命令\n{command_prefix}{mcdr} <命令> -> 执行 MCDR 命令\n{command_prefix}{execute}@<服务器名> <命令> -> 通过 bridge 发送命令到指定服务器\n{command_prefix}{mcdr}@<服务器名> <命令> -> 通过 bridge 发送 MCDR 命令到指定服务器"
+
+    # 风格系统 / Style system
+    style:
+      name: "风格"
+      list: "列表"
+      reload: "重载"
+      help: "帮助"
+
+      list_empty: "没有可用的风格\n请在 style 目录下放置 .yml 风格文件"
+      style_list: "可用风格列表:\n{style_list}"
+
+      switch_success: "已切换到风格: {style_name}"
+      switch_failed: "切换风格失败: {style_name} 不存在"
+      switch_cooldown: "切换风格冷却中，请等待 {remaining} 后再试"
+
+      reload_success: "已重新加载风格，共 {count} 个"
+      reload_failed: "重新加载风格失败: {error}"
+
+      help_msg: "风格系统相关指令：\n{command_prefix}{name} -> 显示此帮助信息\n{command_prefix}{name} {list} -> 列出所有可用风格（显示当前风格）\n{command_prefix}{name} <风格名> -> 切换到指定风格\n{command_prefix}{name} {reload} -> 重新加载风格文件\n\n风格文件放置在 style 目录下，格式与 lang 文件相同"
+
+    # 待办系统 / Todo system
+    todo:
+      name: "待办"
+      add: "添加"
+      remove: "删除"
+      complete: "完成"
+      undo: "撤回"
+      list: "列表"
+
+      add_success: "待办事项已添加 (ID: {id})"
+      add_instruction: "请提供待办内容，格式：{command_prefix}{name} {add} <内容>"
+
+      remove_success: "待办事项已删除 (ID: {id})"
+      remove_not_exist: "待办事项不存在 (ID: {id})"
+      remove_instruction: "请提供要删除的待办ID，格式：{command_prefix}{name} {remove} <ID>"
+
+      complete_success: "待办事项已标记为完成 (ID: {id})"
+      complete_not_exist: "待办事项不存在 (ID: {id})"
+      complete_already: "待办事项已完成 (ID: {id})"
+      complete_instruction: "请提供要完成的待办ID，格式：{command_prefix}{name} {complete} <ID>"
+
+      undo_success: "已撤回待办事项的完成状态 (ID: {id})"
+      undo_not_exist: "待办事项不存在 (ID: {id})"
+      undo_not_completed: "待办事项未完成，无需撤回 (ID: {id})"
+      undo_instruction: "请提供要撤回完成的待办ID，格式：{command_prefix}{name} {undo} <ID>"
+
+      list_empty: "待办列表为空"
+      list_pending: "未完成待办:\n{todo_list}"
+      list_completed: "已完成待办:\n{todo_list}"
+      list_content: "待办列表:\n{todo_list}"
+
+      status_completed: "[完成]"
+      status_pending: "[待办]"
+      creator_label: "创建者:"
+      time_label: "时间:"
+      completed_time_label: ", 完成时间: "
+      unknown: "未知"
+
+      help_msg: "待办相关指令：\n{command_prefix}{name} {add} <内容> -> 添加待办事项\n{command_prefix}{name} {remove} <ID> -> 删除指定待办事项\n{command_prefix}{name} {complete} <ID> -> 标记待办为已完成\n{command_prefix}{name} {undo} <ID> -> 撤回待办的完成状态\n{command_prefix}{name} {list} -> 显示待办列表"
+
+    # 玩家列表系统 / Player list system
+    list:
+      name: "玩家"
+      list: "玩家"
+      bot: "假人"
+      server: "服务器"
+      help_msg: "列表相关指令：\n{command_prefix}玩家 -> 显示在线玩家列表\n{command_prefix}假人 -> 显示假人列表\n{command_prefix}服务器 -> 显示服务器完整状态"
+      query_failed: "获取列表失败: {error}"
+      rcon_not_running: "无法获取列表：RCON未连接或不支持。"
+      list_empty: "当前没有玩家和假人在线"
+      list_content: "在线玩家({count}): {players}"
+      players_empty: "当前没有玩家在线"
+      players_content: "在线玩家({count}人): {players}"
+      bots_empty: "当前没有假人在线"
+      bots_content: "在线假人({count}个): {bots}"
+      server_content: "服务器状态 (玩家{player_count}人, 假人{bot_count}个)\n\n{details}"
+      merged_list_content: "在线玩家总数: {total_count}人 ({server_count}个服务器)\n\n{details}"
+      merged_players_content: "在线玩家总数: {total_count}人 ({server_count}个服务器)\n\n{details}"
+      merged_bots_content: "在线假人总数: {total_count}个 ({server_count}个服务器)\n\n{details}"
+      merged_server_content: "服务器状态 (玩家{player_count}人, 假人{bot_count}个, {server_count}个服务器)\n\n{details}"
+
+      # 服务器名称标签
+      server_label: "【{server_name}】"
+      server_players_count: "【{server_name}】({count}人)\n{player_list}"
+      server_bots_count: "【{server_name}】({count}个)\n{player_list}"
+      server_no_players: "【{server_name}】(0人)"
+      server_no_bots: "【{server_name}】(0个)"
+
+      # 单服务器详情
+      local_players_label: "玩家({count}人):\n{player_list}"
+      local_bots_label: "假人({count}个):\n{player_list}"
+      local_no_players: "玩家(0人)"
+      local_no_bots: "假人(0个)"
+
+      # 多服务器详情
+      merged_players_label: "  玩家({count}人):\n{player_list}"
+      merged_bots_label: "  假人({count}个):\n{player_list}"
+      merged_no_players: "  玩家(0人)"
+      merged_no_bots: "  假人(0个)"
+
+    # 未绑定检查系统 / Unbound check system
+    unbound_check:
+      name: "未绑定检查"
+      check: "检查"
+      next: "下次检查"
+
+      check_start: "开始检查未绑定用户..."
+      check_complete: "检查完成，共发现 {total_count} 名未绑定用户"
+      no_unbound_users: "所有群成员均已绑定"
+      checking: "正在检查中，请稍候..."
+
+      notification_title: "【未绑定用户提醒】"
+      notification_group: "群 {group_name}({group_id}) 中有 {count} 名用户入群超过 {days} 天仍未绑定：\n{user_list}"
+      user_item: "  • {nickname}({user_id}) - 入群 {days_ago} 天"
+
+      next_check_time: "下次自动检查时间: {time}"
+      manual_check_success: "手动检查已完成"
+
+      qq_connector_not_found: "QQ连接器未初始化"
+      bound_system_not_found: "绑定系统未初始化"
+
+      help_msg: "未绑定检查系统（仅管理员）：\n{command_prefix}{name} {enable} -> 开启系统\n{command_prefix}{name} {disable} -> 关闭系统\n{command_prefix}{name} {check} -> 手动检查\n{command_prefix}{name} {next} -> 查看下次检查时间"
+
+    # 不活跃检查系统 / Inactive check system
+    inactive_check:
+      name: "不活跃检查"
+      check: "检查"
+      next: "下次检查"
+
+      check_start: "开始检查不活跃玩家..."
+      check_complete: "检查完成，共发现 {total_count} 名问题玩家（不活跃: {inactive_count} 名，从未进入游戏: {never_played_count} 名）"
+      no_inactive_players: "所有玩家均活跃"
+      checking: "正在检查中，请稍候..."
+
+      notification_title: "【不活跃玩家提醒】"
+      notification_content: "群 {group_name}({group_id}) 中有 {count} 名玩家超过 {days} 天未登录游戏：\n{player_list}"
+      player_item: "  • {player_name} (QQ: {qq_accounts}) - 已不活跃 {days_inactive} 天"
+
+      never_played_content: "群 {group_name}({group_id}) 中有 {count} 名玩家进群超过 {days} 天仍未进入游戏：\n{player_list}"
+      never_played_player_item: "  • {player_name} (QQ: {qq_accounts}) - 进群 {days_since_bind} 天后未进入游戏"
+      never_played_player_item_no_time: "  • {player_name} (QQ: {qq_accounts}) - 已绑定但从未进入游戏（无进群时间）"
+
+      next_check_time: "下次自动检查时间: {time}"
+      manual_check_success: "手动检查已完成"
+
+      qq_connector_not_found: "QQ连接器未初始化"
+      bound_system_not_found: "绑定系统未初始化"
+      whitelist_not_found: "白名单系统未初始化或未启用"
+
+      help_msg: "不活跃检查系统（仅管理员）：\n{command_prefix}{name} {enable} -> 开启系统\n{command_prefix}{name} {disable} -> 关闭系统\n{command_prefix}{name} {check} -> 手动检查\n{command_prefix}{name} {next} -> 查看下次检查时间"
+
+    # 活跃白名单系统 / Active whitelist system
+    active_whitelist:
+      name: "活跃白名单"
+      add: "添加"
+      remove: "删除"
+      list: "列表"
+
+      add_usage: "用法: {command_prefix}{name} {add} <玩家名>"
+      remove_usage: "用法: {command_prefix}{name} {remove} <玩家名>"
+      player_already_in_list: "{player_name} 已在活跃白名单中"
+      player_not_in_list: "{player_name} 不在活跃白名单中"
+      player_added: "{player_name} 已添加到活跃白名单"
+      player_removed: "{player_name} 已从活跃白名单移除"
+      list_empty: "活跃白名单为空"
+      list_content: "活跃白名单成员({count}):\n{players}"
+
+      help_msg: "活跃白名单系统（仅管理员）：\n{command_prefix}{name} {add} <玩家名> -> 添加玩家到活跃白名单\n{command_prefix}{name} {remove} <玩家名> -> 从活跃白名单移除玩家\n{command_prefix}{name} {list} -> 查看活跃白名单列表\n\n注意：在活跃白名单中的玩家不会被不活跃检查系统标记为不活跃"

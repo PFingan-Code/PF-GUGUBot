@@ -1,12 +1,11 @@
 import json
 import logging
-import traceback
-import threading
 import ssl
-from typing import Any, Optional, Callable, Dict
+import threading
+import traceback
+from typing import Any, Callable, Dict, Optional
 
 import websocket
-
 
 logging.getLogger("websocket").setLevel(logging.WARNING)
 
@@ -31,14 +30,14 @@ class WebSocketClient:
     """
 
     def __init__(
-        self,
-        url: str,
-        headers: Optional[Dict[str, str]] = None,
-        on_message: Optional[Callable] = None,
-        on_open: Optional[Callable] = None,
-        on_error: Optional[Callable] = None,
-        on_close: Optional[Callable] = None,
-        logger: Optional[logging.Logger] = None,
+            self,
+            url: str,
+            headers: Optional[Dict[str, str]] = None,
+            on_message: Optional[Callable] = None,
+            on_open: Optional[Callable] = None,
+            on_error: Optional[Callable] = None,
+            on_close: Optional[Callable] = None,
+            logger: Optional[logging.Logger] = None,
     ):
         """初始化WebSocket客户端
 
@@ -72,16 +71,16 @@ class WebSocketClient:
         self._on_close_callback = on_close
 
     def connect(
-        self,
-        reconnect: int = 5,
-        ping_interval: int = 20,
-        ping_timeout: int = 10,
-        use_ssl: bool = False,
-        verify: bool = True,
-        ca_certs: Optional[str] = None,
-        extra_sslopt: Optional[Dict[str, Any]] = None,
-        thread_name: str = "WebSocketClient",
-        suppress_origin: bool = True,
+            self,
+            reconnect: int = 5,
+            ping_interval: int = 20,
+            ping_timeout: int = 10,
+            use_ssl: bool = False,
+            verify: bool = True,
+            ca_certs: Optional[str] = None,
+            extra_sslopt: Optional[Dict[str, Any]] = None,
+            thread_name: str = "WebSocketClient",
+            suppress_origin: bool = True,
     ) -> None:
         """建立WebSocket连接
 
@@ -208,5 +207,5 @@ class WebSocketClient:
             是否已连接
         """
         return (
-            self.ws is not None and self.ws.sock is not None and self.ws.sock.connected
+                self.ws is not None and self.ws.sock is not None and self.ws.sock.connected
         )

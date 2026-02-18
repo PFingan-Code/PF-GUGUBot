@@ -6,14 +6,14 @@
 
 from typing import Optional
 
-from mcdreforged.api.types import PluginServerInterface, CommandSource
 from mcdreforged.api.command import Literal
+from mcdreforged.api.types import CommandSource, PluginServerInterface
 
 from gugubot.config.BotConfig import BotConfig
 
 
 def help_msg_register(
-    server: PluginServerInterface, config: Optional[BotConfig] = None
+        server: PluginServerInterface, config: Optional[BotConfig] = None
 ) -> None:
     """注册 !!gugubot 命令，显示基本帮助信息。
 

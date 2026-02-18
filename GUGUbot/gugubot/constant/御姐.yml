@@ -2,396 +2,396 @@
 # 使用方法：#风格 御姐
 
 gugubot:
-    bot_name: "姐姐"
-    
-    # 通用翻译
-    enable: "开启"
-    disable: "关闭"
-    enable_success: "嗯，既然你这么请求，姐姐就勉为其难地开启了！"
-    disable_success: "关闭完毕，姐姐可不是特意为你做的。"
-    
-    # 通知消息
-    notice:
-        server_start: "服务器终于启动了！不过，我并不是特地为了通知你们才说的。"
-        server_stop: "服务器关闭了，今天就到这里吧~"
-        player_join: "呵呵，{player} 来了呢，姐姐一直在等你哦~"
-        player_left: "{player} 离开了...真是不懂得珍惜姐姐的关照呢。"
-        player_notice_error: "通知失败了: {error}...姐姐也很无奈呢。"
-    
-    # 连接器相关翻译
-    connector:
-        name: "连接器"
-        QQ:
-            try_connect: "姐姐正在尝试连接到: {url}...耐心点哦。"
-            start_connect: "开始连接QQ机器人了，乖乖等着姐姐。"
-            received_message: "收到消息了: {message}...姐姐都有在看哦。"
-            error_connect: "连接出错了: {error}...真让人不省心呢。"
-            close_connect: "连接关掉了 (状态码: {status_code}, 原因: {reason})...姐姐会处理好的。"
-            send_message: "发消息: {message}...只为你发这一次哦。"
-            send_message_failed: "消息没发出去: {error}...姐姐也有失手的时候呢。"
-            retry_connect: "断开了呢...姐姐会努力重连的。"
-            close_info: "QQ连接关了，姐姐去休息一会儿。"
-            error_close: "关连接的时候出错了: {error}...真麻烦。"
-            message_handle_failed: "消息处理失败了: {error}\n{trace}...没关系，姐姐再试一次。"
-            connect_success: "~ 连接成功了，姐姐很欣慰~"
-    
-    system:
-        # 通用帮助系统
-        general_help:
-            name: "帮助"
-            help_command: "帮助"
-            help_msg: "GUGUBot 帮助信息，姐姐来教你怎么用吧：\n\n快捷指令：\n• {command_prefix}{player_list} -> 显示在线玩家列表\n• {command_prefix}{key_word_add} <关键词> -> 添加关键词\n• {command_prefix}{key_word_remove} <关键词> -> 删除关键词\n• {command_prefix}{key_word_list} -> 显示关键词列表\n\n可用系统：\n• {command_prefix}{key_words} - 关键词回复系统\n• {command_prefix}{bound} - 玩家绑定系统\n• {command_prefix}{style} - 风格切换系统\n• {command_prefix}{todo} - 待办管理系统\n\n使用 {command_prefix}<系统名> 查看具体系统的帮助信息"
-            admin_help_msg: "GUGUBot 管理员帮助信息，姐姐的这些指令可别乱用哦：\n\n快捷指令：\n• {command_prefix}{player_list} -> 显示在线玩家列表\n• {command_prefix}{key_word_add} <关键词> -> 添加关键词\n• {command_prefix}{key_word_remove} <关键词> -> 删除关键词\n• {command_prefix}{key_word_list} -> 显示关键词列表\n\n可用系统：\n• {command_prefix}{key_words} - 关键词回复系统\n• {command_prefix}{ban_words} - 违禁词管理系统\n• {command_prefix}{bound} - 玩家绑定系统\n• {command_prefix}{bound_notice} - 绑定提醒系统\n• {command_prefix}{whitelist} - 白名单管理系统\n• {command_prefix}{active_whitelist} - 活跃白名单系统\n• {command_prefix}{startup_command} - 启动指令管理系统\n• {command_prefix}{execute} - 命令执行系统\n• {command_prefix}{style} - 风格切换系统\n• {command_prefix}{todo} - 待办管理系统\n• {command_prefix}{unbound_check} - 未绑定检查系统\n• {command_prefix}{inactive_check} - 不活跃检查系统\n\n使用 {command_prefix}<系统名> 查看具体系统的帮助信息"
-        
-        # 关键词系统
-        key_words:
-            name: "关键词"
-            add: "添加"
-            remove: "删除"
-            list: "列表"
-            cancel: "取消"
-            
-            add_success: "嗯，既然你这么请求，姐姐就勉为其难地帮你添加了！"
-            add_existed: "这个关键词已经存在了，请删除（#删除 <关键词>）后重试。"
-            add_timeout: "添加超时了: {command}...姐姐等你等得好累呢。"
-            add_instruction: "把你想添加的关键词告诉姐姐吧~"
-            
-            remove_success: "删除完毕，姐姐可不是特意为你做的。"
-            remove_not_exist: "找了半天都没有找到这个词，真是让人头疼！"
-            
-            list_empty: "快点给我一些东西吧，不然姐姐会感到无聊的。"
-            keyword_list: "以下是列表内容：\n{keyword_list}"
-            
-            cancel_success: "取消了呢~姐姐不会怪你的。"
-            cancel_not_exist: "你并没有在添加过程中哦~"
-            
-            help_msg: "关键词相关指令，记在心里了吗？：\n{command_prefix}{name} {enable} -> 开启关键词系统\n{command_prefix}{name} {disable} -> 关闭关键词系统\n{command_prefix}{name} {list} -> 显示关键词列表\n{command_prefix}{add} <关键词> -> 添加关键词\n{command_prefix}{remove} <关键词> -> 删除指定关键词\n{command_prefix}{cancel} -> 取消添加关键词"
-            user_help_msg: "关键词相关指令，再看一遍哦：\n{command_prefix}{name} {list} -> 显示关键词列表\n{command_prefix}{add} <关键词> -> 添加关键词\n{command_prefix}{remove} <关键词> -> 删除指定关键词\n{command_prefix}{cancel} -> 取消添加关键词"
-        
-        # 转发系统
-        echo:
-            name: "转发"
-            help_msg: "转发系统相关指令：\n{command_prefix}{name} {enable} -> 开启转发系统\n{command_prefix}{name} {disable} -> 关闭转发系统"
-        
-        # 违禁词系统
-        ban_words:
-            name: "违禁词"
-            add: "添加"
-            remove: "删除"
-            list: "列表"
-            cancel: "取消"
-            
-            add_success: "这个违禁词姐姐记住了，以后不许再说哦~"
-            add_existed: "这个词已经被禁止了呢~"
-            add_instruction: "告诉姐姐违禁理由吧~"
-            add_format_error: "格式不对哦，应该这样：{command_prefix}{name} {add} <违禁词> [理由]"
-            
-            remove_success: "删除完成，姐姐原谅你这次。"
-            remove_not_exist: "这个词并不在违禁名单中呢~"
-            
-            list_empty: "姐姐这里很干净，没有违禁词呢~"
-            ban_word_list: "违禁词列表:\n{ban_word_list}"
-            
-            ban_word_detected: "哼，不告诉你是因为 {reason} 这种事情，你也不配知道。"
-            
-            help_msg: "违禁词相关指令，要守规矩哦：\n{command_prefix}{name} {enable} -> 开启违禁词系统\n{command_prefix}{name} {disable} -> 关闭违禁词系统\n{command_prefix}{name} {list} -> 显示违禁词列表\n{command_prefix}{name} {add} <违禁词> [理由] -> 添加违禁词\n{command_prefix}{name} {remove} <违禁词> -> 删除指定违禁词"
-        
-        # 绑定系统
-        bound:
-            name: "绑定"
-            bind: "绑定"
-            unbind: "解绑"
-            list: "列表"
-            search: "查询"
-            check_whitelist: "白名单检查"
-            remove_unbound_whitelist: "移除未绑定白名单"
-            check_extra_bound: "多余绑定检查"
-            remove_extra_bound: "移除多余绑定"
-            
-            bind_success: "绑定成功了呢~以后姐姐会好好照顾你的。"
-            bind_existed: "这个玩家已经存在了呢~"
-            bind_failed: "绑定失败了...姐姐也很遗憾。"
-            bind_instruction: "格式要正确哦：\n{command_prefix}{name} {bind} mc名称 [基岩]\n{command_prefix}{name} {bind} [@123456] mc名称 [基岩]"
-            bind_invalid_name: "玩家名 '{player_name}' 格式不对呢~\n要符合这个规则: {pattern}"
-            bind_pattern_error: "正则表达式配置出错了...姐姐也没办法，快找管理员吧~"
-            already_bound: "这个玩家已经被绑定了呢~"
-            max_bound_reached: "绑定数量已经达到上限了，姐姐也没办法呢。"
-            
-            unbind_success: "解绑了...你真的要离开姐姐吗？"
-            no_bindings: "你还没有绑定账号呢，快来让姐姐帮你吧~"
-            no_bindings_for_player: "玩家 {player_name} 没有绑定信息呢~"
-            player_not_found: "没有找到这个玩家，姐姐也很遗憾。"
-            no_permission: "你没有权限解绑别人的账号哦~"
-            
-            bind_list: "这些都是你的账号哦，姐姐都帮你记着：\n{player_list}"
-            bind_info: "玩家 {player_name} 的信息：\n{info}"
-            
-            search_instruction: "告诉姐姐玩家名或QQ号吧~"
-            
-            whitelist_check_pass: "白名单检查: 大家都绑定了，真是乖孩子们~"
-            whitelist_check_result: "白名单检查:\n{result}"
-            whitelist_not_enabled: "白名单系统还没开呢，姐姐也没办法~"
-            no_unbound_whitelist: "没有未绑定的白名单成员~大家都很听话呢。"
-            unbound_whitelist_removed: "未绑定的白名单成员姐姐帮你移除了:\n{result}"
-            
-            extra_bound_check_pass: "多余绑定检查: 绑定的人都在群里，很好~"
-            extra_bound_check_result: "多余绑定检查:\n{result}"
-            no_extra_bound: "绑定的人都在群里~不用姐姐操心。"
-            extra_bound_removed: "多余的绑定成员姐姐帮你处理了:\n{result}"
-            
-            help_msg: "绑定相关指令，姐姐只教一次哦：\n{command_prefix}{name} {enable} -> 开启绑定系统\n{command_prefix}{name} {disable} -> 关闭绑定系统\n{command_prefix}{name} {bind} <玩家名> [基岩] -> 绑定玩家\n{command_prefix}{name} {bind} [@QQ号] <玩家名> [基岩] -> 为他人绑定\n{command_prefix}{name} {unbind} -> 解绑所有Java版玩家名（默认）\n{command_prefix}{name} {unbind} [玩家名] [基岩] -> 解绑玩家\n{command_prefix}{name} {unbind} 基岩 -> 解绑所有基岩版玩家名\n{command_prefix}{name} {list} -> 显示绑定列表\n\n【管理员专用命令】\n{command_prefix}{name} 白名单检查 -> 检查白名单中未绑定的玩家\n{command_prefix}{name} 移除未绑定白名单 -> 移除白名单中未绑定的玩家\n{command_prefix}{name} 多余绑定检查 -> 检查不在群里的绑定成员\n{command_prefix}{name} 移除多余绑定 -> 移除不在群里的绑定成员"
-            user_help_msg: "绑定相关指令，记好了哦：\n{command_prefix}{name} {bind} <玩家名> [基岩] -> 绑定玩家\n{command_prefix}{name} {unbind} -> 解绑所有Java版玩家名（默认）\n{command_prefix}{name} {unbind} [玩家名] [基岩] -> 解绑玩家\n{command_prefix}{name} {unbind} 基岩 -> 解绑所有基岩版玩家名\n{command_prefix}{name} {list} -> 显示绑定列表"
-        
-        # 绑定提醒系统
-        bound_notice:
-            name: "绑定提醒"
-            notice_message: "你还没有绑定账号呢，快用 {command_prefix}{bound_name} 命令让姐姐帮你绑定吧~"
-            help_msg: "绑定提醒指令：\n{command_prefix}{name} {enable} -> 开启绑定提醒\n{command_prefix}{name} {disable} -> 关闭绑定提醒"
-        
-        # 白名单系统
-        whitelist:
-            name: "白名单"
-            add: "添加"
-            remove: "删除"
-            list: "列表"
-            
-            add_success: "已经加入白名单了，姐姐会保护你的~"
-            add_existed: "这个人已经在白名单中了呢~"
-            add_instruction: "格式要正确：玩家名 [模式]\n模式：online/offline/bedrock"
-            
-            remove_success: "从白名单移除了，真是可惜呢..."
-            remove_not_exist: "这个人不在白名单中呢~"
-            remove_instruction: "告诉姐姐要移除谁吧~"
-            
-            list_empty: "白名单还是空的，快让姐姐添加一些人吧~"
-            list_content: "白名单列表:\n{player_list}"
-            list_failed: "获取列表失败了...姐姐也很无奈呢。"
-            
-            enable_success: "白名单已启用，姐姐会好好把守的~"
-            enable_failed: "启用失败了...姐姐也帮不上忙了。"
-            
-            disable_success: "白名单已禁用，大家可以自由进出了~"
-            disable_failed: "禁用失败了...姐姐也很无奈。"
-            
-            api_not_available: "白名单API不可用，姐姐也帮不上忙了。"
-            
-            help_msg: "白名单相关指令：\n{command_prefix}{name} {list} -> 显示白名单列表\n{command_prefix}{name} {add} <玩家名> [模式] -> 添加玩家到白名单\n{command_prefix}{name} {remove} <玩家名> -> 从白名单移除玩家\n{command_prefix}{name} {enable} -> 启用服务器白名单\n{command_prefix}{name} {disable} -> 禁用服务器白名单"
-        
-        # 游戏事件系统
-        mg_event:
-            name: "游戏事件"
-        
-        # 启动指令系统
-        startup_command:
-            name: "启动指令"
-            add: "添加"
-            remove: "删除"
-            list: "列表"
-            execute: "执行"
-            help_command: "帮助"
-            
-            enable_success: "启动指令系统已开启，姐姐会帮你执行的~"
-            disable_success: "系统已关闭，需要的时候再告诉姐姐吧~"
-            
-            add_success: "指令添加成功，姐姐记住了~"
-            add_existed: "这个指令已经存在了呢~"
-            add_instruction: "格式要正确：{command_prefix}{name} {add} <指令>"
-            
-            remove_success: "指令已删除，姐姐帮你处理好了~"
-            remove_not_exist: "这个指令不存在呢~"
-            remove_instruction: "格式要正确：{command_prefix}{name} {remove} <指令>"
-            
-            list_empty: "指令列表是空的，需要姐姐帮你添加吗~"
-            list_content: "启动指令列表:\n{command_list}"
-            
-            execute_success: "成功执行了 {count} 条指令，姐姐辛苦了呢~"
-            execute_partial: "执行完成，成功 {executed} 条，失败 {failed} 条...姐姐尽力了。"
-            execute_empty: "没有可执行的指令，姐姐白忙活了~"
-            
-            help_msg: "启动指令相关指令：\n{command_prefix}{name} {enable} -> 开启启动指令系统\n{command_prefix}{name} {disable} -> 关闭启动指令系统\n{command_prefix}{name} {add} <指令> -> 添加启动指令\n{command_prefix}{name} {remove} <指令> -> 删除启动指令\n{command_prefix}{name} {list} -> 显示启动指令列表\n{command_prefix}{name} {execute} -> 执行所有启动指令"
-        
-        # 执行系统
-        execute:
-            name: "执行"
-            execute: "执行"
-            mcdr: "mcdr"
-            
-            execute_instruction: "格式要正确：{command_prefix}{execute} <命令>"
-            mcdr_instruction: "格式要正确：{command_prefix}{mcdr} <命令>"
-            execute_success: "这么多指令，你是想让姐姐累死吗？姐姐可不会这么做！什么？你准备了礼物？好吧，姐姐就勉为其难地做点东西。"
-            execute_failed: "执行失败了: {error}...姐姐也很无奈呢。"
-            command_ignored: "这个命令姐姐可不会帮你做~"
-            
-            bridge_execute_success: "命令已发送到 {target}，姐姐帮你处理好了~"
-            bridge_execute_failed: "发送失败: {error}...姐姐也帮不上忙了。"
-            bridge_target_not_found: "没有找到服务器 {target}呢~"
-            bridge_execute_disabled: "bridge执行功能已禁用，姐姐也没办法~"
-            bridge_not_found: "没有找到bridge连接器，姐姐也很无奈。"
-            
-            help_msg: "命令执行相关指令：\n{command_prefix}{execute} <命令> -> 执行 MC 原生命令\n{command_prefix}{mcdr} <命令> -> 执行 MCDR 命令\n{command_prefix}{execute}@<服务器名> <命令> -> 通过 bridge 发送命令到指定服务器"
-        
-        # 风格系统
-        style:
-            name: "风格"
-            list: "列表"
-            reload: "重载"
-            help: "帮助"
-            
-            list_empty: "还没有其他风格呢，姐姐也很无奈..."
-            style_list: "可用风格列表:\n{style_list}"
-            
-            switch_success: "已经换成{style_name}风格了，姐姐觉得不错哦~"
-            switch_failed: "切换失败，{style_name} 不存在呢~"
-            switch_cooldown: "冷却中，请等待 {remaining} 后再试~姐姐也需要休息的。"
-            
-            reload_success: "重载了{count}个风格，姐姐辛苦了呢~"
-            reload_failed: "重载失败: {error}...姐姐也很无奈。"
-            
-            help_msg: "风格系统相关指令：\n{command_prefix}{name} -> 显示此帮助信息\n{command_prefix}{name} {list} -> 列出所有可用风格\n{command_prefix}{name} <风格名> -> 切换到指定风格\n{command_prefix}{name} {reload} -> 重新加载风格文件"
-        
-        # 待办系统
-        todo:
-            name: "待办"
-            add: "添加"
-            remove: "删除"
-            complete: "完成"
-            undo: "撤回"
-            list: "列表"
-            
-            add_success: "待办已添加(ID: {id})，姐姐会帮你记住的~"
-            add_instruction: "格式要正确：{command_prefix}{name} {add} <内容>"
-            
-            remove_success: "删除了(ID: {id})，姐姐帮你处理好了。"
-            remove_not_exist: "待办 {id} 不存在呢~"
-            remove_instruction: "格式要正确：{command_prefix}{name} {remove} <ID>"
-            
-            complete_success: "完成了(ID: {id})！真棒，姐姐为你感到骄傲~"
-            complete_not_exist: "待办 {id} 不存在呢~"
-            complete_already: "这个待办(ID: {id})已经完成了~"
-            complete_instruction: "格式要正确：{command_prefix}{name} {complete} <ID>"
-            
-            undo_success: "撤回了(ID: {id})...你改主意了吗？"
-            undo_not_exist: "待办 {id} 不存在呢~"
-            undo_not_completed: "待办 {id} 还没完成，无需撤回~"
-            undo_instruction: "格式要正确：{command_prefix}{name} {undo} <ID>"
-            
-            list_empty: "待办列表是空的，看来你很悠闲嘛~"
-            list_pending: "未完成的待办:\n{todo_list}"
-            list_completed: "已完成的待办:\n{todo_list}"
-            list_content: "待办列表:\n{todo_list}"
-            
-            status_completed: "[完成]"
-            status_pending: "[待办]"
-            creator_label: "创建者:"
-            time_label: "时间:"
-            completed_time_label: ", 完成时间: "
-            unknown: "未知"
-            
-            help_msg: "待办相关指令：\n{command_prefix}{name} {add} <内容> -> 添加待办事项\n{command_prefix}{name} {remove} <ID> -> 删除指定待办事项\n{command_prefix}{name} {complete} <ID> -> 标记待办为已完成\n{command_prefix}{name} {undo} <ID> -> 撤回待办的完成状态\n{command_prefix}{name} {list} -> 显示待办列表"
-        
-        # 玩家列表系统
-        list:
-            name: "玩家"
-            list: "玩家"
-            bot: "假人"
-            server: "服务器"
-            
-            help_msg: "列表相关指令：\n{command_prefix}玩家 -> 显示在线玩家列表\n{command_prefix}假人 -> 显示假人列表\n{command_prefix}服务器 -> 显示服务器完整状态"
-            query_failed: "获取列表失败: {error}...姐姐也很无奈呢。"
-            rcon_not_running: "RCON未连接...姐姐也帮不上忙了。"
-            list_empty: "哼，竟然没有人在线。"
-            list_content: "在线玩家({count}): {players}"
-            players_empty: "哼，竟然没有人来陪我玩，看来我的魅力还不够。"
-            players_content: "嘻嘻，我就帮你数数吧，现在总共有 {count} 位玩家: {players}"
-            bots_empty: "现在还没有假人呢~"
-            bots_content: "假人有{count}个，都很听话呢~: {bots}"
-            server_content: "服务器状态 (玩家{player_count}人, 假人{bot_count}个)\n\n{details}"
-            merged_list_content: "在线玩家总数: {total_count}人 ({server_count}个服务器)\n\n{details}"
-            merged_players_content: "在线玩家总数: {total_count}人 ({server_count}个服务器)\n\n{details}"
-            merged_bots_content: "在线假人总数: {total_count}个 ({server_count}个服务器)\n\n{details}"
-            merged_server_content: "服务器状态 (玩家{player_count}人, 假人{bot_count}个, {server_count}个服务器)\n\n{details}"
-            
-            server_label: "【{server_name}】"
-            server_players_count: "【{server_name}】({count}人)\n{player_list}"
-            server_bots_count: "【{server_name}】({count}个)\n{player_list}"
-            server_no_players: "【{server_name}】(0人)"
-            server_no_bots: "【{server_name}】(0个)"
-            
-            local_players_label: "玩家({count}人):\n{player_list}"
-            local_bots_label: "假人({count}个):\n{player_list}"
-            local_no_players: "玩家(0人)"
-            local_no_bots: "假人(0个)"
-            
-            merged_players_label: "  玩家({count}人):\n{player_list}"
-            merged_bots_label: "  假人({count}个):\n{player_list}"
-            merged_no_players: "  玩家(0人)"
-            merged_no_bots: "  假人(0个)"
-        
-        # 未绑定检查系统
-        unbound_check:
-            name: "未绑定检查"
-            check: "检查"
-            next: "下次检查"
-            
-            check_start: "姐姐开始检查未绑定用户了，稍等片刻~"
-            check_complete: "检查完了，发现{total_count}个人还没绑定呢。"
-            no_unbound_users: "大家都绑定了，真是听话的孩子们~"
-            checking: "正在检查中，请稍候~"
-            
-            notification_title: "【未绑定用户提醒】"
-            notification_group: "群 {group_name}({group_id}) 中有 {count} 名用户入群超过 {days} 天仍未绑定：\n{user_list}"
-            user_item: "  • {nickname}({user_id}) - 入群 {days_ago} 天了呢~"
-            
-            next_check_time: "下次检查时间: {time}"
-            manual_check_success: "检查完成了，姐姐辛苦了呢~"
-            
-            qq_connector_not_found: "QQ连接器未初始化，姐姐也帮不上忙。"
-            bound_system_not_found: "绑定系统未初始化，姐姐也很无奈。"
-            
-            help_msg: "未绑定检查系统（仅管理员）：\n{command_prefix}{name} {enable} -> 开启系统\n{command_prefix}{name} {disable} -> 关闭系统\n{command_prefix}{name} {check} -> 手动检查\n{command_prefix}{name} {next} -> 查看下次检查时间"
-        
-        # 不活跃检查系统
-        inactive_check:
-            name: "不活跃检查"
-            check: "检查"
-            next: "下次检查"
-            
-            check_start: "姐姐开始检查不活跃玩家了..."
-            check_complete: "找到{total_count}个人好久没来了呢，姐姐有点担心。"
-            no_inactive_players: "大家都很活跃，姐姐很欣慰~"
-            checking: "正在检查中，请稍候~"
-            
-            notification_title: "【不活跃玩家提醒】"
-            notification_content: "群 {group_name}({group_id}) 中有 {count} 名玩家超过 {days} 天未登录游戏：\n{player_list}"
-            player_item: "  • {player_name} (QQ: {qq_accounts}) - 已不活跃 {days_inactive} 天了呢~"
-            
-            never_played_content: "群 {group_name}({group_id}) 中有 {count} 名玩家进群超过 {days} 天仍未进入游戏：\n{player_list}"
-            never_played_player_item: "  • {player_name} (QQ: {qq_accounts}) - 进群 {days_since_bind} 天后未进入游戏~"
-            never_played_player_item_no_time: "  • {player_name} (QQ: {qq_accounts}) - 已绑定但从未进入游戏~"
-            
-            next_check_time: "下次检查时间: {time}"
-            manual_check_success: "检查完成了，姐姐辛苦了呢~"
-            
-            qq_connector_not_found: "QQ连接器未初始化，姐姐也帮不上忙。"
-            bound_system_not_found: "绑定系统未初始化，姐姐也很无奈。"
-            whitelist_not_found: "白名单系统未启用，姐姐也没办法。"
-            
-            help_msg: "不活跃检查系统（仅管理员）：\n{command_prefix}{name} {enable} -> 开启系统\n{command_prefix}{name} {disable} -> 关闭系统\n{command_prefix}{name} {check} -> 手动检查\n{command_prefix}{name} {next} -> 查看下次检查时间"
-        
-        # 活跃白名单系统
-        active_whitelist:
-            name: "活跃白名单"
-            add: "添加"
-            remove: "删除"
-            list: "列表"
-            
-            add_usage: "用法要正确: {command_prefix}{name} {add} <玩家名>"
-            remove_usage: "用法要正确: {command_prefix}{name} {remove} <玩家名>"
-            player_already_in_list: "{player_name} 已经在活跃白名单中了呢~"
-            player_not_in_list: "{player_name} 不在活跃白名单中~"
-            player_added: "{player_name} 已加入活跃白名单，姐姐会记住的~"
-            player_removed: "{player_name} 已从活跃白名单移除...真是可惜呢~"
-            list_empty: "活跃白名单是空的，需要姐姐帮你添加吗~"
-            list_content: "活跃白名单成员({count}):\n{players}"
-            
-            help_msg: "活跃白名单系统（仅管理员）：\n{command_prefix}{name} {add} <玩家名> -> 添加玩家到活跃白名单\n{command_prefix}{name} {remove} <玩家名> -> 从活跃白名单移除玩家\n{command_prefix}{name} {list} -> 查看活跃白名单列表"
+  bot_name: "姐姐"
+
+  # 通用翻译
+  enable: "开启"
+  disable: "关闭"
+  enable_success: "嗯，既然你这么请求，姐姐就勉为其难地开启了！"
+  disable_success: "关闭完毕，姐姐可不是特意为你做的。"
+
+  # 通知消息
+  notice:
+    server_start: "服务器终于启动了！不过，我并不是特地为了通知你们才说的。"
+    server_stop: "服务器关闭了，今天就到这里吧~"
+    player_join: "呵呵，{player} 来了呢，姐姐一直在等你哦~"
+    player_left: "{player} 离开了...真是不懂得珍惜姐姐的关照呢。"
+    player_notice_error: "通知失败了: {error}...姐姐也很无奈呢。"
+
+  # 连接器相关翻译
+  connector:
+    name: "连接器"
+    QQ:
+      try_connect: "姐姐正在尝试连接到: {url}...耐心点哦。"
+      start_connect: "开始连接QQ机器人了，乖乖等着姐姐。"
+      received_message: "收到消息了: {message}...姐姐都有在看哦。"
+      error_connect: "连接出错了: {error}...真让人不省心呢。"
+      close_connect: "连接关掉了 (状态码: {status_code}, 原因: {reason})...姐姐会处理好的。"
+      send_message: "发消息: {message}...只为你发这一次哦。"
+      send_message_failed: "消息没发出去: {error}...姐姐也有失手的时候呢。"
+      retry_connect: "断开了呢...姐姐会努力重连的。"
+      close_info: "QQ连接关了，姐姐去休息一会儿。"
+      error_close: "关连接的时候出错了: {error}...真麻烦。"
+      message_handle_failed: "消息处理失败了: {error}\n{trace}...没关系，姐姐再试一次。"
+      connect_success: "~ 连接成功了，姐姐很欣慰~"
+
+  system:
+    # 通用帮助系统
+    general_help:
+      name: "帮助"
+      help_command: "帮助"
+      help_msg: "GUGUBot 帮助信息，姐姐来教你怎么用吧：\n\n快捷指令：\n• {command_prefix}{player_list} -> 显示在线玩家列表\n• {command_prefix}{key_word_add} <关键词> -> 添加关键词\n• {command_prefix}{key_word_remove} <关键词> -> 删除关键词\n• {command_prefix}{key_word_list} -> 显示关键词列表\n\n可用系统：\n• {command_prefix}{key_words} - 关键词回复系统\n• {command_prefix}{bound} - 玩家绑定系统\n• {command_prefix}{style} - 风格切换系统\n• {command_prefix}{todo} - 待办管理系统\n\n使用 {command_prefix}<系统名> 查看具体系统的帮助信息"
+      admin_help_msg: "GUGUBot 管理员帮助信息，姐姐的这些指令可别乱用哦：\n\n快捷指令：\n• {command_prefix}{player_list} -> 显示在线玩家列表\n• {command_prefix}{key_word_add} <关键词> -> 添加关键词\n• {command_prefix}{key_word_remove} <关键词> -> 删除关键词\n• {command_prefix}{key_word_list} -> 显示关键词列表\n\n可用系统：\n• {command_prefix}{key_words} - 关键词回复系统\n• {command_prefix}{ban_words} - 违禁词管理系统\n• {command_prefix}{bound} - 玩家绑定系统\n• {command_prefix}{bound_notice} - 绑定提醒系统\n• {command_prefix}{whitelist} - 白名单管理系统\n• {command_prefix}{active_whitelist} - 活跃白名单系统\n• {command_prefix}{startup_command} - 启动指令管理系统\n• {command_prefix}{execute} - 命令执行系统\n• {command_prefix}{style} - 风格切换系统\n• {command_prefix}{todo} - 待办管理系统\n• {command_prefix}{unbound_check} - 未绑定检查系统\n• {command_prefix}{inactive_check} - 不活跃检查系统\n\n使用 {command_prefix}<系统名> 查看具体系统的帮助信息"
+
+    # 关键词系统
+    key_words:
+      name: "关键词"
+      add: "添加"
+      remove: "删除"
+      list: "列表"
+      cancel: "取消"
+
+      add_success: "嗯，既然你这么请求，姐姐就勉为其难地帮你添加了！"
+      add_existed: "这个关键词已经存在了，请删除（#删除 <关键词>）后重试。"
+      add_timeout: "添加超时了: {command}...姐姐等你等得好累呢。"
+      add_instruction: "把你想添加的关键词告诉姐姐吧~"
+
+      remove_success: "删除完毕，姐姐可不是特意为你做的。"
+      remove_not_exist: "找了半天都没有找到这个词，真是让人头疼！"
+
+      list_empty: "快点给我一些东西吧，不然姐姐会感到无聊的。"
+      keyword_list: "以下是列表内容：\n{keyword_list}"
+
+      cancel_success: "取消了呢~姐姐不会怪你的。"
+      cancel_not_exist: "你并没有在添加过程中哦~"
+
+      help_msg: "关键词相关指令，记在心里了吗？：\n{command_prefix}{name} {enable} -> 开启关键词系统\n{command_prefix}{name} {disable} -> 关闭关键词系统\n{command_prefix}{name} {list} -> 显示关键词列表\n{command_prefix}{add} <关键词> -> 添加关键词\n{command_prefix}{remove} <关键词> -> 删除指定关键词\n{command_prefix}{cancel} -> 取消添加关键词"
+      user_help_msg: "关键词相关指令，再看一遍哦：\n{command_prefix}{name} {list} -> 显示关键词列表\n{command_prefix}{add} <关键词> -> 添加关键词\n{command_prefix}{remove} <关键词> -> 删除指定关键词\n{command_prefix}{cancel} -> 取消添加关键词"
+
+    # 转发系统
+    echo:
+      name: "转发"
+      help_msg: "转发系统相关指令：\n{command_prefix}{name} {enable} -> 开启转发系统\n{command_prefix}{name} {disable} -> 关闭转发系统"
+
+    # 违禁词系统
+    ban_words:
+      name: "违禁词"
+      add: "添加"
+      remove: "删除"
+      list: "列表"
+      cancel: "取消"
+
+      add_success: "这个违禁词姐姐记住了，以后不许再说哦~"
+      add_existed: "这个词已经被禁止了呢~"
+      add_instruction: "告诉姐姐违禁理由吧~"
+      add_format_error: "格式不对哦，应该这样：{command_prefix}{name} {add} <违禁词> [理由]"
+
+      remove_success: "删除完成，姐姐原谅你这次。"
+      remove_not_exist: "这个词并不在违禁名单中呢~"
+
+      list_empty: "姐姐这里很干净，没有违禁词呢~"
+      ban_word_list: "违禁词列表:\n{ban_word_list}"
+
+      ban_word_detected: "哼，不告诉你是因为 {reason} 这种事情，你也不配知道。"
+
+      help_msg: "违禁词相关指令，要守规矩哦：\n{command_prefix}{name} {enable} -> 开启违禁词系统\n{command_prefix}{name} {disable} -> 关闭违禁词系统\n{command_prefix}{name} {list} -> 显示违禁词列表\n{command_prefix}{name} {add} <违禁词> [理由] -> 添加违禁词\n{command_prefix}{name} {remove} <违禁词> -> 删除指定违禁词"
+
+    # 绑定系统
+    bound:
+      name: "绑定"
+      bind: "绑定"
+      unbind: "解绑"
+      list: "列表"
+      search: "查询"
+      check_whitelist: "白名单检查"
+      remove_unbound_whitelist: "移除未绑定白名单"
+      check_extra_bound: "多余绑定检查"
+      remove_extra_bound: "移除多余绑定"
+
+      bind_success: "绑定成功了呢~以后姐姐会好好照顾你的。"
+      bind_existed: "这个玩家已经存在了呢~"
+      bind_failed: "绑定失败了...姐姐也很遗憾。"
+      bind_instruction: "格式要正确哦：\n{command_prefix}{name} {bind} mc名称 [基岩]\n{command_prefix}{name} {bind} [@123456] mc名称 [基岩]"
+      bind_invalid_name: "玩家名 '{player_name}' 格式不对呢~\n要符合这个规则: {pattern}"
+      bind_pattern_error: "正则表达式配置出错了...姐姐也没办法，快找管理员吧~"
+      already_bound: "这个玩家已经被绑定了呢~"
+      max_bound_reached: "绑定数量已经达到上限了，姐姐也没办法呢。"
+
+      unbind_success: "解绑了...你真的要离开姐姐吗？"
+      no_bindings: "你还没有绑定账号呢，快来让姐姐帮你吧~"
+      no_bindings_for_player: "玩家 {player_name} 没有绑定信息呢~"
+      player_not_found: "没有找到这个玩家，姐姐也很遗憾。"
+      no_permission: "你没有权限解绑别人的账号哦~"
+
+      bind_list: "这些都是你的账号哦，姐姐都帮你记着：\n{player_list}"
+      bind_info: "玩家 {player_name} 的信息：\n{info}"
+
+      search_instruction: "告诉姐姐玩家名或QQ号吧~"
+
+      whitelist_check_pass: "白名单检查: 大家都绑定了，真是乖孩子们~"
+      whitelist_check_result: "白名单检查:\n{result}"
+      whitelist_not_enabled: "白名单系统还没开呢，姐姐也没办法~"
+      no_unbound_whitelist: "没有未绑定的白名单成员~大家都很听话呢。"
+      unbound_whitelist_removed: "未绑定的白名单成员姐姐帮你移除了:\n{result}"
+
+      extra_bound_check_pass: "多余绑定检查: 绑定的人都在群里，很好~"
+      extra_bound_check_result: "多余绑定检查:\n{result}"
+      no_extra_bound: "绑定的人都在群里~不用姐姐操心。"
+      extra_bound_removed: "多余的绑定成员姐姐帮你处理了:\n{result}"
+
+      help_msg: "绑定相关指令，姐姐只教一次哦：\n{command_prefix}{name} {enable} -> 开启绑定系统\n{command_prefix}{name} {disable} -> 关闭绑定系统\n{command_prefix}{name} {bind} <玩家名> [基岩] -> 绑定玩家\n{command_prefix}{name} {bind} [@QQ号] <玩家名> [基岩] -> 为他人绑定\n{command_prefix}{name} {unbind} -> 解绑所有Java版玩家名（默认）\n{command_prefix}{name} {unbind} [玩家名] [基岩] -> 解绑玩家\n{command_prefix}{name} {unbind} 基岩 -> 解绑所有基岩版玩家名\n{command_prefix}{name} {list} -> 显示绑定列表\n\n【管理员专用命令】\n{command_prefix}{name} 白名单检查 -> 检查白名单中未绑定的玩家\n{command_prefix}{name} 移除未绑定白名单 -> 移除白名单中未绑定的玩家\n{command_prefix}{name} 多余绑定检查 -> 检查不在群里的绑定成员\n{command_prefix}{name} 移除多余绑定 -> 移除不在群里的绑定成员"
+      user_help_msg: "绑定相关指令，记好了哦：\n{command_prefix}{name} {bind} <玩家名> [基岩] -> 绑定玩家\n{command_prefix}{name} {unbind} -> 解绑所有Java版玩家名（默认）\n{command_prefix}{name} {unbind} [玩家名] [基岩] -> 解绑玩家\n{command_prefix}{name} {unbind} 基岩 -> 解绑所有基岩版玩家名\n{command_prefix}{name} {list} -> 显示绑定列表"
+
+    # 绑定提醒系统
+    bound_notice:
+      name: "绑定提醒"
+      notice_message: "你还没有绑定账号呢，快用 {command_prefix}{bound_name} 命令让姐姐帮你绑定吧~"
+      help_msg: "绑定提醒指令：\n{command_prefix}{name} {enable} -> 开启绑定提醒\n{command_prefix}{name} {disable} -> 关闭绑定提醒"
+
+    # 白名单系统
+    whitelist:
+      name: "白名单"
+      add: "添加"
+      remove: "删除"
+      list: "列表"
+
+      add_success: "已经加入白名单了，姐姐会保护你的~"
+      add_existed: "这个人已经在白名单中了呢~"
+      add_instruction: "格式要正确：玩家名 [模式]\n模式：online/offline/bedrock"
+
+      remove_success: "从白名单移除了，真是可惜呢..."
+      remove_not_exist: "这个人不在白名单中呢~"
+      remove_instruction: "告诉姐姐要移除谁吧~"
+
+      list_empty: "白名单还是空的，快让姐姐添加一些人吧~"
+      list_content: "白名单列表:\n{player_list}"
+      list_failed: "获取列表失败了...姐姐也很无奈呢。"
+
+      enable_success: "白名单已启用，姐姐会好好把守的~"
+      enable_failed: "启用失败了...姐姐也帮不上忙了。"
+
+      disable_success: "白名单已禁用，大家可以自由进出了~"
+      disable_failed: "禁用失败了...姐姐也很无奈。"
+
+      api_not_available: "白名单API不可用，姐姐也帮不上忙了。"
+
+      help_msg: "白名单相关指令：\n{command_prefix}{name} {list} -> 显示白名单列表\n{command_prefix}{name} {add} <玩家名> [模式] -> 添加玩家到白名单\n{command_prefix}{name} {remove} <玩家名> -> 从白名单移除玩家\n{command_prefix}{name} {enable} -> 启用服务器白名单\n{command_prefix}{name} {disable} -> 禁用服务器白名单"
+
+    # 游戏事件系统
+    mg_event:
+      name: "游戏事件"
+
+    # 启动指令系统
+    startup_command:
+      name: "启动指令"
+      add: "添加"
+      remove: "删除"
+      list: "列表"
+      execute: "执行"
+      help_command: "帮助"
+
+      enable_success: "启动指令系统已开启，姐姐会帮你执行的~"
+      disable_success: "系统已关闭，需要的时候再告诉姐姐吧~"
+
+      add_success: "指令添加成功，姐姐记住了~"
+      add_existed: "这个指令已经存在了呢~"
+      add_instruction: "格式要正确：{command_prefix}{name} {add} <指令>"
+
+      remove_success: "指令已删除，姐姐帮你处理好了~"
+      remove_not_exist: "这个指令不存在呢~"
+      remove_instruction: "格式要正确：{command_prefix}{name} {remove} <指令>"
+
+      list_empty: "指令列表是空的，需要姐姐帮你添加吗~"
+      list_content: "启动指令列表:\n{command_list}"
+
+      execute_success: "成功执行了 {count} 条指令，姐姐辛苦了呢~"
+      execute_partial: "执行完成，成功 {executed} 条，失败 {failed} 条...姐姐尽力了。"
+      execute_empty: "没有可执行的指令，姐姐白忙活了~"
+
+      help_msg: "启动指令相关指令：\n{command_prefix}{name} {enable} -> 开启启动指令系统\n{command_prefix}{name} {disable} -> 关闭启动指令系统\n{command_prefix}{name} {add} <指令> -> 添加启动指令\n{command_prefix}{name} {remove} <指令> -> 删除启动指令\n{command_prefix}{name} {list} -> 显示启动指令列表\n{command_prefix}{name} {execute} -> 执行所有启动指令"
+
+    # 执行系统
+    execute:
+      name: "执行"
+      execute: "执行"
+      mcdr: "mcdr"
+
+      execute_instruction: "格式要正确：{command_prefix}{execute} <命令>"
+      mcdr_instruction: "格式要正确：{command_prefix}{mcdr} <命令>"
+      execute_success: "这么多指令，你是想让姐姐累死吗？姐姐可不会这么做！什么？你准备了礼物？好吧，姐姐就勉为其难地做点东西。"
+      execute_failed: "执行失败了: {error}...姐姐也很无奈呢。"
+      command_ignored: "这个命令姐姐可不会帮你做~"
+
+      bridge_execute_success: "命令已发送到 {target}，姐姐帮你处理好了~"
+      bridge_execute_failed: "发送失败: {error}...姐姐也帮不上忙了。"
+      bridge_target_not_found: "没有找到服务器 {target}呢~"
+      bridge_execute_disabled: "bridge执行功能已禁用，姐姐也没办法~"
+      bridge_not_found: "没有找到bridge连接器，姐姐也很无奈。"
+
+      help_msg: "命令执行相关指令：\n{command_prefix}{execute} <命令> -> 执行 MC 原生命令\n{command_prefix}{mcdr} <命令> -> 执行 MCDR 命令\n{command_prefix}{execute}@<服务器名> <命令> -> 通过 bridge 发送命令到指定服务器"
+
+    # 风格系统
+    style:
+      name: "风格"
+      list: "列表"
+      reload: "重载"
+      help: "帮助"
+
+      list_empty: "还没有其他风格呢，姐姐也很无奈..."
+      style_list: "可用风格列表:\n{style_list}"
+
+      switch_success: "已经换成{style_name}风格了，姐姐觉得不错哦~"
+      switch_failed: "切换失败，{style_name} 不存在呢~"
+      switch_cooldown: "冷却中，请等待 {remaining} 后再试~姐姐也需要休息的。"
+
+      reload_success: "重载了{count}个风格，姐姐辛苦了呢~"
+      reload_failed: "重载失败: {error}...姐姐也很无奈。"
+
+      help_msg: "风格系统相关指令：\n{command_prefix}{name} -> 显示此帮助信息\n{command_prefix}{name} {list} -> 列出所有可用风格\n{command_prefix}{name} <风格名> -> 切换到指定风格\n{command_prefix}{name} {reload} -> 重新加载风格文件"
+
+    # 待办系统
+    todo:
+      name: "待办"
+      add: "添加"
+      remove: "删除"
+      complete: "完成"
+      undo: "撤回"
+      list: "列表"
+
+      add_success: "待办已添加(ID: {id})，姐姐会帮你记住的~"
+      add_instruction: "格式要正确：{command_prefix}{name} {add} <内容>"
+
+      remove_success: "删除了(ID: {id})，姐姐帮你处理好了。"
+      remove_not_exist: "待办 {id} 不存在呢~"
+      remove_instruction: "格式要正确：{command_prefix}{name} {remove} <ID>"
+
+      complete_success: "完成了(ID: {id})！真棒，姐姐为你感到骄傲~"
+      complete_not_exist: "待办 {id} 不存在呢~"
+      complete_already: "这个待办(ID: {id})已经完成了~"
+      complete_instruction: "格式要正确：{command_prefix}{name} {complete} <ID>"
+
+      undo_success: "撤回了(ID: {id})...你改主意了吗？"
+      undo_not_exist: "待办 {id} 不存在呢~"
+      undo_not_completed: "待办 {id} 还没完成，无需撤回~"
+      undo_instruction: "格式要正确：{command_prefix}{name} {undo} <ID>"
+
+      list_empty: "待办列表是空的，看来你很悠闲嘛~"
+      list_pending: "未完成的待办:\n{todo_list}"
+      list_completed: "已完成的待办:\n{todo_list}"
+      list_content: "待办列表:\n{todo_list}"
+
+      status_completed: "[完成]"
+      status_pending: "[待办]"
+      creator_label: "创建者:"
+      time_label: "时间:"
+      completed_time_label: ", 完成时间: "
+      unknown: "未知"
+
+      help_msg: "待办相关指令：\n{command_prefix}{name} {add} <内容> -> 添加待办事项\n{command_prefix}{name} {remove} <ID> -> 删除指定待办事项\n{command_prefix}{name} {complete} <ID> -> 标记待办为已完成\n{command_prefix}{name} {undo} <ID> -> 撤回待办的完成状态\n{command_prefix}{name} {list} -> 显示待办列表"
+
+    # 玩家列表系统
+    list:
+      name: "玩家"
+      list: "玩家"
+      bot: "假人"
+      server: "服务器"
+
+      help_msg: "列表相关指令：\n{command_prefix}玩家 -> 显示在线玩家列表\n{command_prefix}假人 -> 显示假人列表\n{command_prefix}服务器 -> 显示服务器完整状态"
+      query_failed: "获取列表失败: {error}...姐姐也很无奈呢。"
+      rcon_not_running: "RCON未连接...姐姐也帮不上忙了。"
+      list_empty: "哼，竟然没有人在线。"
+      list_content: "在线玩家({count}): {players}"
+      players_empty: "哼，竟然没有人来陪我玩，看来我的魅力还不够。"
+      players_content: "嘻嘻，我就帮你数数吧，现在总共有 {count} 位玩家: {players}"
+      bots_empty: "现在还没有假人呢~"
+      bots_content: "假人有{count}个，都很听话呢~: {bots}"
+      server_content: "服务器状态 (玩家{player_count}人, 假人{bot_count}个)\n\n{details}"
+      merged_list_content: "在线玩家总数: {total_count}人 ({server_count}个服务器)\n\n{details}"
+      merged_players_content: "在线玩家总数: {total_count}人 ({server_count}个服务器)\n\n{details}"
+      merged_bots_content: "在线假人总数: {total_count}个 ({server_count}个服务器)\n\n{details}"
+      merged_server_content: "服务器状态 (玩家{player_count}人, 假人{bot_count}个, {server_count}个服务器)\n\n{details}"
+
+      server_label: "【{server_name}】"
+      server_players_count: "【{server_name}】({count}人)\n{player_list}"
+      server_bots_count: "【{server_name}】({count}个)\n{player_list}"
+      server_no_players: "【{server_name}】(0人)"
+      server_no_bots: "【{server_name}】(0个)"
+
+      local_players_label: "玩家({count}人):\n{player_list}"
+      local_bots_label: "假人({count}个):\n{player_list}"
+      local_no_players: "玩家(0人)"
+      local_no_bots: "假人(0个)"
+
+      merged_players_label: "  玩家({count}人):\n{player_list}"
+      merged_bots_label: "  假人({count}个):\n{player_list}"
+      merged_no_players: "  玩家(0人)"
+      merged_no_bots: "  假人(0个)"
+
+    # 未绑定检查系统
+    unbound_check:
+      name: "未绑定检查"
+      check: "检查"
+      next: "下次检查"
+
+      check_start: "姐姐开始检查未绑定用户了，稍等片刻~"
+      check_complete: "检查完了，发现{total_count}个人还没绑定呢。"
+      no_unbound_users: "大家都绑定了，真是听话的孩子们~"
+      checking: "正在检查中，请稍候~"
+
+      notification_title: "【未绑定用户提醒】"
+      notification_group: "群 {group_name}({group_id}) 中有 {count} 名用户入群超过 {days} 天仍未绑定：\n{user_list}"
+      user_item: "  • {nickname}({user_id}) - 入群 {days_ago} 天了呢~"
+
+      next_check_time: "下次检查时间: {time}"
+      manual_check_success: "检查完成了，姐姐辛苦了呢~"
+
+      qq_connector_not_found: "QQ连接器未初始化，姐姐也帮不上忙。"
+      bound_system_not_found: "绑定系统未初始化，姐姐也很无奈。"
+
+      help_msg: "未绑定检查系统（仅管理员）：\n{command_prefix}{name} {enable} -> 开启系统\n{command_prefix}{name} {disable} -> 关闭系统\n{command_prefix}{name} {check} -> 手动检查\n{command_prefix}{name} {next} -> 查看下次检查时间"
+
+    # 不活跃检查系统
+    inactive_check:
+      name: "不活跃检查"
+      check: "检查"
+      next: "下次检查"
+
+      check_start: "姐姐开始检查不活跃玩家了..."
+      check_complete: "找到{total_count}个人好久没来了呢，姐姐有点担心。"
+      no_inactive_players: "大家都很活跃，姐姐很欣慰~"
+      checking: "正在检查中，请稍候~"
+
+      notification_title: "【不活跃玩家提醒】"
+      notification_content: "群 {group_name}({group_id}) 中有 {count} 名玩家超过 {days} 天未登录游戏：\n{player_list}"
+      player_item: "  • {player_name} (QQ: {qq_accounts}) - 已不活跃 {days_inactive} 天了呢~"
+
+      never_played_content: "群 {group_name}({group_id}) 中有 {count} 名玩家进群超过 {days} 天仍未进入游戏：\n{player_list}"
+      never_played_player_item: "  • {player_name} (QQ: {qq_accounts}) - 进群 {days_since_bind} 天后未进入游戏~"
+      never_played_player_item_no_time: "  • {player_name} (QQ: {qq_accounts}) - 已绑定但从未进入游戏~"
+
+      next_check_time: "下次检查时间: {time}"
+      manual_check_success: "检查完成了，姐姐辛苦了呢~"
+
+      qq_connector_not_found: "QQ连接器未初始化，姐姐也帮不上忙。"
+      bound_system_not_found: "绑定系统未初始化，姐姐也很无奈。"
+      whitelist_not_found: "白名单系统未启用，姐姐也没办法。"
+
+      help_msg: "不活跃检查系统（仅管理员）：\n{command_prefix}{name} {enable} -> 开启系统\n{command_prefix}{name} {disable} -> 关闭系统\n{command_prefix}{name} {check} -> 手动检查\n{command_prefix}{name} {next} -> 查看下次检查时间"
+
+    # 活跃白名单系统
+    active_whitelist:
+      name: "活跃白名单"
+      add: "添加"
+      remove: "删除"
+      list: "列表"
+
+      add_usage: "用法要正确: {command_prefix}{name} {add} <玩家名>"
+      remove_usage: "用法要正确: {command_prefix}{name} {remove} <玩家名>"
+      player_already_in_list: "{player_name} 已经在活跃白名单中了呢~"
+      player_not_in_list: "{player_name} 不在活跃白名单中~"
+      player_added: "{player_name} 已加入活跃白名单，姐姐会记住的~"
+      player_removed: "{player_name} 已从活跃白名单移除...真是可惜呢~"
+      list_empty: "活跃白名单是空的，需要姐姐帮你添加吗~"
+      list_content: "活跃白名单成员({count}):\n{players}"
+
+      help_msg: "活跃白名单系统（仅管理员）：\n{command_prefix}{name} {add} <玩家名> -> 添加玩家到活跃白名单\n{command_prefix}{name} {remove} <玩家名> -> 从活跃白名单移除玩家\n{command_prefix}{name} {list} -> 查看活跃白名单列表"

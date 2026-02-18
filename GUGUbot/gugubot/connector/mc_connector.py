@@ -1,19 +1,19 @@
 import logging
 import traceback
-
 from typing import Any, Optional
 
-from mcdreforged.api.types import PluginServerInterface, Info
+from mcdreforged.api.types import Info, PluginServerInterface
 
+from gugubot.builder.mc_builder import McMessageBuilder
 from gugubot.config import BotConfig
 from gugubot.connector.basic_connector import BasicConnector
 from gugubot.parser.mc_parser import MCParser
-from gugubot.builder.mc_builder import McMessageBuilder
 from gugubot.utils.types import ProcessedInfo
+
 
 class MCConnector(BasicConnector):
     """Minecraft服务器连接器。
-    
+
     用于与Minecraft服务器进行消息交互。
 
     Attributes
@@ -38,7 +38,7 @@ class MCConnector(BasicConnector):
         super().__init__(source=source_name, parser=MCParser, builder=McMessageBuilder, config=config)
         self.server = server
         self.logger = logger or server.logger
-        
+
         # 存储日志前缀
         connector_basic_name = self.server.tr("gugubot.connector.name")
         self.log_prefix = f"[{connector_basic_name}{self.source}]"
@@ -57,14 +57,14 @@ class MCConnector(BasicConnector):
         """
         self.logger.info(f"{self.log_prefix} 已断开 ~")
 
-    async def send_message(self, processed_info: ProcessedInfo) -> None:
+    async def send_message(self, processed_info: ProcessedInfo, **kwargs) -> None:
         """向Minecraft服务器发送消息。
 
         Parameters
         ----------
-        message : Any
+        processed_info : Any
             要发送的消息。如果是字符串，直接发送；
-            如果是dict，应包含'content'键。
+            如果是dict，应包含"content"键。
 
         Raises
         ------
@@ -75,8 +75,8 @@ class MCConnector(BasicConnector):
             return
 
         if not self.server.is_server_running():
-            return 
-        
+            return
+
         self.builder: McMessageBuilder
 
         message = processed_info.processed_message
@@ -103,8 +103,8 @@ class MCConnector(BasicConnector):
             if qq_connector := self.connector_manager.get_connector(qq_source):
                 bot_id = getattr(getattr(qq_connector, "bot", None), "self_id", None)
 
-            Rtext_conect = self.builder.array_to_RText(
-                message, sender_id=sender_id, 
+            rtext_content = self.builder.array_to_RText(
+                message, sender_id=sender_id,
                 low_game_version=is_low_version, chat_image=use_chat_image, image_previewer=use_image_previewer,
                 player_manager=player_manager, is_admin=is_admin, bot_id=bot_id
             )
@@ -113,29 +113,28 @@ class MCConnector(BasicConnector):
                 sender_player = player_manager.get_player(str(sender_id))
                 if sender_player:
                     # 优先使用 Java 或基岩版的第一个名字
-                    sender = (sender_player.java_name[0] if sender_player.java_name 
-                             else sender_player.bedrock_name[0] if sender_player.bedrock_name 
-                             else sender_player.name) or sender
-                
+                    sender = (sender_player.java_name[0] if sender_player.java_name
+                              else sender_player.bedrock_name[0] if sender_player.bedrock_name
+                    else sender_player.name) or sender
+
                 if receiver:
                     receiver_player = player_manager.get_player(str(receiver))
                     if receiver_player:
                         # 优先使用 Java 或基岩版的第一个名字
-                        receiver = (receiver_player.java_name[0] if receiver_player.java_name 
-                                   else receiver_player.bedrock_name[0] if receiver_player.bedrock_name 
-                                   else receiver_player.name) or receiver
+                        receiver = (receiver_player.java_name[0] if receiver_player.java_name
+                                    else receiver_player.bedrock_name[0] if receiver_player.bedrock_name
+                        else receiver_player.name) or receiver
 
-            
             custom_group_name = self.config.get_keys(["connector", "QQ", "permissions", "custom_group_name"], {})
             source = custom_group_name.get(source_id, source)
 
-            main_content = self.builder.build(Rtext_conect, 
+            main_content = self.builder.build(rtext_content,
                                               group_name=source,
                                               group_id=source_id,
                                               sender=sender,
                                               sender_id=sender_id,
                                               receiver=receiver)
-            
+
             self.server.say(main_content)
 
         except Exception as e:
@@ -143,7 +142,7 @@ class MCConnector(BasicConnector):
             self.logger.error(f"{self.log_prefix} 发送消息失败: {error_msg}")
             raise
 
-    async def on_message(self, server:PluginServerInterface, info:Info) -> None:
+    async def on_message(self, server: PluginServerInterface, info: Info) -> None:
         """处理从Minecraft服务器接收的消息。
 
         Parameters
@@ -156,9 +155,9 @@ class MCConnector(BasicConnector):
         try:
             if not self.enable:
                 return
-            
+
             is_player = info.is_player
-            
+
             if not is_player:
                 return
 

@@ -3,7 +3,7 @@ from typing import Any, Optional
 
 from gugubot.config.BotConfig import BotConfig
 from gugubot.parser.basic_parser import BasicParser
-from gugubot.utils.types import BoardcastInfo, ProcessedInfo
+from gugubot.utils.types import BroadcastInfo, ProcessedInfo
 
 
 class BasicConnector(ABC):
@@ -33,13 +33,13 @@ class BasicConnector(ABC):
     """
 
     def __init__(
-        self,
-        source: str = "",
-        parser: Optional[BasicParser] = None,
-        builder: Any = None,
-        server: Any = None,
-        logger: Any = None,
-        config: BotConfig = None,
+            self,
+            source: str = "",
+            parser: Optional[BasicParser] = None,
+            builder: Any = None,
+            server: Any = None,
+            logger: Any = None,
+            config: BotConfig = None,
     ) -> None:
         self.source: str = source
         self.parser: Optional[BasicParser] = parser
@@ -70,12 +70,12 @@ class BasicConnector(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def send_message(self, boardcase_info: ProcessedInfo, **kargs) -> None:
+    async def send_message(self, processed_info: ProcessedInfo, **kwargs) -> None:
         """Send a message through the connector.
 
         Parameters
         ----------
-        message: Any
+        processed_info: ProcessedInfo
                 The message to be sent. Implementations should use self.builder
                 to transform the message if needed before sending.
 
@@ -87,7 +87,7 @@ class BasicConnector(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def on_message(self, raw: Any) -> BoardcastInfo:
+    async def on_message(self, raw: Any) -> BroadcastInfo:
         """Called when a raw message is received.
 
         Typical responsibilities:

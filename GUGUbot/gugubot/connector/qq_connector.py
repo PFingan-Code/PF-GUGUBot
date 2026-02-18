@@ -1,18 +1,16 @@
-import traceback
-import time
-import uuid
-import re
-import random
-
 import asyncio
-
+import random
+import re
+import time
+import traceback
+import uuid
 from typing import Any, Optional
 
 from gugubot.builder.qq_builder import CQHandler
-from gugubot.connector.basic_connector import BasicConnector
 from gugubot.config.BotConfig import BotConfig
-from gugubot.utils.types import ProcessedInfo
+from gugubot.connector.basic_connector import BasicConnector
 from gugubot.parser.qq_parser import QQParser
+from gugubot.utils.types import ProcessedInfo
 from gugubot.ws import WebSocketFactory
 
 
@@ -45,9 +43,9 @@ class Bot:
 
     def __getattr__(self, name):
         if (
-            name.startswith("get_")
-            or name.startswith("can_")
-            or name.startswith("_get")
+                name.startswith("get_")
+                or name.startswith("can_")
+                or name.startswith("_get")
         ):
 
             async def handler(**kwargs):
@@ -187,7 +185,7 @@ class QQWebSocketConnector(BasicConnector):
         )
 
     def _on_close(
-        self, _: Any, status_code: Optional[int], reason: Optional[str]
+            self, _: Any, status_code: Optional[int], reason: Optional[str]
     ) -> None:
         """处理WebSocket连接关闭
 
@@ -340,9 +338,9 @@ class QQWebSocketConnector(BasicConnector):
 
             # 如果配置了模板，根据权重随机选择一个；否则使用默认格式
             if (
-                chat_templates
-                and isinstance(chat_templates, list)
-                and len(chat_templates) > 0
+                    chat_templates
+                    and isinstance(chat_templates, list)
+                    and len(chat_templates) > 0
             ):
                 # 检查是否为字典格式（带权重）
                 if isinstance(chat_templates[0], dict):
@@ -393,7 +391,7 @@ class QQWebSocketConnector(BasicConnector):
         message_parts = self._split_message(message, max_length=max_message_length)
 
         for target_id, target_type in target.items():
-            
+
             if not target_id.isdigit():
                 continue
 
@@ -406,7 +404,7 @@ class QQWebSocketConnector(BasicConnector):
                     await self.bot.send_temp_msg(
                         group_id=int(target_type), user_id=int(target_id), message=part
                     )
-                
+
                 # 如果消息被分割成多段，每段之间稍微延迟，避免发送过快
                 if len(message_parts) > 1:
                     random_time = random.uniform(0.5, 1.5)

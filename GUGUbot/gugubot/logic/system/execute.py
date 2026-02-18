@@ -14,14 +14,14 @@ from gugubot.builder import MessageBuilder
 from gugubot.config.BotConfig import BotConfig
 from gugubot.logic.system.basic_system import BasicSystem
 from gugubot.utils.rcon_manager import RconManager
-from gugubot.utils.types import BoardcastInfo, ProcessedInfo
+from gugubot.utils.types import BroadcastInfo, ProcessedInfo
 
 
 class ExecuteSystem(BasicSystem):
     """命令执行系统，允许管理员执行服务器命令。
 
     提供执行 MC 原生命令和 MCDR 命令的功能。
-    
+
     Attributes
     ----------
     name : str
@@ -62,46 +62,46 @@ class ExecuteSystem(BasicSystem):
             ["system", "execute", "ignore_execute_command_patterns"],
             []
         )
-        
+
         if not ignore_patterns:
             return False
-        
+
         for pattern in ignore_patterns:
             try:
                 if re.match(pattern, command):
                     return True
             except re.error:
                 self.logger.warning(f"无效的正则表达式模式: {pattern}")
-        
+
         return False
 
-    async def process_boardcast_info(self, boardcast_info: BoardcastInfo) -> bool:
+    async def process_broadcast_info(self, broadcast_info: BroadcastInfo) -> bool:
         """处理接收到的命令。
 
         Parameters
         ----------
-        boardcast_info: BoardcastInfo
+        broadcast_info: BroadcastInfo
             广播信息，包含消息内容
-        
+
         Returns
         -------
         bool
             是否处理了该消息
         """
         # 先检查是否是开启/关闭命令
-        if await self.handle_enable_disable(boardcast_info):
+        if await self.handle_enable_disable(broadcast_info):
             return True
 
         if not self.enable:
             return False
 
-        if boardcast_info.event_type != "message":
+        if broadcast_info.event_type != "message":
             return False
 
-        if not self.is_command(boardcast_info):
+        if not self.is_command(broadcast_info):
             return False
 
-        message = boardcast_info.message
+        message = broadcast_info.message
         if not message:
             return False
 
@@ -115,96 +115,97 @@ class ExecuteSystem(BasicSystem):
             ["connector", "minecraft_bridge", "source_name"],
             "Bridge"
         )
-        
+
         # 检查是否是 #执行 命令
         execute_cmd = self.get_tr("execute")
         mcdr_cmd = self.get_tr("mcdr")
         help_cmd = self.get_tr("gugubot.system.general_help.help_command", global_key=True)
-        
+
         if content.startswith(f"{command_prefix}{execute_cmd}"):
             # 提取命令内容
             command = content.replace(f"{command_prefix}{execute_cmd}", "", 1).strip()
             if not command:
                 # 如果没有命令内容，显示帮助信息
-                return await self._handle_help(boardcast_info)
-            
+                return await self._handle_help(broadcast_info)
+
             # 检查是否是帮助命令
             if command == help_cmd or command == "帮助" or command.lower() == "help":
-                return await self._handle_help(boardcast_info)
-            
+                return await self._handle_help(broadcast_info)
+
             # 检查是否包含 @<服务器名> 格式
             bridge_match = re.match(r'^@([\w\-_]+)\s+(.+)$', command)
             if bridge_match:
                 target_server = bridge_match.group(1)
                 command = bridge_match.group(2)
-                
+
             # 检查是否应该忽略
             if self._should_ignore_command(command):
-                await self.reply(boardcast_info, [MessageBuilder.text(self.get_tr("command_ignored"))])
+                await self.reply(broadcast_info, [MessageBuilder.text(self.get_tr("command_ignored"))])
                 return True
-            
+
             # 如果包含 @<服务器名> 格式，则通过 bridge 发送命令
             if bridge_match and target_server and target_server not in [bridge_name]:
                 return await self._send_command_via_bridge(
-                    command, 
-                    boardcast_info, 
+                    command,
+                    broadcast_info,
                     target_server=target_server,
                     use_mcdr=False
                 )
 
-            if not self.is_command(boardcast_info) or \
-                (not await self._is_admin(boardcast_info.sender_id) and not boardcast_info.is_admin):
+            if not self.is_command(broadcast_info) or \
+                    (not await self._is_admin(broadcast_info.sender_id) and not broadcast_info.is_admin):
                 return False
 
             # 执行 MC 原生命令
-            return await self._handle_execute_command(command, boardcast_info, use_mcdr=False)
-        
+            return await self._handle_execute_command(command, broadcast_info, use_mcdr=False)
+
         elif content.startswith(f"{command_prefix}{mcdr_cmd}"):
             # 提取命令内容
             command = content.replace(f"{command_prefix}{mcdr_cmd}", "", 1).strip()
             if not command:
-                await self.reply(boardcast_info, [MessageBuilder.text(self.get_tr("mcdr_instruction", command_prefix=command_prefix, mcdr=mcdr_cmd))])
+                await self.reply(broadcast_info, [MessageBuilder.text(
+                    self.get_tr("mcdr_instruction", command_prefix=command_prefix, mcdr=mcdr_cmd))])
                 return True
-            
+
             # 检查是否包含 @<服务器名> 格式
             bridge_match = re.match(r'^@([\w\-_]+)\s+(.+)$', command)
             if bridge_match:
                 target_server = bridge_match.group(1)
                 command = bridge_match.group(2)
-                
+
             # 检查是否应该忽略
             if self._should_ignore_command(command):
-                await self.reply(boardcast_info, [MessageBuilder.text(self.get_tr("command_ignored"))])
+                await self.reply(broadcast_info, [MessageBuilder.text(self.get_tr("command_ignored"))])
                 return True
-            
+
             # 如果包含 @<服务器名> 格式，则通过 bridge 发送命令
             if bridge_match and target_server and target_server != bridge_name:
                 return await self._send_command_via_bridge(
-                    command, 
-                    boardcast_info, 
+                    command,
+                    broadcast_info,
                     target_server=target_server,
                     use_mcdr=True
                 )
 
-            if not self.is_command(boardcast_info) or \
-                (not await self._is_admin(boardcast_info.sender_id) and not boardcast_info.is_admin):
+            if not self.is_command(broadcast_info) or \
+                    (not await self._is_admin(broadcast_info.sender_id) and not broadcast_info.is_admin):
                 return False
-            
+
             # 执行 MCDR 命令
-            return await self._handle_execute_command(command, boardcast_info, use_mcdr=True)
-        
+            return await self._handle_execute_command(command, broadcast_info, use_mcdr=True)
+
         # 检查是否是系统名称命令（显示帮助）
         system_name = self.get_tr("name")
         if content == f"{command_prefix}{system_name}" or content == f"{command_prefix}{system_name} {help_cmd}":
-            return await self._handle_help(boardcast_info)
-        
+            return await self._handle_help(broadcast_info)
+
         return False
 
     async def _handle_execute_command(
-        self, 
-        command: str, 
-        boardcast_info: BoardcastInfo,
-        use_mcdr: bool = False
+            self,
+            command: str,
+            broadcast_info: BroadcastInfo,
+            use_mcdr: bool = False
     ) -> bool:
         """处理命令执行。
 
@@ -212,7 +213,7 @@ class ExecuteSystem(BasicSystem):
         ----------
         command : str
             要执行的命令
-        boardcast_info : BoardcastInfo
+        broadcast_info : BroadcastInfo
             广播信息
         use_mcdr : bool
             是否使用 MCDR 命令执行方式
@@ -226,29 +227,29 @@ class ExecuteSystem(BasicSystem):
             # 如果是 MCDR 命令且没有 !! 前缀，自动添加
             if use_mcdr and not command.startswith("!!"):
                 command = f"!!{command}"
-            
+
             result = self.rcon_manager.execute(command, use_mcdr_command=use_mcdr)
-            
+
             if result:
-                await self.reply(boardcast_info, [MessageBuilder.text(result)])
+                await self.reply(broadcast_info, [MessageBuilder.text(result)])
             else:
-                await self.reply(boardcast_info, [MessageBuilder.text(self.get_tr("execute_success"))])
-            
+                await self.reply(broadcast_info, [MessageBuilder.text(self.get_tr("execute_success"))])
+
             return True
         except Exception as e:
             self.logger.error(f"执行命令失败: {command}, 错误: {str(e)}")
             await self.reply(
-                boardcast_info, 
+                broadcast_info,
                 [MessageBuilder.text(self.get_tr("execute_failed", error=str(e)))]
             )
             return True
 
-    async def _handle_help(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_help(self, broadcast_info: BroadcastInfo) -> bool:
         """处理帮助命令。
 
         Parameters
         ----------
-        boardcast_info : BoardcastInfo
+        broadcast_info : BroadcastInfo
             广播信息
 
         Returns
@@ -260,7 +261,7 @@ class ExecuteSystem(BasicSystem):
         system_name = self.get_tr("name")
         execute_cmd = self.get_tr("execute")
         mcdr_cmd = self.get_tr("mcdr")
-        
+
         help_msg = self.get_tr(
             "help_msg",
             command_prefix=command_prefix,
@@ -268,15 +269,15 @@ class ExecuteSystem(BasicSystem):
             execute=execute_cmd,
             mcdr=mcdr_cmd
         )
-        await self.reply(boardcast_info, [MessageBuilder.text(help_msg)])
+        await self.reply(broadcast_info, [MessageBuilder.text(help_msg)])
         return True
 
     async def _send_command_via_bridge(
-        self,
-        command: str,
-        boardcast_info: BoardcastInfo,
-        target_server: str,
-        use_mcdr: bool = False
+            self,
+            command: str,
+            broadcast_info: BroadcastInfo,
+            target_server: str,
+            use_mcdr: bool = False
     ) -> bool:
         """通过 bridge 发送命令到指定服务器。
 
@@ -284,7 +285,7 @@ class ExecuteSystem(BasicSystem):
         ----------
         command : str
             要执行的命令
-        boardcast_info : BoardcastInfo
+        broadcast_info : BroadcastInfo
             广播信息
         target_server : str
             目标服务器名称
@@ -304,7 +305,7 @@ class ExecuteSystem(BasicSystem):
             )
             if not allow_bridge_execute:
                 await self.reply(
-                    boardcast_info,
+                    broadcast_info,
                     [MessageBuilder.text(self.get_tr("bridge_execute_disabled"))]
                 )
                 return True
@@ -315,10 +316,10 @@ class ExecuteSystem(BasicSystem):
                 "Bridge"
             )
             bridge_connector = self.system_manager.connector_manager.get_connector(bridge_source)
-            
+
             if not bridge_connector:
                 await self.reply(
-                    boardcast_info,
+                    broadcast_info,
                     [MessageBuilder.text(self.get_tr("bridge_not_found"))]
                 )
                 return True
@@ -327,7 +328,7 @@ class ExecuteSystem(BasicSystem):
             command_prefix = self.config.get("GUGUBot", {}).get("command_prefix", "#")
             execute_cmd = self.get_tr("execute")
             mcdr_cmd = self.get_tr("mcdr")
-            
+
             if use_mcdr:
                 command_text = f"{command_prefix}{mcdr_cmd} {command}"
             else:
@@ -336,15 +337,15 @@ class ExecuteSystem(BasicSystem):
             # 构造 ProcessedInfo，保持 source 为原始发送渠道
             processed_info = ProcessedInfo(
                 processed_message=[MessageBuilder.text(command_text)],
-                _source=boardcast_info.source,  # 传递完整的 Source 对象
-                source_id=boardcast_info.source_id,
-                sender=boardcast_info.sender,
-                sender_id=boardcast_info.sender_id,
-                raw=boardcast_info.raw,
-                server=boardcast_info.server,
-                logger=boardcast_info.logger,
-                event_sub_type=boardcast_info.event_sub_type,
-                target={target_server: boardcast_info.event_sub_type} # 指定目标服务器
+                _source=broadcast_info.source,  # 传递完整的 Source 对象
+                source_id=broadcast_info.source_id,
+                sender=broadcast_info.sender,
+                sender_id=broadcast_info.sender_id,
+                raw=broadcast_info.raw,
+                server=broadcast_info.server,
+                logger=broadcast_info.logger,
+                event_sub_type=broadcast_info.event_sub_type,
+                target={target_server: broadcast_info.event_sub_type}  # 指定目标服务器
             )
 
             # 通过 bridge 发送消息
@@ -355,7 +356,7 @@ class ExecuteSystem(BasicSystem):
 
             # 发送成功提示
             await self.reply(
-                boardcast_info,
+                broadcast_info,
                 [MessageBuilder.text(self.get_tr("bridge_execute_success", target=target_server))]
             )
             return True
@@ -364,11 +365,10 @@ class ExecuteSystem(BasicSystem):
             error_msg = str(e) + "\n" + traceback.format_exc()
             self.logger.error(f"通过 bridge 发送命令失败: {command}, 错误: {error_msg}")
             await self.reply(
-                boardcast_info,
+                broadcast_info,
                 [MessageBuilder.text(self.get_tr("bridge_execute_failed", error=str(e)))]
             )
             return True
-
 
     async def _is_admin(self, sender_id) -> bool:
         """检查是否是管理员"""

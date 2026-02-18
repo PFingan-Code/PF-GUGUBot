@@ -13,9 +13,9 @@ class BasicConstructor:
         if value is None or isinstance(value, dict):
             return BasicConstructor(value or {})
         return value
-    
+
     def __bool__(self):
         return bool(self.raw_data)
-    
+
     def __repr__(self):
         return str(self.raw_data)

@@ -1,9 +1,8 @@
 import traceback
-
 from abc import ABC, abstractmethod
 from typing import Any, Optional
 
-from gugubot.utils.types import BoardcastInfo
+from gugubot.utils.types import BroadcastInfo
 
 
 class BasicParser(ABC):
@@ -35,7 +34,7 @@ class BasicParser(ABC):
         self.server = connector.server
 
     @abstractmethod
-    async def parse(self, raw_message: Any, *args, **kargs) -> Optional[BoardcastInfo]:
+    async def parse(self, raw_message: Any, *args, **kwargs) -> Optional[BroadcastInfo]:
         """解析原始消息。
 
         Parameters
@@ -45,12 +44,12 @@ class BasicParser(ABC):
 
         Returns
         -------
-        Optional[BoardcastInfo]
+        Optional[BroadcastInfo]
             解析后的广播信息对象，如果消息不需要广播则返回None
         """
         raise NotImplementedError
 
-    async def process_message(self, raw_message: Any, *args, **kargs) -> None:
+    async def process_message(self, raw_message: Any, *args, **kwargs) -> None:
         """处理并广播消息。
 
         Parameters
@@ -59,9 +58,9 @@ class BasicParser(ABC):
             需要处理的原始消息
         """
         try:
-            boardcast_info = await self.parse(raw_message, *args, **kargs)
-            if boardcast_info is not None and self.system_manager is not None:
-                await self.system_manager.broadcast_command(boardcast_info)
+            broadcast_info = await self.parse(raw_message, *args, **kwargs)
+            if broadcast_info is not None and self.system_manager is not None:
+                await self.system_manager.broadcast_command(broadcast_info)
         except Exception as e:
             if self.logger:
                 error_msg = str(e) + "\n" + traceback.format_exc()

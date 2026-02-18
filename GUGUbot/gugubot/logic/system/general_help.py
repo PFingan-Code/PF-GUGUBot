@@ -11,7 +11,7 @@ from mcdreforged.api.types import PluginServerInterface
 from gugubot.builder import MessageBuilder
 from gugubot.config.BotConfig import BotConfig
 from gugubot.logic.system.basic_system import BasicSystem
-from gugubot.utils.types import BoardcastInfo
+from gugubot.utils.types import BroadcastInfo
 
 
 class GeneralHelpSystem(BasicSystem):
@@ -28,7 +28,7 @@ class GeneralHelpSystem(BasicSystem):
     """
 
     def __init__(
-        self, server: PluginServerInterface, config: Optional[BotConfig] = None
+            self, server: PluginServerInterface, config: Optional[BotConfig] = None
     ) -> None:
         """初始化通用帮助系统。"""
         super().__init__("general_help", enable=True, config=config)
@@ -38,12 +38,12 @@ class GeneralHelpSystem(BasicSystem):
         """初始化系统，加载配置等"""
         return
 
-    async def process_boardcast_info(self, boardcast_info: BoardcastInfo) -> bool:
+    async def process_broadcast_info(self, broadcast_info: BroadcastInfo) -> bool:
         """处理接收到的命令。
 
         Parameters
         ----------
-        boardcast_info: BoardcastInfo
+        broadcast_info: BroadcastInfo
             广播信息，包含消息内容
 
         Returns
@@ -51,10 +51,10 @@ class GeneralHelpSystem(BasicSystem):
         bool
             是否处理了该消息
         """
-        if boardcast_info.event_type != "message":
+        if broadcast_info.event_type != "message":
             return False
 
-        message = boardcast_info.message
+        message = broadcast_info.message
 
         if not message:
             return False
@@ -70,14 +70,14 @@ class GeneralHelpSystem(BasicSystem):
         help_command = self.get_tr("help_command")
 
         if content == command_prefix or content == f"{command_prefix}{help_command}":
-            return await self._handle_help(boardcast_info)
+            return await self._handle_help(broadcast_info)
 
         return False
 
-    async def _handle_help(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_help(self, broadcast_info: BroadcastInfo) -> bool:
         """处理帮助命令"""
         command_prefix = self.config.get("GUGUBot", {}).get("command_prefix", "#")
-        is_admin = boardcast_info.is_admin
+        is_admin = broadcast_info.is_admin
 
         # 获取快捷指令的翻译名称
         player_list_cmd = self.server.tr("gugubot.system.list.list")
@@ -139,5 +139,5 @@ class GeneralHelpSystem(BasicSystem):
                 todo=todo_name,
             )
 
-        await self.reply(boardcast_info, [MessageBuilder.text(help_msg)])
+        await self.reply(broadcast_info, [MessageBuilder.text(help_msg)])
         return True

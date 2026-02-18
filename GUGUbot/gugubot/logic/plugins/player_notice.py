@@ -3,22 +3,21 @@
 该模块提供玩家加入和离开时的广播通知功能。
 """
 
-import traceback
 import re
+import traceback
+from typing import Callable
 
-from typing import Optional, Callable
-from mcdreforged.api.types import PluginServerInterface, Info
+from mcdreforged.api.types import Info, PluginServerInterface
 
 from gugubot.builder import MessageBuilder
+from gugubot.config.BotConfig import BotConfig
 from gugubot.connector.connector_manager import ConnectorManager
 from gugubot.utils.types import ProcessedInfo
-from gugubot.config.BotConfig import BotConfig
 
 
 def create_on_player_join(
-    connector_manager: ConnectorManager, config: BotConfig
+        connector_manager: ConnectorManager, config: BotConfig
 ) -> Callable[[PluginServerInterface, Info], None]:
-
     # 从配置文件读取Minecraft的source_name作为默认排除项
     minecraft_source_name = config.get_keys(
         ["connector", "minecraft", "source_name"], "Minecraft"
@@ -46,12 +45,12 @@ def create_on_player_join(
         is_player = not is_bot(player_name, config)
 
         if (
-            is_player
-            and not config.get_keys(
-                ["connector", "minecraft", "player_join_notice"], True
-            )
-            or not is_player
-            and not config.get_keys(["connector", "minecraft", "bot_join_notice"], True)
+                is_player
+                and not config.get_keys(
+            ["connector", "minecraft", "player_join_notice"], True
+        )
+                or not is_player
+                and not config.get_keys(["connector", "minecraft", "bot_join_notice"], True)
         ):
             return
 
@@ -89,9 +88,8 @@ def create_on_player_join(
 
 
 def create_on_player_left(
-    connector_manager: ConnectorManager, config: BotConfig
+        connector_manager: ConnectorManager, config: BotConfig
 ) -> Callable[[PluginServerInterface, Info], None]:
-
     # 从配置文件读取Minecraft的source_name作为默认排除项
     minecraft_source_name = config.get_keys(
         ["connector", "minecraft", "source_name"], "Minecraft"
@@ -119,12 +117,12 @@ def create_on_player_left(
         is_player = not is_bot(player_name, config)
 
         if (
-            is_player
-            and not config.get_keys(
-                ["connector", "minecraft", "player_left_notice"], True
-            )
-            or not is_player
-            and not config.get_keys(["connector", "minecraft", "bot_left_notice"], True)
+                is_player
+                and not config.get_keys(
+            ["connector", "minecraft", "player_left_notice"], True
+        )
+                or not is_player
+                and not config.get_keys(["connector", "minecraft", "bot_left_notice"], True)
         ):
             return
 

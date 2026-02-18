@@ -4,19 +4,20 @@
 """
 
 from typing import Optional
+
 from mcdreforged.api.types import PluginServerInterface
 
 from gugubot.builder import MessageBuilder
-from gugubot.utils.types import ProcessedInfo
 from gugubot.config.BotConfig import BotConfig
+from gugubot.utils.types import ProcessedInfo
 
 
 async def broadcast_server_start(
-    server: PluginServerInterface,
-    connector_manager,
-    config: BotConfig,
-    message: Optional[str] = None,
-    exclude_sources: Optional[list] = None,
+        server: PluginServerInterface,
+        connector_manager,
+        config: BotConfig,
+        message: Optional[str] = None,
+        exclude_sources: Optional[list] = None,
 ) -> None:
     """广播服务器启动消息。
 
@@ -77,11 +78,11 @@ async def broadcast_server_start(
 
 
 async def broadcast_server_stop(
-    server: PluginServerInterface,
-    connector_manager,
-    config: BotConfig,
-    message: Optional[str] = None,
-    exclude_sources: Optional[list] = None,
+        server: PluginServerInterface,
+        connector_manager,
+        config: BotConfig,
+        message: Optional[str] = None,
+        exclude_sources: Optional[list] = None,
 ) -> None:
     """广播服务器停止消息。
 

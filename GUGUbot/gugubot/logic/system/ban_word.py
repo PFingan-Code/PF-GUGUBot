@@ -1,15 +1,14 @@
 # -*- coding: utf-8 -*-
-import asyncio
 
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 from mcdreforged.api.types import PluginServerInterface
 
 from gugubot.builder import MessageBuilder
 from gugubot.config import BasicConfig, BotConfig
 from gugubot.logic.system.basic_system import BasicSystem
-from gugubot.utils.types import BoardcastInfo
+from gugubot.utils.types import BroadcastInfo
 
 
 class BanWordSystem(BasicConfig, BasicSystem):
@@ -19,7 +18,7 @@ class BanWordSystem(BasicConfig, BasicSystem):
     """
 
     def __init__(
-        self, server: PluginServerInterface, config: Optional[BotConfig] = None
+            self, server: PluginServerInterface, config: Optional[BotConfig] = None
     ) -> None:
         """初始化违禁词系统。"""
         BasicSystem.__init__(self, "ban_words", enable=False, config=config)
@@ -33,42 +32,42 @@ class BanWordSystem(BasicConfig, BasicSystem):
         self.load()
         self.logger.debug(f"已加载 {len(self)} 个违禁词")
 
-    async def process_boardcast_info(self, boardcast_info: BoardcastInfo) -> bool:
+    async def process_broadcast_info(self, broadcast_info: BroadcastInfo) -> bool:
         """处理接收到的命令和消息。
 
         Parameters
         ----------
-        boardcast_info: BoardcastInfo
+        broadcast_info: BroadcastInfo
             广播信息，包含消息内容
         """
-        if boardcast_info.event_type != "message":
+        if broadcast_info.event_type != "message":
             return False
 
-        message = boardcast_info.message
+        message = broadcast_info.message
 
         if not message:
             return False
 
         # 先检查是否是开启/关闭命令
-        if await self.handle_enable_disable(boardcast_info):
+        if await self.handle_enable_disable(broadcast_info):
             return True
 
         if not self.enable:
             return False
 
-        return await self._handle_msg(boardcast_info)
+        return await self._handle_msg(broadcast_info)
 
-    async def _handle_msg(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_msg(self, broadcast_info: BroadcastInfo) -> bool:
         """处理消息"""
-        messages = boardcast_info.message
-        is_admin = boardcast_info.is_admin
+        messages = broadcast_info.message
+        is_admin = broadcast_info.is_admin
 
         # 检查消息中是否包含违禁词
         ban_check = self._check_ban(messages)
         if ban_check and not is_admin and self.enable:
             ban_word, reason = ban_check
             await self.reply(
-                boardcast_info,
+                broadcast_info,
                 [
                     MessageBuilder.text(
                         self.get_tr(
@@ -80,8 +79,8 @@ class BanWordSystem(BasicConfig, BasicSystem):
             return True
 
         # 处理命令
-        if is_admin and self.is_command(boardcast_info):
-            return await self._handle_command(boardcast_info)
+        if is_admin and self.is_command(broadcast_info):
+            return await self._handle_command(broadcast_info)
 
         return False
 
@@ -104,9 +103,9 @@ class BanWordSystem(BasicConfig, BasicSystem):
                     return ban_word, reason
         return None
 
-    async def _handle_command(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_command(self, broadcast_info: BroadcastInfo) -> bool:
         """处理命令"""
-        command = boardcast_info.message[0].get("data", {}).get("text", "")
+        command = broadcast_info.message[0].get("data", {}).get("text", "")
         command_prefix = self.config.get("GUGUBot", {}).get("command_prefix", "#")
         system_name = self.get_tr("name")
 
@@ -118,17 +117,17 @@ class BanWordSystem(BasicConfig, BasicSystem):
         command = command.replace(system_name, "", 1).strip()
 
         if command.startswith(self.get_tr("add")):
-            return await self._handle_add(boardcast_info)
+            return await self._handle_add(broadcast_info)
         elif command.startswith(self.get_tr("remove")):
-            return await self._handle_remove(boardcast_info)
+            return await self._handle_remove(broadcast_info)
         elif command.startswith(self.get_tr("list")):
-            return await self._handle_list(boardcast_info)
+            return await self._handle_list(broadcast_info)
 
-        return await self._handle_help(boardcast_info)
+        return await self._handle_help(broadcast_info)
 
-    async def _handle_add(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_add(self, broadcast_info: BroadcastInfo) -> bool:
         """处理添加违禁词命令"""
-        command = boardcast_info.message[0].get("data", {}).get("text", "")
+        command = broadcast_info.message[0].get("data", {}).get("text", "")
         command_prefix = self.config.get("GUGUBot", {}).get("command_prefix", "#")
         system_name = self.get_tr("name")
         add_command = self.get_tr("add")
@@ -138,7 +137,7 @@ class BanWordSystem(BasicConfig, BasicSystem):
 
         if not command:
             await self.reply(
-                boardcast_info,
+                broadcast_info,
                 [
                     MessageBuilder.text(
                         self.get_tr(
@@ -155,7 +154,7 @@ class BanWordSystem(BasicConfig, BasicSystem):
         parts = command.split(maxsplit=1)
         if len(parts) != 2:
             await self.reply(
-                boardcast_info, [MessageBuilder.text(self.get_tr("add_instruction"))]
+                broadcast_info, [MessageBuilder.text(self.get_tr("add_instruction"))]
             )
             return True
 
@@ -165,14 +164,14 @@ class BanWordSystem(BasicConfig, BasicSystem):
         self[ban_word] = reason
         self.save()
         await self.reply(
-            boardcast_info, [MessageBuilder.text(self.get_tr("add_success"))]
+            broadcast_info, [MessageBuilder.text(self.get_tr("add_success"))]
         )
 
         return True
 
-    async def _handle_remove(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_remove(self, broadcast_info: BroadcastInfo) -> bool:
         """处理删除违禁词命令"""
-        command = boardcast_info.message[0].get("data", {}).get("text", "")
+        command = broadcast_info.message[0].get("data", {}).get("text", "")
         command_prefix = self.config.get("GUGUBot", {}).get("command_prefix", "#")
         system_name = self.get_tr("name")
         remove_command = self.get_tr("remove")
@@ -182,23 +181,23 @@ class BanWordSystem(BasicConfig, BasicSystem):
 
         if command not in self:
             await self.reply(
-                boardcast_info, [MessageBuilder.text(self.get_tr("remove_not_exist"))]
+                broadcast_info, [MessageBuilder.text(self.get_tr("remove_not_exist"))]
             )
             return True
 
         del self[command]
         self.save()
         await self.reply(
-            boardcast_info, [MessageBuilder.text(self.get_tr("remove_success"))]
+            broadcast_info, [MessageBuilder.text(self.get_tr("remove_success"))]
         )
         return True
 
-    async def _handle_list(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_list(self, broadcast_info: BroadcastInfo) -> bool:
         """处理显示违禁词列表命令"""
 
         if len(self) == 0:
             await self.reply(
-                boardcast_info, [MessageBuilder.text(self.get_tr("list_empty"))]
+                broadcast_info, [MessageBuilder.text(self.get_tr("list_empty"))]
             )
             return True
 
@@ -207,7 +206,7 @@ class BanWordSystem(BasicConfig, BasicSystem):
             ban_word_list.append(f"{word}: {reason}")
         ban_word_list = "\n".join(ban_word_list)
         await self.reply(
-            boardcast_info,
+            broadcast_info,
             [
                 MessageBuilder.text(
                     self.get_tr("ban_word_list", ban_word_list=ban_word_list)
@@ -216,7 +215,7 @@ class BanWordSystem(BasicConfig, BasicSystem):
         )
         return True
 
-    async def _handle_help(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_help(self, broadcast_info: BroadcastInfo) -> bool:
         """违禁词指令帮助"""
         command_prefix = self.config.get("GUGUBot", {}).get("command_prefix", "#")
         system_name = self.get_tr("name")
@@ -235,5 +234,5 @@ class BanWordSystem(BasicConfig, BasicSystem):
             remove=remove_cmd,
             list=list_cmd,
         )
-        await self.reply(boardcast_info, [MessageBuilder.text(help_msg)])
+        await self.reply(broadcast_info, [MessageBuilder.text(help_msg)])
         return True

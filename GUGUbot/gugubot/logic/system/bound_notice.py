@@ -5,7 +5,7 @@ from typing import Optional
 from gugubot.builder import MessageBuilder
 from gugubot.config.BotConfig import BotConfig
 from gugubot.logic.system.basic_system import BasicSystem
-from gugubot.utils.types import BoardcastInfo
+from gugubot.utils.types import BroadcastInfo
 
 
 class BoundNoticeSystem(BasicSystem):
@@ -28,55 +28,55 @@ class BoundNoticeSystem(BasicSystem):
         """设置绑定系统引用，用于访问玩家管理器"""
         self.bound_system = bound_system
 
-    async def process_boardcast_info(self, boardcast_info: BoardcastInfo) -> bool:
+    async def process_broadcast_info(self, broadcast_info: BroadcastInfo) -> bool:
         """处理接收到的消息。
 
         Parameters
         ----------
-        boardcast_info: BoardcastInfo
+        broadcast_info: BroadcastInfo
             广播信息，包含消息内容
         """
-        if boardcast_info.event_type != "message":
+        if broadcast_info.event_type != "message":
             return False
 
-        message = boardcast_info.message
+        message = broadcast_info.message
 
         if not message:
             return False
 
         # 先检查是否是开启/关闭命令
-        if await self.handle_enable_disable(boardcast_info):
+        if await self.handle_enable_disable(broadcast_info):
             return True
 
         # 如果系统未启用或没有绑定系统引用，不处理
         if not self.enable or not self.bound_system:
             return False
 
-        return await self._check_and_notify(boardcast_info)
+        return await self._check_and_notify(broadcast_info)
 
-    async def _check_and_notify(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _check_and_notify(self, broadcast_info: BroadcastInfo) -> bool:
         """检查玩家是否已绑定，如果未绑定则发送提醒"""
         # 只在有发送者ID的情况下检查
-        if not boardcast_info.sender_id:
+        if not broadcast_info.sender_id:
             return False
 
         # 排除管理员
-        if boardcast_info.is_admin:
+        if broadcast_info.is_admin:
             return False
 
         # 排除管理群消息
-        if boardcast_info.source_id:
+        if broadcast_info.source_id:
             admin_group_ids = self.config.get_keys(
                 ["connector", "QQ", "permissions", "admin_group_ids"], []
             )
-            if str(boardcast_info.source_id) in [
+            if str(broadcast_info.source_id) in [
                 str(gid) for gid in admin_group_ids if gid
             ]:
                 return False
 
         # 检查玩家是否在玩家管理器中
         player = self.bound_system.player_manager.get_player(
-            boardcast_info.sender_id, platform=boardcast_info.source.origin
+            broadcast_info.sender_id, platform=broadcast_info.source.origin
         )
 
         # 如果玩家未绑定，发送提醒消息
@@ -89,9 +89,9 @@ class BoundNoticeSystem(BasicSystem):
                 "notice_message", command_prefix=command_prefix, bound_name=bound_name
             )
             await self.reply(
-                boardcast_info,
+                broadcast_info,
                 [
-                    MessageBuilder.at(boardcast_info.sender_id),
+                    MessageBuilder.at(broadcast_info.sender_id),
                     MessageBuilder.text(notice_msg),
                 ],
             )

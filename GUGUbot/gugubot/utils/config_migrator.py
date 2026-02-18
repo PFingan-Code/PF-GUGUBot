@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import shutil
 from pathlib import Path
+
 from ruamel.yaml import YAML
 
 yaml = YAML()
@@ -8,7 +9,7 @@ yaml.preserve_quotes = True
 
 
 def migrate_config_v1_to_v2(
-    config_path: Path, default_config_content: str, logger=None
+        config_path: Path, default_config_content: str, logger=None
 ):
     """
     Migrate configuration from v1.0 to v2.0.
@@ -20,7 +21,7 @@ def migrate_config_v1_to_v2(
         with open(config_path, "r", encoding="utf-8") as f:
             old_config = yaml.load(f)
     except Exception:
-        return  # Not a valid yaml or something, let normal init handle it
+        return  # Not a valid YAML or something, let normal init handle it
 
     # Check if it is v1 config
     # v1 has "admin_id" at root, v2 has "GUGUBot" at root
@@ -81,7 +82,7 @@ def migrate_config_v1_to_v2(
     # Connector / Minecraft
     if "server_name" in old_config:
         new_config["connector"]["minecraft"]["source_name"] = (
-            old_config["server_name"] or "Minecraft"
+                old_config["server_name"] or "Minecraft"
         )
 
     # GUGUBot (Core)

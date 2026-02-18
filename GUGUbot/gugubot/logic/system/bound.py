@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
-import asyncio
 import re
-
-from typing import Dict, List, Optional, Union
+from typing import List, Optional, Union
 
 from mcdreforged.api.types import PluginServerInterface
 
@@ -10,8 +8,8 @@ from gugubot.builder import MessageBuilder
 from gugubot.config.BotConfig import BotConfig
 from gugubot.logic.system.basic_system import BasicSystem
 from gugubot.logic.system.whitelist import WhitelistSystem
-from gugubot.utils.player_manager import PlayerManager, Player
-from gugubot.utils.types import BoardcastInfo
+from gugubot.utils.player_manager import Player, PlayerManager
+from gugubot.utils.types import BroadcastInfo
 
 
 class BoundSystem(BasicSystem):
@@ -21,7 +19,7 @@ class BoundSystem(BasicSystem):
     """
 
     def __init__(
-        self, server: PluginServerInterface, config: Optional[BotConfig] = None
+            self, server: PluginServerInterface, config: Optional[BotConfig] = None
     ) -> None:
         """初始化绑定系统。"""
         super().__init__("bound", enable=False, config=config)
@@ -40,16 +38,16 @@ class BoundSystem(BasicSystem):
         """设置白名单系统引用"""
         self.whitelist = whitelist
 
-    async def process_boardcast_info(self, boardcast_info: BoardcastInfo) -> bool:
+    async def process_broadcast_info(self, broadcast_info: BroadcastInfo) -> bool:
         """处理接收到的命令。
 
         Parameters
         ----------
-        boardcast_info: BoardcastInfo
+        broadcast_info: BroadcastInfo
             广播信息，包含消息内容
         """
         # 先检查是否是开启/关闭命令
-        if await self.handle_enable_disable(boardcast_info):
+        if await self.handle_enable_disable(broadcast_info):
             return True
 
         if not self.enable:
@@ -57,18 +55,18 @@ class BoundSystem(BasicSystem):
 
         # 处理退群事件
         if (
-            boardcast_info.event_type == "notice"
-            and boardcast_info.event_sub_type == "group_decrease"
+                broadcast_info.event_type == "notice"
+                and broadcast_info.event_sub_type == "group_decrease"
         ):
-            if boardcast_info.source.is_from("QQ"):
-                return await self._handle_quit_member(boardcast_info)
+            if broadcast_info.source.is_from("QQ"):
+                return await self._handle_quit_member(broadcast_info)
             return False
 
         # 处理消息类型事件
-        if boardcast_info.event_type != "message":
+        if broadcast_info.event_type != "message":
             return False
 
-        message = boardcast_info.message
+        message = broadcast_info.message
 
         if not message:
             return False
@@ -78,14 +76,14 @@ class BoundSystem(BasicSystem):
         if first_message.get("type") != "text":
             return False
 
-        return await self._handle_msg(boardcast_info)
+        return await self._handle_msg(broadcast_info)
 
-    async def _handle_msg(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_msg(self, broadcast_info: BroadcastInfo) -> bool:
         """处理消息"""
-        content = boardcast_info.message[0].get("data", {}).get("text", "")
+        content = broadcast_info.message[0].get("data", {}).get("text", "")
 
-        if self.is_command(boardcast_info):
-            return await self._handle_command(boardcast_info)
+        if self.is_command(broadcast_info):
+            return await self._handle_command(broadcast_info)
 
         return False
 
@@ -101,9 +99,9 @@ class BoundSystem(BasicSystem):
         remaining = text[len(cmd):]
         return not remaining or remaining[0] == " "
 
-    async def _handle_command(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_command(self, broadcast_info: BroadcastInfo) -> bool:
         """处理绑定相关命令"""
-        command = boardcast_info.message[0].get("data", {}).get("text", "")
+        command = broadcast_info.message[0].get("data", {}).get("text", "")
         command_prefix = self.config.get("GUGUBot", {}).get("command_prefix", "#")
         system_name = self.get_tr("name")
 
@@ -120,28 +118,28 @@ class BoundSystem(BasicSystem):
 
         command = command.replace(system_name, "", 1).strip()
 
-        if command.strip() == "" and len(boardcast_info.message) == 1:
-            return await self._handle_help(boardcast_info)
+        if command.strip() == "" and len(broadcast_info.message) == 1:
+            return await self._handle_help(broadcast_info)
         elif command.startswith(self.get_tr("unbind")):
-            return await self._handle_unbind(boardcast_info)
+            return await self._handle_unbind(broadcast_info)
         elif command.startswith(self.get_tr("list")):
-            return await self._handle_list(boardcast_info)
-        elif boardcast_info.is_admin:
+            return await self._handle_list(broadcast_info)
+        elif broadcast_info.is_admin:
             # 管理员专属命令
             if command in ["白名单检查", "whitelist_check"]:
-                return await self._handle_check_whitelist(boardcast_info)
+                return await self._handle_check_whitelist(broadcast_info)
             elif command in ["移除未绑定白名单", "remove_unbound_whitelist"]:
-                return await self._handle_remove_unbound_whitelist(boardcast_info)
+                return await self._handle_remove_unbound_whitelist(broadcast_info)
             elif command in ["多余绑定检查", "extra_bound_check"]:
-                return await self._handle_check_extra_bound(boardcast_info)
+                return await self._handle_check_extra_bound(broadcast_info)
             elif command in ["移除多余绑定", "remove_extra_bound"]:
-                return await self._handle_remove_extra_bound(boardcast_info)
+                return await self._handle_remove_extra_bound(broadcast_info)
 
-        return await self._handle_bind(boardcast_info)
+        return await self._handle_bind(broadcast_info)
 
-    async def _handle_bind(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_bind(self, broadcast_info: BroadcastInfo) -> bool:
         """处理绑定命令"""
-        command = boardcast_info.message[0].get("data", {}).get("text", "")
+        command = broadcast_info.message[0].get("data", {}).get("text", "")
         command_prefix = self.config.get("GUGUBot", {}).get("command_prefix", "#")
         system_name = self.get_tr("name")
         bind_cmd = self.get_tr("bind")
@@ -149,9 +147,9 @@ class BoundSystem(BasicSystem):
         for i in [command_prefix, system_name]:
             command = command.replace(i, "", 1).strip()
 
-        if not command and len(boardcast_info.message) == 1:
+        if not command and len(broadcast_info.message) == 1:
             await self.reply(
-                boardcast_info,
+                broadcast_info,
                 [
                     MessageBuilder.text(
                         self.get_tr(
@@ -166,23 +164,23 @@ class BoundSystem(BasicSystem):
             return True
 
         # 解析消息段
-        source = boardcast_info.source.origin  # 获取原始来源作为平台标识
-        target_id = boardcast_info.sender_id  # 默认绑定到发送者
+        source = broadcast_info.source.origin  # 获取原始来源作为平台标识
+        target_id = broadcast_info.sender_id  # 默认绑定到发送者
         player_name = ""
         is_bedrock = False
 
         # 检查是否有@消息段，如果有就更新要绑定的平台账户
-        for message_segment in boardcast_info.message:
+        for message_segment in broadcast_info.message:
             if message_segment.get("type") == "at":
                 target_id = message_segment.get("data", {}).get(
-                    "qq", boardcast_info.sender_id
+                    "qq", broadcast_info.sender_id
                 )
                 break
 
         # 使用最后一个消息段来处理玩家名和基岩版标识
         last_text_message = [
             message
-            for message in boardcast_info.message
+            for message in broadcast_info.message
             if message.get("type") == "text"
         ][-1]
         last_text = last_text_message.get("data", {}).get("text", "")
@@ -200,7 +198,7 @@ class BoundSystem(BasicSystem):
 
         if not player_name:
             await self.reply(
-                boardcast_info,
+                broadcast_info,
                 [
                     MessageBuilder.text(
                         self.get_tr(
@@ -224,7 +222,7 @@ class BoundSystem(BasicSystem):
             try:
                 if not re.match(player_name_pattern, player_name):
                     await self.reply(
-                        boardcast_info,
+                        broadcast_info,
                         [
                             MessageBuilder.text(
                                 self.get_tr(
@@ -239,7 +237,7 @@ class BoundSystem(BasicSystem):
             except re.error as e:
                 self.logger.error(f"正则表达式 '{player_name_pattern}' 格式错误: {e}")
                 await self.reply(
-                    boardcast_info,
+                    broadcast_info,
                     [MessageBuilder.text(self.get_tr("bind_pattern_error"))],
                 )
                 return True
@@ -265,27 +263,27 @@ class BoundSystem(BasicSystem):
 
         # 到达所有绑定上限
         if (
-            player
-            and exceeded_platform_bound
-            and exceeded_bedrock_bound
-            and exceeded_java_bound
+                player
+                and exceeded_platform_bound
+                and exceeded_bedrock_bound
+                and exceeded_java_bound
         ):
             await self.reply(
-                boardcast_info, [MessageBuilder.text(self.get_tr("max_bound_reached"))]
+                broadcast_info, [MessageBuilder.text(self.get_tr("max_bound_reached"))]
             )
             return True
 
         elif (not is_bedrock and exceeded_platform_bound and exceeded_java_bound) or (
-            is_bedrock and exceeded_platform_bound and exceeded_bedrock_bound
+                is_bedrock and exceeded_platform_bound and exceeded_bedrock_bound
         ):
             await self.reply(
-                boardcast_info, [MessageBuilder.text(self.get_tr("max_bound_reached"))]
+                broadcast_info, [MessageBuilder.text(self.get_tr("max_bound_reached"))]
             )
             return True
 
         # 直接执行绑定
         bound_result = await self._bind_player(
-            boardcast_info,
+            broadcast_info,
             player_name,
             source,
             is_bedrock,
@@ -295,24 +293,24 @@ class BoundSystem(BasicSystem):
         )
         if bound_result:
             await self.reply(
-                boardcast_info, [MessageBuilder.text(self.get_tr("bind_success"))]
+                broadcast_info, [MessageBuilder.text(self.get_tr("bind_success"))]
             )
         else:
             await self.reply(
-                boardcast_info, [MessageBuilder.text(self.get_tr("bind_existed"))]
+                broadcast_info, [MessageBuilder.text(self.get_tr("bind_existed"))]
             )
 
         return True
 
     async def _bind_player(
-        self,
-        boardcast_info: BoardcastInfo,
-        player_name: str,
-        platform: str,
-        is_bedrock: bool = False,
-        is_offline: bool = False,
-        is_online: bool = False,
-        target_id: str = None,
+            self,
+            broadcast_info: BroadcastInfo,
+            player_name: str,
+            platform: str,
+            is_bedrock: bool = False,
+            is_offline: bool = False,
+            is_online: bool = False,
+            target_id: str = None,
     ) -> bool:
         """执行玩家绑定"""
         try:
@@ -323,18 +321,18 @@ class BoundSystem(BasicSystem):
 
             # 检查玩家名是否已被其他用户绑定
             if self.player_manager.is_name_bound_by_other_user(
-                player_name, target_id, platform
+                    player_name, target_id, platform
             ):
                 return False
 
             def _bound_whitelist(
-                player_name: str, is_offline: bool, is_online: bool, is_bedrock: bool
+                    player_name: str, is_offline: bool, is_online: bool, is_bedrock: bool
             ):
                 if (
-                    self.config.get("system", {})
-                    .get("bound", {})
-                    .get("whitelist_add_with_bound", False)
-                    and self.whitelist
+                        self.config.get("system", {})
+                                .get("bound", {})
+                                .get("whitelist_add_with_bound", False)
+                        and self.whitelist
                 ):
                     self.whitelist.add_player(
                         player_name,
@@ -344,19 +342,19 @@ class BoundSystem(BasicSystem):
                     )
 
             async def _set_group_card_if_qq(
-                player_name: str,
-                platform: str,
-                boardcast_info: BoardcastInfo,
-                target_id: str,
+                    player_name: str,
+                    platform: str,
+                    broadcast_info: BroadcastInfo,
+                    target_id: str,
             ):
                 """如果是QQ来源，则设置群名片"""
                 if platform == "QQ" and self.config.get_keys(
-                    ["connector", "QQ", "others", "change_group_card"], True
+                        ["connector", "QQ", "others", "change_group_card"], True
                 ):
                     await self.system_manager.connector_manager.get_connector(
                         "QQ"
                     ).bot.set_group_card(
-                        group_id=int(boardcast_info.source_id),
+                        group_id=int(broadcast_info.source_id),
                         user_id=int(target_id),
                         card=player_name,
                     )
@@ -370,13 +368,13 @@ class BoundSystem(BasicSystem):
                 bedrock_names_str = [str(name) for name in existing_player.bedrock_name]
                 java_names_str = [str(name) for name in existing_player.java_name]
                 if (is_bedrock and player_name not in bedrock_names_str) or (
-                    not is_bedrock and player_name not in java_names_str
+                        not is_bedrock and player_name not in java_names_str
                 ):
                     existing_player.add_name(player_name, is_bedrock)
                     self.player_manager.save()
                     _bound_whitelist(player_name, is_offline, is_online, is_bedrock)
                     await _set_group_card_if_qq(
-                        player_name, platform, boardcast_info, target_id
+                        player_name, platform, broadcast_info, target_id
                     )
                     return True
 
@@ -385,7 +383,7 @@ class BoundSystem(BasicSystem):
                     self.player_manager.save()
                     _bound_whitelist(player_name, is_offline, is_online, is_bedrock)
                     await _set_group_card_if_qq(
-                        player_name, platform, boardcast_info, target_id
+                        player_name, platform, broadcast_info, target_id
                     )
                     return True
 
@@ -401,7 +399,7 @@ class BoundSystem(BasicSystem):
             self.player_manager.save()
             _bound_whitelist(player_name, is_offline, is_online, is_bedrock)
             await _set_group_card_if_qq(
-                player_name, platform, boardcast_info, target_id
+                player_name, platform, broadcast_info, target_id
             )
 
             return True
@@ -409,9 +407,9 @@ class BoundSystem(BasicSystem):
             self.logger.error(f"绑定玩家失败: {e}")
             return False
 
-    async def _handle_unbind(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_unbind(self, broadcast_info: BroadcastInfo) -> bool:
         """处理解绑命令"""
-        command = boardcast_info.message[0].get("data", {}).get("text", "")
+        command = broadcast_info.message[0].get("data", {}).get("text", "")
         command_prefix = self.config.get("GUGUBot", {}).get("command_prefix", "#")
         system_name = self.get_tr("name")
         unbind_command = self.get_tr("unbind")
@@ -421,11 +419,11 @@ class BoundSystem(BasicSystem):
 
         if not command:
             # 解绑当前用户的所有绑定
-            return await self._unbind_current_user(boardcast_info)
+            return await self._unbind_current_user(broadcast_info)
         else:
             # 检查是否是基岩版独立命令
             if command.lower() in ["bedrock", "基岩", "be"]:
-                return await self._unbind_bedrock_only(boardcast_info)
+                return await self._unbind_bedrock_only(broadcast_info)
 
             # 解析玩家名和基岩版参数
             parts = command.split(maxsplit=1)
@@ -437,24 +435,24 @@ class BoundSystem(BasicSystem):
 
             # 解绑指定玩家
             return await self._unbind_specific_player(
-                boardcast_info, player_name, is_bedrock
+                broadcast_info, player_name, is_bedrock
             )
 
-    async def _unbind_current_user(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _unbind_current_user(self, broadcast_info: BroadcastInfo) -> bool:
         """解绑当前用户的Java版玩家名（默认行为）"""
         player = self.player_manager.get_player(
-            str(boardcast_info.sender_id), platform=boardcast_info.source.origin
+            str(broadcast_info.sender_id), platform=broadcast_info.source.origin
         )
         if not player:
             await self.reply(
-                boardcast_info, [MessageBuilder.text(self.get_tr("no_bindings"))]
+                broadcast_info, [MessageBuilder.text(self.get_tr("no_bindings"))]
             )
             return True
 
         # 检查是否有Java版玩家名
         if not player.java_name:
             await self.reply(
-                boardcast_info, [MessageBuilder.text(self.get_tr("no_bindings"))]
+                broadcast_info, [MessageBuilder.text(self.get_tr("no_bindings"))]
             )
             return True
 
@@ -466,23 +464,23 @@ class BoundSystem(BasicSystem):
         self.player_manager.save()
         await self._clean_bound(player, self.player_manager)
         await self.reply(
-            boardcast_info, [MessageBuilder.text(self.get_tr("unbind_success"))]
+            broadcast_info, [MessageBuilder.text(self.get_tr("unbind_success"))]
         )
         return True
 
-    async def _unbind_bedrock_only(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _unbind_bedrock_only(self, broadcast_info: BroadcastInfo) -> bool:
         """解绑当前用户的所有基岩版玩家名"""
-        player = self.player_manager.get_player(boardcast_info.sender_id)
+        player = self.player_manager.get_player(broadcast_info.sender_id)
         if not player:
             await self.reply(
-                boardcast_info, [MessageBuilder.text(self.get_tr("no_bindings"))]
+                broadcast_info, [MessageBuilder.text(self.get_tr("no_bindings"))]
             )
             return True
 
         # 检查是否有基岩版玩家名
         if not player.bedrock_name:
             await self.reply(
-                boardcast_info, [MessageBuilder.text(self.get_tr("no_bindings"))]
+                broadcast_info, [MessageBuilder.text(self.get_tr("no_bindings"))]
             )
             return True
 
@@ -494,28 +492,28 @@ class BoundSystem(BasicSystem):
         self.player_manager.save()
         await self._clean_bound(player, self.player_manager)
         await self.reply(
-            boardcast_info, [MessageBuilder.text(self.get_tr("unbind_success"))]
+            broadcast_info, [MessageBuilder.text(self.get_tr("unbind_success"))]
         )
         return True
 
     async def _unbind_specific_player(
-        self, boardcast_info: BoardcastInfo, player_name: str, is_bedrock: bool = False
+            self, broadcast_info: BroadcastInfo, player_name: str, is_bedrock: bool = False
     ) -> bool:
         """解绑指定玩家"""
         player = self.player_manager.get_player(player_name)
         if not player:
             await self.reply(
-                boardcast_info, [MessageBuilder.text(self.get_tr("player_not_found"))]
+                broadcast_info, [MessageBuilder.text(self.get_tr("player_not_found"))]
             )
             return True
 
-        is_admin = boardcast_info.is_admin
+        is_admin = broadcast_info.is_admin
         # 检查是否是绑定玩家
-        if not is_admin and boardcast_info.sender_id not in player.accounts.get(
-            boardcast_info.source.origin, []
+        if not is_admin and broadcast_info.sender_id not in player.accounts.get(
+                broadcast_info.source.origin, []
         ):
             await self.reply(
-                boardcast_info, [MessageBuilder.text(self.get_tr("no_bindings"))]
+                broadcast_info, [MessageBuilder.text(self.get_tr("no_bindings"))]
             )
             return True
 
@@ -530,12 +528,12 @@ class BoundSystem(BasicSystem):
                 player.bedrock_name.remove(player_name)
                 await self._clean_bound(player, self.player_manager)
                 await self.reply(
-                    boardcast_info, [MessageBuilder.text(self.get_tr("unbind_success"))]
+                    broadcast_info, [MessageBuilder.text(self.get_tr("unbind_success"))]
                 )
                 return True
             else:
                 await self.reply(
-                    boardcast_info,
+                    broadcast_info,
                     [MessageBuilder.text(self.get_tr("player_not_found"))],
                 )
                 return True
@@ -549,12 +547,12 @@ class BoundSystem(BasicSystem):
                 player.java_name.remove(player_name)
                 await self._clean_bound(player, self.player_manager)
                 await self.reply(
-                    boardcast_info, [MessageBuilder.text(self.get_tr("unbind_success"))]
+                    broadcast_info, [MessageBuilder.text(self.get_tr("unbind_success"))]
                 )
                 return True
             else:
                 await self.reply(
-                    boardcast_info,
+                    broadcast_info,
                     [MessageBuilder.text(self.get_tr("player_not_found"))],
                 )
                 return True
@@ -568,10 +566,10 @@ class BoundSystem(BasicSystem):
             要删除的玩家名，可以是单个字符串或字符串列表
         """
         if (
-            not self.config.get("system", {})
-            .get("bound", {})
-            .get("whitelist_remove_with_leave", False)
-            or not self.whitelist
+                not self.config.get("system", {})
+                        .get("bound", {})
+                        .get("whitelist_remove_with_leave", False)
+                or not self.whitelist
         ):
             return
 
@@ -635,7 +633,7 @@ class BoundSystem(BasicSystem):
         return member_id_set
 
     async def _send_quit_notification_to_admin_groups(
-        self, user_id: str, group_id: str, player: Optional[Player] = None
+            self, user_id: str, group_id: str, player: Optional[Player] = None
     ) -> None:
         """向管理群发送退群通知
 
@@ -699,12 +697,12 @@ class BoundSystem(BasicSystem):
         except Exception as e:
             self.logger.error(f"发送退群通知失败: {e}")
 
-    async def _handle_quit_member(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_quit_member(self, broadcast_info: BroadcastInfo) -> bool:
         """处理退群事件
 
         Parameters
         ----------
-        boardcast_info : BoardcastInfo
+        broadcast_info : BroadcastInfo
             退群事件信息
 
         Returns
@@ -714,7 +712,7 @@ class BoundSystem(BasicSystem):
         """
         try:
             # 从 raw 中获取退群用户信息
-            raw_data = boardcast_info.raw
+            raw_data = broadcast_info.raw
             if not isinstance(raw_data, dict):
                 return False
 
@@ -795,16 +793,16 @@ class BoundSystem(BasicSystem):
         if not player.java_name and not player.bedrock_name:
             player_manager.remove_player(player.name)
 
-    async def _handle_list(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_list(self, broadcast_info: BroadcastInfo) -> bool:
         """处理显示绑定列表命令"""
         # 管理员查看所有人的绑定列表
-        if boardcast_info.is_admin:
-            return await self._handle_list_all(boardcast_info)
+        if broadcast_info.is_admin:
+            return await self._handle_list_all(broadcast_info)
 
-        player = self.player_manager.get_player(boardcast_info.sender_id)
+        player = self.player_manager.get_player(broadcast_info.sender_id)
         if not player:
             await self.reply(
-                boardcast_info, [MessageBuilder.text(self.get_tr("no_bindings"))]
+                broadcast_info, [MessageBuilder.text(self.get_tr("no_bindings"))]
             )
             return True
 
@@ -817,25 +815,25 @@ class BoundSystem(BasicSystem):
 
         if not bound_players:
             await self.reply(
-                boardcast_info, [MessageBuilder.text(self.get_tr("no_bindings"))]
+                broadcast_info, [MessageBuilder.text(self.get_tr("no_bindings"))]
             )
             return True
 
         player_list = "\n".join(
-            f"{i+1}. {name}" for i, name in enumerate(bound_players)
+            f"{i + 1}. {name}" for i, name in enumerate(bound_players)
         )
         await self.reply(
-            boardcast_info,
+            broadcast_info,
             [MessageBuilder.text(self.get_tr("bind_list", player_list=player_list))],
         )
         return True
 
-    async def _handle_list_all(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_list_all(self, broadcast_info: BroadcastInfo) -> bool:
         """管理员查看所有玩家的绑定列表"""
         all_players = self.player_manager.get_all_players()
         if not all_players:
             await self.reply(
-                boardcast_info, [MessageBuilder.text("当前没有任何绑定信息")]
+                broadcast_info, [MessageBuilder.text("当前没有任何绑定信息")]
             )
             return True
 
@@ -866,11 +864,11 @@ class BoundSystem(BasicSystem):
             reply_lines.append(line)
 
         await self.reply(
-            boardcast_info, [MessageBuilder.text("\n".join(reply_lines))]
+            broadcast_info, [MessageBuilder.text("\n".join(reply_lines))]
         )
         return True
 
-    async def _handle_help(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_help(self, broadcast_info: BroadcastInfo) -> bool:
         """绑定指令帮助"""
         command_prefix = self.config.get("GUGUBot", {}).get("command_prefix", "#")
         system_name = self.get_tr("name")
@@ -879,7 +877,7 @@ class BoundSystem(BasicSystem):
         list_cmd = self.get_tr("list")
 
         # 根据用户权限选择不同的帮助信息
-        if boardcast_info.is_admin:
+        if broadcast_info.is_admin:
             enable_cmd = self.get_tr("gugubot.enable", global_key=True)
             disable_cmd = self.get_tr("gugubot.disable", global_key=True)
             help_msg = self.get_tr(
@@ -901,7 +899,7 @@ class BoundSystem(BasicSystem):
                 unbind=unbind_cmd,
                 list=list_cmd,
             )
-        await self.reply(boardcast_info, [MessageBuilder.text(help_msg)])
+        await self.reply(broadcast_info, [MessageBuilder.text(help_msg)])
         return True
 
     def get_player_by_qq_id(self, qq_id: str) -> Optional[Player]:
@@ -944,20 +942,20 @@ class BoundSystem(BasicSystem):
 
         return result
 
-    async def _handle_check_whitelist(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_check_whitelist(self, broadcast_info: BroadcastInfo) -> bool:
         """处理白名单检查命令
 
         检查白名单中有哪些玩家未绑定
         """
         if not self.whitelist:
-            await self.reply(boardcast_info, [MessageBuilder.text("白名单系统未启用")])
+            await self.reply(broadcast_info, [MessageBuilder.text("白名单系统未启用")])
             return True
 
         result = self._get_unbound_whitelist()
 
         if not result:
             await self.reply(
-                boardcast_info, [MessageBuilder.text("白名单检查: 所有玩家都已绑定~")]
+                broadcast_info, [MessageBuilder.text("白名单检查: 所有玩家都已绑定~")]
             )
             return True
 
@@ -965,25 +963,25 @@ class BoundSystem(BasicSystem):
         for uuid, player_name in result:
             reply_msg.append(f"{player_name}({uuid}) 未绑定")
 
-        await self.reply(boardcast_info, [MessageBuilder.text("\n".join(reply_msg))])
+        await self.reply(broadcast_info, [MessageBuilder.text("\n".join(reply_msg))])
         return True
 
     async def _handle_remove_unbound_whitelist(
-        self, boardcast_info: BoardcastInfo
+            self, broadcast_info: BroadcastInfo
     ) -> bool:
         """处理移除未绑定白名单命令
 
         从白名单中移除所有未绑定的玩家
         """
         if not self.whitelist:
-            await self.reply(boardcast_info, [MessageBuilder.text("白名单系统未启用")])
+            await self.reply(broadcast_info, [MessageBuilder.text("白名单系统未启用")])
             return True
 
         result = self._get_unbound_whitelist()
 
         if not result:
             await self.reply(
-                boardcast_info, [MessageBuilder.text("没有未绑定的白名单成员~")]
+                broadcast_info, [MessageBuilder.text("没有未绑定的白名单成员~")]
             )
             return True
 
@@ -992,7 +990,7 @@ class BoundSystem(BasicSystem):
             self.whitelist.remove_player(player_name)
             reply_msg.append(f"{player_name}({uuid}) 已从白名单中移除")
 
-        await self.reply(boardcast_info, [MessageBuilder.text("\n".join(reply_msg))])
+        await self.reply(broadcast_info, [MessageBuilder.text("\n".join(reply_msg))])
         return True
 
     ############################################################## 多余绑定检查 ##############################################################
@@ -1023,7 +1021,7 @@ class BoundSystem(BasicSystem):
 
         return extra_bound_members
 
-    async def _handle_check_extra_bound(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_check_extra_bound(self, broadcast_info: BroadcastInfo) -> bool:
         """处理多余绑定检查命令
 
         检查有哪些绑定的用户不在群里
@@ -1032,7 +1030,7 @@ class BoundSystem(BasicSystem):
 
         if not result:
             await self.reply(
-                boardcast_info, [MessageBuilder.text("多余绑定检查: 绑定成员都在群里~")]
+                broadcast_info, [MessageBuilder.text("多余绑定检查: 绑定成员都在群里~")]
             )
             return True
 
@@ -1041,10 +1039,10 @@ class BoundSystem(BasicSystem):
             player_name_str = ", ".join(player_names)
             reply_msg.append(f"{qq_id}({player_name_str}) 未在群里")
 
-        await self.reply(boardcast_info, [MessageBuilder.text("\n".join(reply_msg))])
+        await self.reply(broadcast_info, [MessageBuilder.text("\n".join(reply_msg))])
         return True
 
-    async def _handle_remove_extra_bound(self, boardcast_info: BoardcastInfo) -> bool:
+    async def _handle_remove_extra_bound(self, broadcast_info: BroadcastInfo) -> bool:
         """处理移除多余绑定命令
 
         移除所有不在群里的绑定成员
@@ -1052,7 +1050,7 @@ class BoundSystem(BasicSystem):
         result = await self._get_extra_bound_member()
 
         if not result:
-            await self.reply(boardcast_info, [MessageBuilder.text("绑定成员都在群里~")])
+            await self.reply(broadcast_info, [MessageBuilder.text("绑定成员都在群里~")])
             return True
 
         reply_msg = ["已将多余已绑定成员移除:"]
@@ -1083,5 +1081,5 @@ class BoundSystem(BasicSystem):
             player_name_str = ", ".join(player_names)
             reply_msg.append(f"{qq_id}({player_name_str}) 已从绑定中移除")
 
-        await self.reply(boardcast_info, [MessageBuilder.text("\n".join(reply_msg))])
+        await self.reply(broadcast_info, [MessageBuilder.text("\n".join(reply_msg))])
         return True
