@@ -4,6 +4,7 @@ import asyncio
 import re
 import time
 from enum import Enum
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from mcdreforged.api.types import PluginServerInterface
@@ -288,6 +289,42 @@ class PlayerListSystem(BasicSystem):
             self.logger.warning(f"获取本地假人列表失败: {e}")
         return []
 
+    def _read_server_properties(self) -> Dict[str, str]:
+        """从 MCDR working_directory 中读取 server.properties"""
+        try:
+            working_dir = self.server.get_mcdr_config().get("working_directory", "server")
+            return dict(
+                line.split("=", 1)
+                for line in Path(working_dir, "server.properties")
+                .read_text(encoding="utf-8").splitlines()
+                if "=" in line and not line.startswith("#")
+            )
+        except Exception:
+            return {}
+
+    def _get_players_via_query(self) -> Optional[List[str]]:
+        """使用 mcstatus Query 协议获取玩家列表（绕过 RCON 字节限制）
+
+        自动从 server.properties 读取 server-ip / query.port。
+        需要 enable-query=true 并安装 mcstatus。
+        返回 None 表示查询失败（区别于无在线玩家的 []）。
+        """
+        try:
+            from mcstatus import JavaServer as McStatusServer
+
+            props = self._read_server_properties()
+            host = props.get("server-ip") or "localhost"
+            port = int(props.get("query.port") or props.get("server-port") or 25565)
+            return list(McStatusServer(host, port).query().players.names)
+        except ImportError:
+            self.logger.warning(
+                "mcstatus 未安装，无法使用 Query 协议，请运行: pip install mcstatus"
+            )
+            return None
+        except Exception as e:
+            self.logger.warning(f"Query 协议查询失败: {e}")
+            return None
+
     def _parse_bot_list(self, raw_result: str) -> List[str]:
         """解析 /bot list 返回的假人列表
 
@@ -335,7 +372,21 @@ class PlayerListSystem(BasicSystem):
         Returns:
             Tuple[List[str], List[str]]: (真实玩家列表, 假人列表)
         """
+        use_query = self.config.get_keys(
+            ["system", "list", "use_query_protocol"], False
+        )
         use_bot_list = self.config.get_keys(["system", "list", "use_bot_list"], False)
+
+        if use_query:
+            query_result = self._get_players_via_query()
+            if query_result is not None:
+                if use_bot_list:
+                    bots = self._get_local_bots()
+                    bot_set = set(bots)
+                    real_players = [p for p in query_result if p not in bot_set]
+                    return real_players, bots
+                return self._separate_players_and_bots(query_result)
+            self.logger.warning("Query 协议查询失败，回退到 RCON 查询")
 
         if use_bot_list:
             # leaves/lophine 端：使用 /list 获取玩家，使用 /bot list 获取假人
@@ -608,19 +659,22 @@ class PlayerListSystem(BasicSystem):
     ) -> None:
         """处理本地列表命令"""
         try:
-            if self.server.is_rcon_running():
+            use_query = self.config.get_keys(
+                ["system", "list", "use_query_protocol"], False
+            )
+            rcon_available = self.server.is_rcon_running()
+
+            if use_query or rcon_available:
                 use_bot_list = self.config.get_keys(
                     ["system", "list", "use_bot_list"], False
                 )
 
-                if use_bot_list:
-                    # leaves/lophine 端：使用专门的方法获取分离的玩家和假人列表
+                if use_query or use_bot_list:
                     real_players, bots = self._get_local_players_and_bots()
                     formatted_result = self._format_separated_list(
                         real_players, bots, list_type
                     )
                 else:
-                    # 其他端：使用传统方式，从 /list 结果中分离
                     result = self.server.rcon_query("list")
                     formatted_result = self._format_player_list(result, list_type)
 

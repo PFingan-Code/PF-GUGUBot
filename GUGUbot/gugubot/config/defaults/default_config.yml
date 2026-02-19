@@ -171,6 +171,7 @@ system:
     comma_separator: "," # 列分隔符
     use_bot_list: false   # 使用 /bot list 获取假人列表 :: leaves/lophine 端需要开启此选项
     bot_list_pattern: "\\):\\s*(.+)"   # /bot list 每行的正则匹配模式 :: 第一个捕获组为逗号分隔的假人名列表，不匹配的行会被跳过
+    use_query_protocol: false   # 使用 Query 协议查询玩家列表 :: 绕过 RCON 1024 字节限制，自动从 server.properties 读取端口并且 enable-query=true
 
   name: # 机器人昵称
     enable: false
