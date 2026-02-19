@@ -32,9 +32,9 @@ class BasicSystem:
         name : str
             系统名称
         enable : bool
-            默认启用状态，如果config中有配置则使用config的值
-        config : Optional[BotConfig]
-            配置对象，用于读取enable状态
+            默认启用状态，如果 config 中有配置则使用 config 的值
+        config : BotConfig, optional
+            配置对象，用于读取 enable 状态
         """
         self.name = name
         self.system_manager: Optional[SystemManager] = None

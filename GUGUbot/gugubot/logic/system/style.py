@@ -43,7 +43,7 @@ class StyleSystem(BasicSystem):
             MCDR 服务器接口
         style_manager : StyleManager
             风格管理器实例
-        config : Optional[BotConfig]
+        config : BotConfig, optional
             配置对象
         """
         super().__init__("style", enable=True, config=config)

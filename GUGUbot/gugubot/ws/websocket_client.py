@@ -45,17 +45,17 @@ class WebSocketClient:
         ----------
         url : str
             WebSocket服务器URL
-        headers : Optional[Dict[str, str]]
+        headers : Dict[str, str], optional
             HTTP请求头
-        on_message : Optional[Callable]
+        on_message : Callable, optional
             消息接收回调函数
-        on_open : Optional[Callable]
+        on_open : Callable, optional
             连接建立回调函数
-        on_error : Optional[Callable]
+        on_error : Callable, optional
             错误处理回调函数
-        on_close : Optional[Callable]
+        on_close : Callable. optional
             连接关闭回调函数
-        logger : Optional[logging.Logger]
+        logger : logging.Logger, optional
             日志记录器
         """
         self.url = url
