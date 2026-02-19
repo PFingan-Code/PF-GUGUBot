@@ -125,13 +125,12 @@ class PlayerManager(BasicConfig):
 
         Parameters
         ----------
-        name_only : bool, optional
-            是否只用名称查找, 默认 ``False``
+        identifier : str
+            玩家标识符（可以是名称、UUID或账号ID）
         platform : str, optional
             要查找的平台, 不填或填 ``None`` 在全平台查找
-        identifier: str
-            玩家标识符（可以是名称、UUID或账号ID）
-
+        name_only : bool, optional
+            是否只用名称查找, 默认 ``False``
         Returns
         -------
         Optional[Player]
