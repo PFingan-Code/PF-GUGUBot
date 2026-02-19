@@ -19,10 +19,10 @@ class TestConnector(BasicConnector):
     """
 
     def __init__(
-            self,
-            server: Any,
-            config: BotConfig = None,
-            logger: Optional[logging.Logger] = None,
+        self,
+        server: Any,
+        config: BotConfig = None,
+        logger: Optional[logging.Logger] = None,
     ) -> None:
         """初始化TEST连接器。
 
@@ -55,7 +55,7 @@ class TestConnector(BasicConnector):
         """
         self.logger.info("TEST连接器已断开")
 
-    async def send_message(self, broadcast_info: BroadcastInfo) -> None:
+    async def send_message(self, broadcast_info: BroadcastInfo, *args, **kwargs) -> None:
         """向TEST服务器发送消息。
 
         Parameters

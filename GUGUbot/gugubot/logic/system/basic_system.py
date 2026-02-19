@@ -141,7 +141,11 @@ class BasicSystem:
     async def reply(self, broadcast_info: BroadcastInfo, message: List[dict]) -> None:
         # 构造基础 target - 使用原始来源作为 target key
         origin_source = broadcast_info.source.origin
-        target_source = broadcast_info.source_id if broadcast_info.source_id and broadcast_info.source_id.isdigit() else origin_source
+        target_source = (
+            broadcast_info.source_id
+            if broadcast_info.source_id and broadcast_info.source_id.isdigit()
+            else origin_source
+        )
         target = {target_source: broadcast_info.event_sub_type}
 
         # 检查是否是 bridge 回复（receiver_source 是 Bridge，但原始来源不是 Bridge）
@@ -150,7 +154,8 @@ class BasicSystem:
             "Bridge"
         )
 
-        if broadcast_info.receiver_source == bridge_name and not broadcast_info.source.is_from(bridge_name):
+        if broadcast_info.receiver_source == bridge_name \
+            and not broadcast_info.source.is_from(bridge_name):
             # 如果 receiver_source 是 Bridge，但原始来源不是 Bridge, 则将 target 设置为 source
             target[broadcast_info.receiver_source] = broadcast_info.event_sub_type
 
@@ -230,7 +235,11 @@ class BasicSystem:
         self.enable = enable
         self._save_enable_state()
         await self.reply(broadcast_info, [MessageBuilder.text(
-            self.get_tr(f"gugubot.enable_success" if enable else "gugubot.disable_success", global_key=True))])
+            self.get_tr(
+                "gugubot.enable_success" if enable else "gugubot.disable_success",
+                global_key=True
+            )
+        )])
         return True
 
     def _save_enable_state(self) -> None:

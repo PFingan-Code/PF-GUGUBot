@@ -57,12 +57,17 @@ class QQParser(BasicParser):
 
         # 展开模板列表（支持新旧两种格式）
         template_strs = (
-            key for item in templates
+            key
+            for item in templates
             for key in (item.keys() if isinstance(item, dict) else [item])
         )
         return next(
-            (sender for t in template_strs if (sender := self._extract_sender_from_template(text, t))),
-            None
+            (
+                sender
+                for t in template_strs
+                if (sender := self._extract_sender_from_template(text, t))
+            ),
+            None,
         )
 
     def _get_replied_text(self, data: dict) -> str:
@@ -96,7 +101,9 @@ class QQParser(BasicParser):
             if not (replied_text := self._get_replied_text(data)):
                 return None
 
-            templates = self.connector.config.get_keys(["connector", "QQ", "chat_templates"], [])
+            templates = self.connector.config.get_keys(
+                ["connector", "QQ", "chat_templates"], []
+            )
             if sender := self._parse_sender_from_template(replied_text, templates):
                 self.logger.debug(f"从回复消息中解析出receiver: {sender}")
                 return sender
@@ -141,18 +148,29 @@ class QQParser(BasicParser):
                     self.connector.bot.self_id = self_id
 
                 message = message_data.get("raw_message", "")
-                parsed_message = CQHandler.parse(message) if isinstance(message, str) else ArrayHandler.parse(message)
+                parsed_message = (
+                    CQHandler.parse(message)
+                    if isinstance(message, str)
+                    else ArrayHandler.parse(message)
+                )
 
-                source_id = message_data.get("user_id") if message_data.get(
-                    "message_type") == 'private' else message_data.get("group_id")
-                source_type = "private" if message_data.get("message_type") == 'private' else "group"
+                source_id = (
+                    message_data.get("user_id")
+                    if message_data.get("message_type") == "private"
+                    else message_data.get("group_id")
+                )
+                source_type = (
+                    "private"
+                    if message_data.get("message_type") == "private"
+                    else "group"
+                )
 
                 sender = message_data.get("sender", {})
                 sender_name = sender.get("card") or sender.get("nickname")
                 sender_id = str(sender.get("user_id"))
 
                 # 检查是否应该排除此用户的消息
-                if await self._should_exclude_user(sender_id, source_id, source_type):
+                if await self._should_exclude_user(sender_id):
                     self.logger.debug(f"已在connector层拦截排除用户 {sender_id} 的消息")
                     return None
 
@@ -172,12 +190,15 @@ class QQParser(BasicParser):
                     sender=sender_name,
                     sender_id=sender_id,
                     receiver=receiver,  # 从回复消息中解析的接收者
-                    is_admin=self._is_admin(source_id) or self._is_admin(sender_id)
+                    is_admin=self._is_admin(source_id) or self._is_admin(sender_id),
                 )
 
             else:
-                sub_type = message_data.get("request_type") if event_type == "request" else message_data.get(
-                    "notice_type")
+                sub_type = (
+                    message_data.get("request_type")
+                    if event_type == "request"
+                    else message_data.get("notice_type")
+                )
 
                 broadcast_info = BroadcastInfo(
                     event_type=event_type,
@@ -201,7 +222,9 @@ class QQParser(BasicParser):
         """检查是否是管理员"""
         config = self.system_manager.config
         admin_ids = config.get_keys(["connector", "QQ", "permissions", "admin_ids"], [])
-        admin_groups = config.get_keys(["connector", "QQ", "permissions", "admin_group_ids"], [])
+        admin_groups = config.get_keys(
+            ["connector", "QQ", "permissions", "admin_group_ids"], []
+        )
 
         if str(sender_id) in [str(i) for i in admin_ids + admin_groups]:
             return True
@@ -213,9 +236,11 @@ class QQParser(BasicParser):
             return False
 
         config = self.connector.config
-        friend_is_admin = config.get_keys(["connector", "QQ", "permissions", "friend_is_admin"], False)
+        friend_is_admin = config.get_keys(
+            ["connector", "QQ", "permissions", "friend_is_admin"], False
+        )
 
-        is_private_chat = message_data.get("message_type") == 'private'
+        is_private_chat = message_data.get("message_type") == "private"
 
         return friend_is_admin and is_private_chat
 
@@ -223,31 +248,36 @@ class QQParser(BasicParser):
         friend_is_admin = self._friend_is_admin(message_data, event_type)
 
         if event_type == "message":
-            source_id = message_data.get("user_id") if message_data.get(
-                "message_type") == 'private' else message_data.get("group_id")
+            source_id = (
+                message_data.get("user_id")
+                if message_data.get("message_type") == "private"
+                else message_data.get("group_id")
+            )
         else:
             # 对于 notice 和 request 类型，直接使用 user_id 或 group_id
             source_id = message_data.get("group_id") or message_data.get("user_id")
 
-        admin_ids = self.connector.config.get_keys(["connector", "QQ", "permissions", "admin_ids"], [])
-        admin_groups = self.connector.config.get_keys(["connector", "QQ", "permissions", "admin_group_ids"], [])
-        group_ids = self.connector.config.get_keys(["connector", "QQ", "permissions", "group_ids"], [])
+        admin_ids = self.connector.config.get_keys(
+            ["connector", "QQ", "permissions", "admin_ids"], []
+        )
+        admin_groups = self.connector.config.get_keys(
+            ["connector", "QQ", "permissions", "admin_group_ids"], []
+        )
+        group_ids = self.connector.config.get_keys(
+            ["connector", "QQ", "permissions", "group_ids"], []
+        )
 
         valid_source = [str(i) for i in admin_ids + admin_groups + group_ids]
 
         return friend_is_admin or str(source_id) in valid_source
 
-    async def _should_exclude_user(self, user_id: str, source_id: str, source_type: str) -> bool:
+    async def _should_exclude_user(self, user_id: str) -> bool:
         """检查用户是否应该被排除（完全忽略其消息）
 
         Parameters
         ----------
         user_id : str
             用户QQ号
-        source_id : str
-            消息来源ID（群号或用户号）
-        source_type : str
-            消息来源类型（group 或 private）
 
         Returns
         -------
@@ -255,7 +285,9 @@ class QQParser(BasicParser):
             True 表示应该排除此用户，False 表示不应该排除
         """
         # 1. 排除配置中指定的额外用户列表
-        exclude_ids = self.connector.config.get_keys(["system", "bound_notice", "exclude_ids"], [])
+        exclude_ids = self.connector.config.get_keys(
+            ["system", "bound_notice", "exclude_ids"], []
+        )
         if user_id in [str(exclude_id) for exclude_id in exclude_ids if exclude_id]:
             self.logger.debug(f"用户 {user_id} 在排除列表中，忽略消息")
             return True

@@ -5,7 +5,7 @@ from gugubot.config.BasicConfig import BasicConfig, yaml
 
 class BotConfig(BasicConfig):
     def __init__(
-            self, path="./config.yml", default_content=None, yaml_format=True, logger=None
+        self, path="./config.yml", default_content=None, yaml_format=True, logger=None
     ):
         self.logger = logger
         super().__init__(path, default_content, yaml_format)
@@ -19,7 +19,7 @@ class BotConfig(BasicConfig):
         """Add new configs from latest version to current config"""
         # read the latest config file from MCDR package
         with server.open_bundled_file(
-                "gugubot/config/defaults/default_config.yml"
+            "gugubot/config/defaults/default_config.yml"
         ) as file_handler:
             message = file_handler.read()
         message_unicode = message.decode("utf-8").replace("\r\n", "\n")
@@ -87,7 +87,7 @@ class BotConfig(BasicConfig):
                         f"出错位置：第 {mark.line + 1} 行，第 {mark.column + 1} 列"
                     )
                     msg = (
-                            f"YAML 配置文件语法错误: {location_info}" + "\n" + error_detail
+                        f"YAML 配置文件语法错误: {location_info}" + "\n" + error_detail
                     )
                 else:
                     error_detail = f"YAML 配置文件语法错误: {e}"
@@ -100,7 +100,7 @@ class BotConfig(BasicConfig):
                     error_detail = f"详细信息: {e}"
                     location_info = f"出错位置：第 {lineno} 行，第 {colno} 列"
                     msg = (
-                            f"JSON 配置文件语法错误: {location_info}" + "\n" + error_detail
+                        f"JSON 配置文件语法错误: {location_info}" + "\n" + error_detail
                     )
                 else:
                     error_detail = f"JSON 配置文件语法错误: {e}"

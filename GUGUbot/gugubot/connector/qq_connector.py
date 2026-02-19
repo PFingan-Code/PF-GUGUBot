@@ -1,4 +1,5 @@
 import asyncio
+import json
 import random
 import re
 import time
@@ -38,14 +39,16 @@ class Bot:
         self.self_id = None  # 机器人自己的QQ号
 
     @staticmethod
-    def format_request(action: str, params: dict = {}):
+    def format_request(action: str, params: dict = None):
+        if params is None:
+            params = {}
         return {"action": action, "params": params, "echo": params.get("echo", "")}
 
     def __getattr__(self, name):
         if (
-                name.startswith("get_")
-                or name.startswith("can_")
-                or name.startswith("_get")
+            name.startswith("get_")
+            or name.startswith("can_")
+            or name.startswith("_get")
         ):
 
             async def handler(**kwargs):
@@ -58,7 +61,6 @@ class Bot:
                 await self.send_message(command_request)
 
                 start_time = time.time()
-                import asyncio
 
                 while True:
                     if function_return_id in self.function_return:
@@ -185,7 +187,7 @@ class QQWebSocketConnector(BasicConnector):
         )
 
     def _on_close(
-            self, _: Any, status_code: Optional[int], reason: Optional[str]
+        self, _: Any, status_code: Optional[int], reason: Optional[str]
     ) -> None:
         """处理WebSocket连接关闭
 
@@ -198,9 +200,10 @@ class QQWebSocketConnector(BasicConnector):
         reason : Optional[str]
             关闭原因
         """
-        self.logger.debug(
-            f"{self.log_prefix} {self.server.tr('gugubot.connector.QQ.close_connect', status_code=status_code, reason=reason)}"
+        close_info = self.server.tr(
+            "gugubot.connector.QQ.close_connect", status_code=status_code, reason=reason
         )
+        self.logger.debug(f"{self.log_prefix} {close_info}")
 
     async def _send_message(self, message: Any) -> None:
         """向QQ WebSocket服务器发送消息"""
@@ -295,12 +298,12 @@ class QQWebSocketConnector(BasicConnector):
 
                 # 优先在换行符处分割
                 chunk = text[:space]
-                if (pos := chunk.rfind('\n')) > space // 2:
-                    chunk = text[:pos + 1]
+                if (pos := chunk.rfind("\n")) > space // 2:
+                    chunk = text[: pos + 1]
 
                 current_part.append({"type": "text", "data": {"text": chunk}})
                 current_len += len(chunk)
-                text = text[len(chunk):]
+                text = text[len(chunk) :]
 
         flush()
         return result
@@ -324,7 +327,6 @@ class QQWebSocketConnector(BasicConnector):
 
         message = processed_info.processed_message
         source = processed_info.source  # Source 对象
-        source_id = processed_info.source_id
 
         # 去除消息中的 Minecraft 颜色代码
         message = self._strip_color_codes_from_message(message)
@@ -338,9 +340,9 @@ class QQWebSocketConnector(BasicConnector):
 
             # 如果配置了模板，根据权重随机选择一个；否则使用默认格式
             if (
-                    chat_templates
-                    and isinstance(chat_templates, list)
-                    and len(chat_templates) > 0
+                chat_templates
+                and isinstance(chat_templates, list)
+                and len(chat_templates) > 0
             ):
                 # 检查是否为字典格式（带权重）
                 if isinstance(chat_templates[0], dict):
@@ -399,7 +401,9 @@ class QQWebSocketConnector(BasicConnector):
                 if target_type == "group":
                     await self.bot.send_group_msg(group_id=int(target_id), message=part)
                 elif target_type == "private":
-                    await self.bot.send_private_msg(user_id=int(target_id), message=part)
+                    await self.bot.send_private_msg(
+                        user_id=int(target_id), message=part
+                    )
                 else:
                     await self.bot.send_temp_msg(
                         group_id=int(target_type), user_id=int(target_id), message=part
@@ -421,7 +425,9 @@ class QQWebSocketConnector(BasicConnector):
         except Exception as e:
             error_msg = str(e) + "\n" + traceback.format_exc()
             self.logger.warning(
-                f"{self.log_prefix} {self.server.tr('gugubot.connector.QQ.error_close', error=error_msg)}"
+                f"{self.log_prefix} {self.server.tr(
+                    "gugubot.connector.QQ.error_close", error=error_msg
+                )}"
             )
             raise
 
@@ -447,7 +453,6 @@ class QQWebSocketConnector(BasicConnector):
             return
 
         try:
-            import json
 
             # 先快速检查是否是 API 响应（echo），直接在当前线程处理
             try:

@@ -134,13 +134,17 @@ class ExecuteSystem(BasicSystem):
 
             # 检查是否包含 @<服务器名> 格式
             bridge_match = re.match(r'^@([\w\-_]+)\s+(.+)$', command)
+            target_server = None
             if bridge_match:
                 target_server = bridge_match.group(1)
                 command = bridge_match.group(2)
 
             # 检查是否应该忽略
             if self._should_ignore_command(command):
-                await self.reply(broadcast_info, [MessageBuilder.text(self.get_tr("command_ignored"))])
+                await self.reply(
+                    broadcast_info,
+                    [MessageBuilder.text(self.get_tr("command_ignored"))]
+                )
                 return True
 
             # 如果包含 @<服务器名> 格式，则通过 bridge 发送命令
@@ -153,7 +157,10 @@ class ExecuteSystem(BasicSystem):
                 )
 
             if not self.is_command(broadcast_info) or \
-                    (not await self._is_admin(broadcast_info.sender_id) and not broadcast_info.is_admin):
+                (
+                    not await self._is_admin(broadcast_info.sender_id) \
+                    and not broadcast_info.is_admin
+                ):
                 return False
 
             # 执行 MC 原生命令
@@ -175,7 +182,10 @@ class ExecuteSystem(BasicSystem):
 
             # 检查是否应该忽略
             if self._should_ignore_command(command):
-                await self.reply(broadcast_info, [MessageBuilder.text(self.get_tr("command_ignored"))])
+                await self.reply(
+                    broadcast_info,
+                    [MessageBuilder.text(self.get_tr("command_ignored"))]
+                )
                 return True
 
             # 如果包含 @<服务器名> 格式，则通过 bridge 发送命令
@@ -188,7 +198,10 @@ class ExecuteSystem(BasicSystem):
                 )
 
             if not self.is_command(broadcast_info) or \
-                    (not await self._is_admin(broadcast_info.sender_id) and not broadcast_info.is_admin):
+                (
+                    not await self._is_admin(broadcast_info.sender_id) \
+                    and not broadcast_info.is_admin
+                ):
                 return False
 
             # 执行 MCDR 命令
@@ -196,7 +209,8 @@ class ExecuteSystem(BasicSystem):
 
         # 检查是否是系统名称命令（显示帮助）
         system_name = self.get_tr("name")
-        if content == f"{command_prefix}{system_name}" or content == f"{command_prefix}{system_name} {help_cmd}":
+        if content == f"{command_prefix}{system_name}" \
+            or content == f"{command_prefix}{system_name} {help_cmd}":
             return await self._handle_help(broadcast_info)
 
         return False
@@ -233,7 +247,10 @@ class ExecuteSystem(BasicSystem):
             if result:
                 await self.reply(broadcast_info, [MessageBuilder.text(result)])
             else:
-                await self.reply(broadcast_info, [MessageBuilder.text(self.get_tr("execute_success"))])
+                await self.reply(
+                    broadcast_info,
+                    [MessageBuilder.text(self.get_tr("execute_success"))]
+                )
 
             return True
         except Exception as e:

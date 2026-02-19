@@ -5,7 +5,7 @@ from packaging import version
 
 # 检查插件版本
 def check_plugin_version(server: PluginServerInterface):
-    async def check_plugin_version():
+    async def check_plugin_version_task():
         try:
             response = requests.get(
                 "https://api.github.com/repos/PFingan-Code/PF-GUGUBot/releases/latest"
@@ -31,4 +31,4 @@ def check_plugin_version(server: PluginServerInterface):
         except Exception as e:
             server.logger.warning(f"检查插件版本时出错: {e}")
 
-    return check_plugin_version
+    return check_plugin_version_task

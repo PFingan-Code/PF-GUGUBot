@@ -11,10 +11,10 @@ class BasicConfig(dict):
     """Basic configuration class for loading and saving JSON/YAML files."""
 
     def __init__(
-            self,
-            path: str = "./config.json",
-            default_content: dict = None,
-            yaml_format: bool = False,
+        self,
+        path: str = "./config.json",
+        default_content: dict = None,
+        yaml_format: bool = False,
     ) -> None:
         super().__init__()
         self.yaml_format = yaml_format

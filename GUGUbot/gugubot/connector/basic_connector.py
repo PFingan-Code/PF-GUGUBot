@@ -33,13 +33,13 @@ class BasicConnector(ABC):
     """
 
     def __init__(
-            self,
-            source: str = "",
-            parser: Optional[BasicParser] = None,
-            builder: Any = None,
-            server: Any = None,
-            logger: Any = None,
-            config: BotConfig = None,
+        self,
+        source: str = "",
+        parser: Optional[BasicParser] = None,
+        builder: Any = None,
+        server: Any = None,
+        logger: Any = None,
+        config: BotConfig = None,
     ) -> None:
         self.source: str = source
         self.parser: Optional[BasicParser] = parser

@@ -37,7 +37,9 @@ async def broadcast_server_start(
     Example
     -------
     >>> await broadcast_server_start(server, connector_manager, config)
-    >>> await broadcast_server_start(server, connector_manager, config, "服务器已启动！", exclude_sources=["MyServer", "Bridge"])
+    >>> await broadcast_server_start(
+    >>>     server, connector_manager, config, "服务器已启动！", exclude_sources=["MyServer", "Bridge"]
+    >>> )
     """
     # 检查是否启用服务器启动通知
     if not config.get_keys(["connector", "minecraft", "server_start_notice"], True):
@@ -71,7 +73,7 @@ async def broadcast_server_start(
             processed_info, exclude=exclude_sources
         )
 
-        server.logger.info(f"[服务器通知] 已广播启动消息")
+        server.logger.info("[服务器通知] 已广播启动消息")
 
     except Exception as e:
         server.logger.error(f"[服务器通知] 广播启动消息失败: {e}")
@@ -102,7 +104,9 @@ async def broadcast_server_stop(
     Example
     -------
     >>> await broadcast_server_stop(server, connector_manager, config)
-    >>> await broadcast_server_stop(server, connector_manager, config, "服务器维护中...", exclude_sources=["MyServer"])
+    >>> await broadcast_server_stop(
+    >>>     server, connector_manager, config, "服务器维护中...", exclude_sources=["MyServer"]
+    >>> )
     """
     # 检查是否启用服务器停止通知
     if not config.get_keys(["connector", "minecraft", "server_stop_notice"], True):
@@ -136,7 +140,7 @@ async def broadcast_server_stop(
             processed_info, exclude=exclude_sources
         )
 
-        server.logger.info(f"[服务器通知] 已广播停止消息")
+        server.logger.info("[服务器通知] 已广播停止消息")
 
     except Exception as e:
         server.logger.error(f"[服务器通知] 广播停止消息失败: {e}")

@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from mcdreforged.api.types import PluginServerInterface
+from mcstatus import JavaServer as McStatusServer
 
 from gugubot.builder import MessageBuilder
 from gugubot.config.BotConfig import BotConfig
@@ -310,8 +311,6 @@ class PlayerListSystem(BasicSystem):
         返回 None 表示查询失败（区别于无在线玩家的 []）。
         """
         try:
-            from mcstatus import JavaServer as McStatusServer
-
             props = self._read_server_properties()
             host = props.get("server-ip") or "localhost"
             port = int(props.get("query.port") or props.get("server-port") or 25565)
@@ -431,7 +430,7 @@ class PlayerListSystem(BasicSystem):
             self.logger.error(f"处理 bridge 查询失败: {e}")
 
     async def _handle_bridge_response(
-            self, broadcast_info: BroadcastInfo, command: str
+            self, _: BroadcastInfo, command: str
     ) -> None:
         """处理来自其他服务器的响应"""  # broadcast_info 未使用
         try:
@@ -697,7 +696,7 @@ class PlayerListSystem(BasicSystem):
             )
 
     async def _send_response_to_bridge(
-            self, broadcast_info: BroadcastInfo, query_id: str, list_type: ListType
+            self, broadcast_info: BroadcastInfo, query_id: str, _: ListType
     ) -> None:
         """发送响应给主服务器"""
         try:
@@ -723,7 +722,13 @@ class PlayerListSystem(BasicSystem):
             bots_str = ",".join(bots) if bots else ""
 
             command_prefix = self.config.get("GUGUBot", {}).get("command_prefix", "#")
-            response_text = f"{command_prefix}{self.bridge_response_cmd}|{query_id}|{server_name}|{players_str}|{bots_str}"
+            response_text = "|".join([
+                f"{command_prefix}{self.bridge_response_cmd}",
+                query_id,
+                server_name,
+                players_str,
+                bots_str,
+            ])
 
             processed_info = ProcessedInfo(
                 processed_message=[MessageBuilder.text(response_text)],
@@ -927,7 +932,7 @@ class PlayerListSystem(BasicSystem):
             return []
 
     async def _broadcast_query_to_bridge(
-            self, broadcast_info: BroadcastInfo, list_type: ListType
+            self, broadcast_info: BroadcastInfo, _: ListType
     ) -> None:
         """Broadcast query command to other servers via bridge."""
         try:

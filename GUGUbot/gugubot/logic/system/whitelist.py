@@ -64,8 +64,6 @@ class WhitelistSystem(BasicSystem):
 
     async def _handle_msg(self, broadcast_info: BroadcastInfo) -> bool:
         """处理消息"""
-        content = broadcast_info.message[0].get("data", {}).get("text", "")
-
         if self.is_command(broadcast_info):
             return await self._handle_command(broadcast_info)
 

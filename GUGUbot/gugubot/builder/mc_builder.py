@@ -11,13 +11,13 @@ from gugubot.utils.player_manager import PlayerManager
 class McMessageBuilder:
     @staticmethod
     def build(
-            forward_content: Union[str, RText],
-            *,
-            group_name: str = "QQ",
-            group_id: Optional[str] = None,
-            sender: Optional[str] = None,
-            sender_id: Optional[str] = None,
-            receiver: Optional[str] = None,
+        forward_content: Union[str, RText],
+        *,
+        group_name: str = "QQ",
+        group_id: Optional[str] = None,
+        sender: Optional[str] = None,
+        sender_id: Optional[str] = None,
+        receiver: Optional[str] = None,
     ) -> RText:
         rtext = RText(f"[{group_name}]", color=RColor.gold)
         if group_id is not None:
@@ -44,15 +44,14 @@ class McMessageBuilder:
         return rtext
 
     @staticmethod
-    def array_to_RText(
-            array: List[Dict[str, Dict[str, str]]],
-            sender_id: Optional[str] = None,
-            low_game_version: bool = False,
-            chat_image: bool = False,
-            image_previewer: bool = False,
-            player_manager: PlayerManager = None,
-            is_admin: bool = False,
-            bot_id: Optional[str] = None,
+    def array_to_rtext(
+        array: List[Dict[str, Dict[str, str]]],
+        low_game_version: bool = False,
+        chat_image: bool = False,
+        image_previewer: bool = False,
+        player_manager: PlayerManager = None,
+        is_admin: bool = False,
+        bot_id: Optional[str] = None,
     ) -> RText:
         def get_player_name(player_id: str) -> str:
             if player_manager:
@@ -169,7 +168,7 @@ class McMessageBuilder:
 
     @staticmethod
     def process_image(
-            data: Dict[str, str], chat_image: bool = False, image_previewer: bool = False
+        data: Dict[str, str], chat_image: bool = False, image_previewer: bool = False
     ) -> RText:
         url = data.get("url", "")
         file = data.get("file", "")

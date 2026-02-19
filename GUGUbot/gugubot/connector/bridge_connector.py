@@ -1,5 +1,7 @@
 import asyncio
 import json
+import time
+import threading
 from typing import Any, Dict
 
 from gugubot.config.BotConfig import BotConfig
@@ -29,8 +31,6 @@ class BridgeConnector(BasicConnector):
         self.log_prefix = f"[{connector_basic_name}{self.source}]"
 
         # 添加连接计数器和状态标志
-        import time
-
         self._connect_count = 0
         self._client_id = f"{source_name}_{int(time.time() * 1000)}"
         self._is_reconnecting = False  # 防止多个重连线程同时运行
@@ -161,7 +161,6 @@ class BridgeConnector(BasicConnector):
 
     def _on_client_close(self, ws, status_code: int, reason: str) -> None:
         """客户端连接关闭时"""
-        import threading
 
         # 检查是否是当前活动的连接
         if self.ws_client and self.ws_client.ws and self.ws_client.ws != ws:
@@ -176,8 +175,6 @@ class BridgeConnector(BasicConnector):
             self.logger.info(f"{self.log_prefix} 将在 {self.reconnect} 秒后重连...")
 
             def delayed_reconnect():
-                import time
-
                 attempt = 0
 
                 try:
@@ -186,7 +183,7 @@ class BridgeConnector(BasicConnector):
                         time.sleep(self.reconnect)
 
                         if not self.enable or (
-                                self.ws_client and self.ws_client.is_connected()
+                            self.ws_client and self.ws_client.is_connected()
                         ):
                             return
 
@@ -238,8 +235,8 @@ class BridgeConnector(BasicConnector):
             message_data = json.loads(message) if isinstance(message, str) else message
 
             if (
-                    isinstance(message_data, dict)
-                    and message_data.get("type") == "server_shutdown"
+                isinstance(message_data, dict)
+                and message_data.get("type") == "server_shutdown"
             ):
                 return
 
@@ -286,7 +283,9 @@ class BridgeConnector(BasicConnector):
         except Exception as e:
             self.logger.error(f"{self.log_prefix} 处理桥接消息失败: {e}")
 
-    async def send_message(self, processed_info: ProcessedInfo) -> None:
+    async def send_message(
+        self, processed_info: ProcessedInfo, *args, **kwargs
+    ) -> None:
         """发送消息"""
         if not self.enable:
             return
@@ -304,7 +303,11 @@ class BridgeConnector(BasicConnector):
             "raw": processed_info.raw,
             "processed_message": processed_info.processed_message,
             "target": processed_info.target,
-            "is_admin": await self._is_admin(processed_info.sender_id) if self.is_main_server else None,
+            "is_admin": (
+                await self._is_admin(processed_info.sender_id)
+                if self.is_main_server
+                else None
+            ),
         }
 
         if self.is_main_server:
