@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-"""Basic message builder"""
+"""Message builder"""
 
 class MessageBuilder:
-    """Basic message builder"""
+    """Message builder"""
 
     @staticmethod
     def text(text: str) -> dict:
