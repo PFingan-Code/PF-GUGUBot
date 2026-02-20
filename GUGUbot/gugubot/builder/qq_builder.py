@@ -8,6 +8,7 @@ from typing import Dict, List
 
 from gugubot.builder.basic_builder import BasicBuilder
 
+
 class ArrayHandler(BasicBuilder):
     """QQ array message handler"""
 

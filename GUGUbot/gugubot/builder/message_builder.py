@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """Message builder"""
 
-
 from gugubot.builder.basic_builder import BasicBuilder
+
 
 class MessageBuilder(BasicBuilder):
     """Message builder"""
