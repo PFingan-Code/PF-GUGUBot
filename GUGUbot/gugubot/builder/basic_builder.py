@@ -1,4 +1,9 @@
+# -*- coding: utf-8 -*-
+"""Basic message builder"""
+
 class MessageBuilder:
+    """Basic message builder"""
+
     @staticmethod
     def text(text: str) -> dict:
         return {"type": "text", "data": {"text": text}}
