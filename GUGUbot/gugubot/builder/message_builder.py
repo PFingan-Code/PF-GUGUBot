@@ -1,7 +1,10 @@
 # -*- coding: utf-8 -*-
 """Message builder"""
 
-class MessageBuilder:
+
+from gugubot.builder.basic_builder import BasicBuilder
+
+class MessageBuilder(BasicBuilder):
     """Message builder"""
 
     @staticmethod

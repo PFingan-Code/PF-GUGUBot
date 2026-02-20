@@ -6,8 +6,9 @@ import re
 import html
 from typing import Dict, List
 
+from gugubot.builder.basic_builder import BasicBuilder
 
-class ArrayHandler:
+class ArrayHandler(BasicBuilder):
     """QQ array message handler"""
 
     @staticmethod
@@ -25,7 +26,7 @@ class ArrayHandler:
         return message
 
 
-class CQHandler:
+class CQHandler(BasicBuilder):
     """CQ code handler"""
 
     @staticmethod
