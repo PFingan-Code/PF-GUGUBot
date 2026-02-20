@@ -9,7 +9,7 @@ from typing import Optional
 from mcdreforged.api.command import Literal
 from mcdreforged.api.types import CommandSource, PluginServerInterface
 
-from gugubot.config.BotConfig import BotConfig
+from gugubot.config import BotConfig
 
 
 def help_msg_register(

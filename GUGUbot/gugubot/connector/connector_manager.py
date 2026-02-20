@@ -4,7 +4,7 @@ import re
 import traceback
 from typing import Dict, List, Optional
 
-from gugubot.config.BotConfig import BotConfig
+from gugubot.config import BotConfig
 from gugubot.connector.basic_connector import BasicConnector
 from gugubot.utils.types import ProcessedInfo
 

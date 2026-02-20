@@ -3,7 +3,7 @@
 该模块提供了回声功能，可以将一个平台的消息转发到其他平台。
 """
 
-from gugubot.config.BotConfig import BotConfig
+from gugubot.config import BotConfig
 from gugubot.logic.system.basic_system import BasicSystem
 from gugubot.utils.types import BroadcastInfo
 

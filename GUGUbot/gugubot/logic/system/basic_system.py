@@ -2,7 +2,7 @@ import logging
 from typing import List, Optional, TYPE_CHECKING
 
 from gugubot.builder import MessageBuilder
-from gugubot.config.BotConfig import BotConfig
+from gugubot.config import BotConfig
 from gugubot.utils.types import BroadcastInfo, ProcessedInfo
 
 if TYPE_CHECKING:

@@ -4,7 +4,7 @@ import time
 import threading
 from typing import Any, Dict
 
-from gugubot.config.BotConfig import BotConfig
+from gugubot.config import BotConfig
 from gugubot.connector.basic_connector import BasicConnector
 from gugubot.parser.mc_parser import MCParser
 from gugubot.utils.types import BroadcastInfo, ProcessedInfo, Source
