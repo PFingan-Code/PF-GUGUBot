@@ -4,7 +4,7 @@ import re
 import traceback
 from typing import Dict, List, Optional
 
-from gugubot.builder.qq_builder import ArrayHandler, CQHandler
+from gugubot.builder import ArrayHandler, CQHandler
 from gugubot.parser.basic_parser import BasicParser
 from gugubot.utils.types import BroadcastInfo, Source
 
