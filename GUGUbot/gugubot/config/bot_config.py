@@ -1,9 +1,18 @@
+# -*- coding: utf-8 -*-
+"""Bot configuration class for GUGUBot."""
+
 import json
 
-from gugubot.config.BasicConfig import BasicConfig, yaml
+from ruamel.yaml import YAMLError
 
+from gugubot.config.basic_config import BasicConfig, yaml
 
 class BotConfig(BasicConfig):
+    """
+    Bot configuration class for GUGUBot.
+    It is used to store the configuration of this plugin.
+    """
+
     def __init__(
         self, path="./config.yml", default_content=None, yaml_format=True, logger=None
     ):
@@ -13,6 +22,7 @@ class BotConfig(BasicConfig):
     def load(self):
         self.validate()
         super().load()
+        # Additional checks for the plugin configuration
         self.plugin_check()
 
     def add_new_config(self, server):
@@ -25,7 +35,7 @@ class BotConfig(BasicConfig):
         message_unicode = message.decode("utf-8").replace("\r\n", "\n")
         yaml_data = yaml.load(message_unicode)
 
-        # update
+        # Update the config with the latest version
         def _update_config(old_yaml_data, new_yaml_data):
             for key, value in old_yaml_data.items():
                 if isinstance(value, dict):
@@ -43,9 +53,9 @@ class BotConfig(BasicConfig):
         # Not exist/None -> error
         # not list -> [value]
         # extra empty value -> remove empty value
-        listTypeConfigs = ["admin_id", "group_id"]
+        list_type_configs = ["admin_id", "group_id"]
 
-        for config_name in listTypeConfigs:
+        for config_name in list_type_configs:
             if not self.get(config_name):
                 if self.logger:
                     self.logger.error(f"请设置 {config_name}")
@@ -70,7 +80,10 @@ class BotConfig(BasicConfig):
         self.save()
 
     def validate(self):
-        """Validate config file and prompt user where is wrong, including YAML/JSON syntax errors."""
+        """
+        Validate config file and prompt user where is wrong,
+            including YAML/JSON syntax errors.
+        """
         # Check YAML or JSON syntax
         try:
             with open(self.path, "r", encoding="UTF-8") as f:
@@ -78,7 +91,7 @@ class BotConfig(BasicConfig):
                     yaml.load(f)
                 else:
                     json.load(f)
-        except Exception as e:
+        except (YAMLError, json.JSONDecodeError) as e:
             if self.yaml_format:
                 mark = getattr(e, "problem_mark", None)
                 if mark:

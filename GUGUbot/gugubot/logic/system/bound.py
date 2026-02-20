@@ -5,7 +5,7 @@ from typing import List, Optional, Union
 from mcdreforged.api.types import PluginServerInterface
 
 from gugubot.builder import MessageBuilder
-from gugubot.config.BotConfig import BotConfig
+from gugubot.config import BotConfig
 from gugubot.logic.system.basic_system import BasicSystem
 from gugubot.logic.system.whitelist import WhitelistSystem
 from gugubot.utils.player_manager import Player, PlayerManager

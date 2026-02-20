@@ -1,14 +1,20 @@
+# -*- coding: utf-8 -*-
+"""Basic configuration class for loading and saving JSON/YAML files with auto-saving."""
+
 import json
 from pathlib import Path
+from typing import Any, List, Optional
 
 from ruamel.yaml import YAML
 
 yaml = YAML()
 yaml.preserve_quotes = True
 
-
 class BasicConfig(dict):
-    """Basic configuration class for loading and saving JSON/YAML files."""
+    """
+    Basic configuration class for loading and saving JSON/YAML files with auto-saving.
+    Be careful, changing the mutable value will not be saved automatically.
+    """
 
     def __init__(
         self,
@@ -48,7 +54,30 @@ class BasicConfig(dict):
         super().__delitem__(key)
         self.save()
 
-    def get_keys(self, key: list, default: any = None) -> any:
+    def get_keys(self, key: List[str], default: Optional[Any] = None) -> Any:
+        """
+        Get value from config by key path.
+
+        Parameters
+        ----------
+        key : List[str]
+            A list of keys to get the value from config
+        default : Any, optional
+            Default value if the key is not found, default None
+
+        Returns
+        -------
+        Any
+            Value from config by key path
+
+        Examples
+        --------
+        >>> config = BasicConfig()
+        >>> config.get_keys(["connector", "QQ", "permissions", "admin_ids"])
+        [123456, 654321]
+        >>> config.get_keys(["key", "not", "exists"], [123, 321])
+        [123, 321]
+        """
         result = self
         for k in key[:-1]:
             result = result.get(k, {})

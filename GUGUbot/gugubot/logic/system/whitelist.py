@@ -3,7 +3,7 @@ from typing import Optional
 from mcdreforged.api.types import PluginServerInterface
 
 from gugubot.builder import MessageBuilder
-from gugubot.config.BotConfig import BotConfig
+from gugubot.config import BotConfig
 from gugubot.logic.system.basic_system import BasicSystem
 from gugubot.utils.types import BroadcastInfo
 
