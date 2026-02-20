@@ -10,6 +10,7 @@ from ruamel.yaml import YAML
 yaml = YAML()
 yaml.preserve_quotes = True
 
+
 class BasicConfig(dict):
     """
     Basic configuration class for loading and saving JSON/YAML files with auto-saving.
