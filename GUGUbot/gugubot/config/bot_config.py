@@ -7,6 +7,7 @@ from ruamel.yaml import YAMLError
 
 from gugubot.config.basic_config import BasicConfig, yaml
 
+
 class BotConfig(BasicConfig):
     """
     Bot configuration class for GUGUBot.
