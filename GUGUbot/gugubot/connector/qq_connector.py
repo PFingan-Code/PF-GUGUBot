@@ -7,7 +7,7 @@ import traceback
 import uuid
 from typing import Any, Optional
 
-from gugubot.builder.qq_builder import CQHandler
+from gugubot.builder import CQHandler
 from gugubot.config import BotConfig
 from gugubot.connector.basic_connector import BasicConnector
 from gugubot.parser.qq_parser import QQParser

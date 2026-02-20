@@ -4,7 +4,7 @@ from typing import Any, Optional
 
 from mcdreforged.api.types import Info, PluginServerInterface
 
-from gugubot.builder.mc_builder import McMessageBuilder
+from gugubot.builder import McMessageBuilder
 from gugubot.config import BotConfig
 from gugubot.connector.basic_connector import BasicConnector
 from gugubot.parser.mc_parser import MCParser
