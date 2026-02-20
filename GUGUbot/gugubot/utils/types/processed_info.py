@@ -15,8 +15,6 @@ class ProcessedInfo:
     ----------
     processed_message : List[dict]
         处理后的消息内容列表
-    source : Source
-        消息来源链
     source_id : str
         来源ID（如QQ群号、服务器名）
     sender : str
@@ -27,13 +25,13 @@ class ProcessedInfo:
         MCDR 服务器接口
     logger : Logger
         日志记录器
-    sender_id : Optional[str]
+    sender_id : str, optional
         发送者ID
-    receiver : Optional[str]
+    receiver : str, optional
         消息接收者
     event_sub_type : str
         事件子类型
-    target : Optional[dict]
+    target : dict, optional
         目标字典
     """
 

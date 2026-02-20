@@ -31,7 +31,7 @@ class MCConnector(BasicConnector):
         ----------
         server : Any
             MCDR服务器实例
-        logger : Optional[logging.Logger]
+        logger : logging.Logger, optional
             日志记录器实例，如果未提供则创建新的
         """
         source_name = config.get_keys(["connector", "minecraft", "source_name"], "Minecraft")

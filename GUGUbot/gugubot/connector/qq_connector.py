@@ -446,8 +446,9 @@ class QQWebSocketConnector(BasicConnector):
         raw_message : str
             WebSocket接收到的JSON格式消息
 
-        注意:
-            WebSocket 回调运行在独立线程中，需要将异步任务正确调度到事件循环
+        Notes
+        -----
+        WebSocket 回调运行在独立线程中，需要将异步任务正确调度到事件循环
         """
         if not self.enable:
             return

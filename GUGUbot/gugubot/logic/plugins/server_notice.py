@@ -29,9 +29,9 @@ async def broadcast_server_start(
         连接器管理器实例
     config : BotConfig
         配置对象
-    message : Optional[str]
+    message : str, optional
         自定义启动消息，如果为None则使用配置文件中的消息
-    exclude_sources : Optional[list]
+    exclude_sources : list, optional
         不发送通知的连接器源列表，默认从配置文件读取Minecraft的source_name
 
     Example
@@ -96,9 +96,9 @@ async def broadcast_server_stop(
         连接器管理器实例
     config : BotConfig
         配置对象
-    message : Optional[str]
+    message : str, optional
         自定义停止消息，如果为None则使用配置文件中的消息
-    exclude_sources : Optional[list]
+    exclude_sources : list, optional
         不发送通知的连接器源列表，默认从配置文件读取Minecraft的source_name
 
     Example

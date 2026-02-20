@@ -641,7 +641,7 @@ class BoundSystem(BasicSystem):
             退群用户的QQ号
         group_id : str
             退群的群号
-        player : Optional[Player]
+        player : Player, optional
             退群用户的绑定信息，如果为None则不包含绑定信息
         """
         try:

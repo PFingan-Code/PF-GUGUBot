@@ -45,17 +45,17 @@ class WebSocketClient:
         ----------
         url : str
             WebSocket服务器URL
-        headers : Optional[Dict[str, str]]
+        headers : Dict[str, str], optional
             HTTP请求头
-        on_message : Optional[Callable]
+        on_message : Callable, optional
             消息接收回调函数
-        on_open : Optional[Callable]
+        on_open : Callable, optional
             连接建立回调函数
-        on_error : Optional[Callable]
+        on_error : Callable, optional
             错误处理回调函数
-        on_close : Optional[Callable]
+        on_close : Callable. optional
             连接关闭回调函数
-        logger : Optional[logging.Logger]
+        logger : logging.Logger, optional
             日志记录器
         """
         self.url = url
@@ -86,22 +86,24 @@ class WebSocketClient:
 
         Parameters
         ----------
-        reconnect : int
-            重连间隔时间（秒），默认5秒
-        ping_interval : int
-            心跳间隔时间（秒），默认20秒
-        ping_timeout : int
-            心跳超时时间（秒），默认10秒
-        use_ssl : bool
-            是否使用SSL/TLS加密连接
-        verify : bool
-            是否验证SSL证书
-        ca_certs : Optional[str]
-            CA证书文件路径
-        extra_sslopt : Optional[Dict[str, Any]]
-            额外的SSL选项
-        thread_name : str
+        reconnect : int, optional
+            重连间隔时间（秒），默认 ``5`` 秒
+        ping_interval : int, optional
+            心跳间隔时间（秒），默认 ``20`` 秒
+        ping_timeout : int, optional
+            心跳超时时间（秒），默认 ``10`` 秒
+        use_ssl : bool, optional
+            是否使用 SSL/TLS 加密连接
+        verify : bool, optional
+            是否验证 SSL 证书
+        ca_certs : str, optional
+            CA 证书文件路径
+        extra_sslopt : Dict[str, Any], optional
+            额外的 SSL 选项
+        thread_name : str, optional
             监听线程名称
+        suppress_origin : bool, optional
+            是否抑制 WebSocket 握手中的 Origin 头，默认 ``True``
         """
         self.logger.debug(f"正在连接到WebSocket服务器: {self.url}")
 

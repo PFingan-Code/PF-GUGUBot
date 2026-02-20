@@ -109,14 +109,21 @@ class WhitelistSystem(BasicSystem):
     ) -> bool:
         """添加玩家到白名单
 
-        Args:
-            player_name (str): 玩家名称
-            force_online (bool): 强制在线模式
-            force_offline (bool): 强制离线模式
-            force_bedrock (bool): 强制基岩版模式
+        Parameters
+        ----------
+        player_name : str
+            玩家名称
+        force_online : bool, optional
+            强制在线模式
+        force_offline : bool, optional
+            强制离线模式
+        force_bedrock : bool, optional
+            强制基岩版模式
 
-        Returns:
-            bool: 是否成功添加
+        Returns
+        -------
+        bool
+            是否成功添加
         """
         if not self._api:
             self.logger.error("白名单API未初始化")
@@ -148,11 +155,15 @@ class WhitelistSystem(BasicSystem):
     def remove_player(self, player_name: str) -> bool:
         """从白名单移除玩家
 
-        Args:
-            player_name (str): 玩家名称
+        Parameters
+        ----------
+        player_name : str
+            玩家名称
 
-        Returns:
-            bool: 是否成功移除
+        Returns
+        -------
+        bool
+            是否成功移除
         """
         if not self._api:
             self.logger.error("白名单API未初始化")

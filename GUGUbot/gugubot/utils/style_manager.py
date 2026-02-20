@@ -58,7 +58,7 @@ class StyleManager:
         ----------
         server : PluginServerInterface
             MCDR 服务器接口
-        config : Optional[BotConfig]
+        config : BotConfig, optional
             配置对象，用于读取和保存当前风格设置
         """
         self.server = server

@@ -47,7 +47,7 @@ class Source:
 
         Parameters
         ----------
-        source : Optional[Union[str, List[str], Source]]
+        source : Union[str, List[str], Source], optional
             初始来源，可以是：
             - str: 单个来源名称
             - List[str]: 来源链列表
@@ -311,7 +311,7 @@ class Source:
 
         Parameters
         ----------
-        data : Optional[Union[str, List[str], dict, Source]]
+        data : Union[str, List[str], dict, Source], optional
             可以是字符串、列表、字典或 Source 对象
 
         Returns

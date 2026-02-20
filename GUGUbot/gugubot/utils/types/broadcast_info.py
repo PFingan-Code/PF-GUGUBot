@@ -21,8 +21,6 @@ class BroadcastInfo:
         消息内容列表
     raw : Any
         原始消息数据
-    source : Source
-        消息来源链，追踪消息经过的所有来源
     source_id : str
         来源ID（如QQ群号、服务器名）
     sender : str

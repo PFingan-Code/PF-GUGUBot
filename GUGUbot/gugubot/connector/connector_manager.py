@@ -29,7 +29,7 @@ class ConnectorManager:
 
         Parameters
         ----------
-        logger : Optional[logging.Logger]
+        logger : logging.Logger, optional
             用于日志记录的Logger实例。如果未提供，将创建一个新的。
         """
         self.connectors: List[BasicConnector] = []

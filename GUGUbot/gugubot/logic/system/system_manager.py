@@ -37,7 +37,7 @@ class SystemManager:
         ----------
         server : PluginServerInterface
             MCDR插件服务器接口实例
-        logger : Optional[logging.Logger]
+        logger : logging.Logger. optional
             用于日志记录的Logger实例。如果未提供，将创建一个新的。
         connector_manager : ConnectorManager
             连接管理器实例
@@ -144,9 +144,9 @@ class SystemManager:
         ----------
         broadcast_info : BroadcastInfo
             要广播的命令信息
-        include : Optional[List[str]]
+        include : List[str], optional
             仅向这些名称的系统发送命令（如果为None，则发送给所有系统）
-        exclude : Optional[List[str]]
+        exclude : List[str], optional
             不向这些名称的系统发送命令
 
         Returns

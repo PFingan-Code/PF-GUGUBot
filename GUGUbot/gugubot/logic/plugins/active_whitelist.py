@@ -25,9 +25,12 @@ class ActiveWhiteListSystem(BasicConfig, BasicSystem):
     def __init__(self, server: PluginServerInterface, config: BotConfig = None) -> None:
         """初始化活跃白名单系统
 
-        Args:
-            server: MCDR 服务器实例
-            config: 机器人配置
+        Parameters
+        ----------
+        server : PluginServerInterface
+            MCDR 服务器实例
+        config : BotConfig
+            机器人配置
         """
         BasicSystem.__init__(self, "active_whitelist", enable=True, config=config)
         self.server = server
@@ -219,11 +222,15 @@ class ActiveWhiteListSystem(BasicConfig, BasicSystem):
     def add_player(self, player: str) -> bool:
         """添加玩家到活跃白名单（程序调用接口）
 
-        Args:
-            player: 玩家名
+        Parameters
+        ----------
+        player : str
+            玩家名
 
-        Returns:
-            bool: 是否成功添加（如果玩家已在列表中则返回False）
+        Returns
+        -------
+        bool
+            是否成功添加（如果玩家已在列表中则返回 False）
         """
         if player not in self:
             self[player] = True
@@ -233,11 +240,15 @@ class ActiveWhiteListSystem(BasicConfig, BasicSystem):
     def remove_player(self, player: str) -> bool:
         """从活跃白名单移除玩家（程序调用接口）
 
-        Args:
-            player: 玩家名
+        Parameters
+        ----------
+        player : str
+            玩家名
 
-        Returns:
-            bool: 是否成功移除（如果玩家不在列表中则返回False）
+        Returns
+        -------
+        bool
+            是否成功移除（如果玩家不在列表中则返回 False）
         """
         if player in self:
             del self[player]
@@ -247,29 +258,39 @@ class ActiveWhiteListSystem(BasicConfig, BasicSystem):
     def is_in_whitelist(self, player: str) -> bool:
         """检查玩家是否在活跃白名单中
 
-        Args:
-            player: 玩家名
+        Parameters
+        ----------
+        player : str
+            玩家名
 
-        Returns:
-            bool: 玩家是否在活跃白名单中
+        Returns
+        -------
+        bool
+            玩家是否在活跃白名单中
         """
         return player in self
 
     def get_all_players(self) -> List[str]:
         """获取所有活跃白名单玩家
 
-        Returns:
-            List[str]: 活跃白名单玩家列表
+        Returns
+        -------
+        List[str]
+            活跃白名单玩家列表
         """
         return list(self.keys())
 
     def should_filter_player(self, player_name: str) -> bool:
         """检查是否应该过滤该玩家（在 inactive_check 时使用）
 
-        Args:
-            player_name: 玩家名
+        Parameters
+        ----------
+        player_name : str
+            玩家名
 
-        Returns:
-            bool: 如果玩家在活跃白名单中，返回True（应该过滤掉）
+        Returns
+        -------
+        bool
+            如果玩家在活跃白名单中，返回True（应该过滤掉）
         """
         return self.is_in_whitelist(player_name)

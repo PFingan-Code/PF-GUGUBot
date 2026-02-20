@@ -56,13 +56,13 @@ class WebSocketServer:
             监听地址，默认 "0.0.0.0"
         port : int
             监听端口，默认 8787
-        on_message : Optional[Callable]
+        on_message : Callable, optional
             消息接收回调函数，签名: (client, server, message)
-        on_client_connect : Optional[Callable]
+        on_client_connect : Callable, optional
             客户端连接回调函数，签名: (client, server)
-        on_client_disconnect : Optional[Callable]
+        on_client_disconnect : Callable. optional
             客户端断开回调函数，签名: (client, server)
-        logger : Optional[logging.Logger]
+        logger : logging.Logger, optional
             日志记录器
         """
         if WebsocketServer is None:
