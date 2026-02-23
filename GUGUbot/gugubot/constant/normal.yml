@@ -479,7 +479,7 @@ gugubot:
 
           # 帮助信息
           help_msg: "投票系统相关指令：\n{command_prefix}{name} {enable} -> 开启投票系统\n{command_prefix}{name} {disable} -> 关闭投票系统\n{command_prefix}{name} {list} -> 查看所有进行中的投票\n{command_prefix}{name} {types} -> 查看可用的投票类型列表\n{command_prefix}{name} {types} <类型名> -> 查看投票类型详情\n{command_prefix}{name} {remove} <序号> -> 删除指定投票（管理员）\n{command_prefix}{name} {removeAll} -> 删除所有投票（管理员）\n\n投票功能：\n• 发送关键词发起投票（如：{vote_name_example}等）\n• 发送 {yes_example} 投赞成票，发送 {no_example} 投反对票\n• 多个投票进行时需指定序号：{yes_example_single} 1、{no_example_single} 2\n• 重复投票按最后一票为准\n• 发送 {withdraw_example} 撤回投票\n• 管理员可发送 {delete_example} 强制取消整个投票\n\n注意：正常只有在线且已绑定QQ的玩家有投票资格，管理员可以绕过在线限制发起投票"
-          user_help_msg: "投票系统相关功能：\n• 发送关键词发起投票\n• 发送 {yes_example} 投赞成票，发送 {no_example} 投反对票\n• 多个投票进行时需指定序号：{yes_example} 1、{no_example} 2\n• 重复投票按最后一票为准\n• 发送 {withdraw_example} 撤回投票\n• 使用 '{command_prefix}{name} {types}' 查看所有可用的投票类型\n\n注意：只有在线且已绑定QQ的玩家有投票资格"
+          user_help_msg: "投票系统相关功能：\n• 发送关键词发起投票\n• 发送 {yes_example} 投赞成票，发送 {no_example} 投反对票\n• 多个投票进行时需指定序号：{yes_example_single} 1、{no_example_single} 2\n• 重复投票按最后一票为准\n• 发送 {withdraw_example} 撤回投票\n• 使用 '{command_prefix}{name} {types}' 查看所有可用的投票类型\n\n注意：只有在线且已绑定QQ的玩家有投票资格"
           
           # 其他多语言支持
           or: "或"

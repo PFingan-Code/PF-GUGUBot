@@ -316,7 +316,12 @@ class Vote:
             return self.status
 
         total_voters = len(self.eligible_voters)
+
+        # 选民为空时仍需检查超时，避免投票永久 PENDING
         if total_voters == 0:
+            if time.time() - self.start_time > self.timeout:
+                self.status = VoteStatus.TIMEOUT
+                return self.status
             return None
 
         yes_count = len(self.yes_votes)
@@ -420,6 +425,7 @@ class VoteManager:
         self.active_votes: Dict[str, Vote] = {}
         self.logger = server.logger
         self._vote_counter = 0
+        self._index_counter = 0  # 单调递增，永不复用
 
     def create_vote(
             self,
@@ -471,9 +477,9 @@ class VoteManager:
         self._vote_counter += 1
         vote_id = f"{vote_type}_{self._vote_counter}_{int(time.time())}"
 
-        # 计算当前投票的索引序号（基于当前进行中的投票数量）
-        pending_count = len(self.get_all_pending_votes())
-        index = pending_count + 1
+        # 分配单调递增的显示序号，永不复用已结束投票的序号
+        self._index_counter += 1
+        index = self._index_counter
 
         # 创建投票实例
         vote = Vote(

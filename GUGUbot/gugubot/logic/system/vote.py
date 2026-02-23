@@ -186,9 +186,9 @@ class VoteSystem(BasicSystem):
         elif command.startswith(self.get_tr("types")):
             # 处理列出投票类型命令
             return await self._handle_types(broadcast_info)
-        elif command.startswith(self.get_tr("abstain")):
+        elif command.startswith(self.get_tr("withdraw")):
             # 处理弃票命令
-            return await self._handle_abstain(broadcast_info)
+            return await self._handle_withdraw(broadcast_info)
 
         # 未识别的命令，显示帮助
         return await self._handle_help(broadcast_info)
@@ -275,7 +275,7 @@ class VoteSystem(BasicSystem):
                 self.debug_log(f"[VoteSystem Debug] 匹配到弃票关键词: '{keyword}'")
                 # 提取序号（如果有）
                 index = self._extract_vote_index(message_text, keyword)
-                await self._handle_abstain_keyword(broadcast_info, index)
+                await self._handle_withdraw_keyword(broadcast_info, index)
                 return True
 
         # 检查取消投票关键词（仅管理员，用于删除整个投票）
@@ -488,7 +488,7 @@ class VoteSystem(BasicSystem):
                 yes_votes=progress["yes_votes"],
                 total_voters=progress["total_voters"],
                 current_percentage=f"{progress['current_percentage']:.1f}%",
-                required_percentage=f"{progress["required_percentage"]}%",
+                required_percentage=f"{progress['required_percentage']}%",
                 remaining_time=remaining_time
             )
             vote_items.append(item)
@@ -576,15 +576,15 @@ class VoteSystem(BasicSystem):
         await self.reply(broadcast_info, [MessageBuilder.text(msg)])
         return True
 
-    async def _handle_abstain(self, broadcast_info: BroadcastInfo) -> bool:
+    async def _handle_withdraw(self, broadcast_info: BroadcastInfo) -> bool:
         """处理弃票命令（通过命令：#投票 弃票 [序号]）"""
         # 从命令中提取序号
         command = broadcast_info.message[0].get("data", {}).get("text", "")
         command_prefix = self.config.get("GUGUBot", {}).get("command_prefix", "#")
         system_name = self.get_tr("name")
-        abstain_command = self.get_tr("abstain")
+        withdraw_command = self.get_tr("withdraw")
 
-        for i in [command_prefix, system_name, abstain_command]:
+        for i in [command_prefix, system_name, withdraw_command]:
             command = command.replace(i, "", 1).strip()
 
         # 解析序号
@@ -592,9 +592,9 @@ class VoteSystem(BasicSystem):
         if command and command.isdigit():
             index = int(command)
 
-        return await self._handle_abstain_keyword(broadcast_info, index)
+        return await self._handle_withdraw_keyword(broadcast_info, index)
 
-    async def _handle_abstain_keyword(self, broadcast_info: BroadcastInfo, index: Optional[int] = None) -> bool:
+    async def _handle_withdraw_keyword(self, broadcast_info: BroadcastInfo, index: Optional[int] = None) -> bool:
         """处理弃票（通过关键词或命令）
 
         Parameters
@@ -617,7 +617,7 @@ class VoteSystem(BasicSystem):
             return True
 
         # 根据序号或数量选择投票
-        vote = await self._select_vote_for_abstain(broadcast_info, pending_votes, index)
+        vote = await self._select_vote_for_withdraw(broadcast_info, pending_votes, index)
         if not vote:
             return True
 
@@ -640,7 +640,7 @@ class VoteSystem(BasicSystem):
         if success:
             # 广播弃票消息
             msg = self.get_tr(
-                "abstain_success",
+                "withdraw_success",
                 voter=broadcast_info.sender,
                 vote_name=self._get_vote_name(vote)
             )
@@ -652,7 +652,7 @@ class VoteSystem(BasicSystem):
 
         return True
 
-    async def _select_vote_for_abstain(
+    async def _select_vote_for_withdraw(
             self,
             broadcast_info: BroadcastInfo,
             pending_votes: List[Vote],
@@ -689,13 +689,13 @@ class VoteSystem(BasicSystem):
 
         # 有多个投票但没指定序号，提示用户
         vote_list = [f"[{v.index}] {v.description}" for v in pending_votes]
-        abstain_example = f"{self.withdraw_keywords[0]} 1" if self.withdraw_keywords else "弃票 1"
+        withdraw_example = f"{self.withdraw_keywords[0]} 1" if self.withdraw_keywords else "弃票 1"
 
         msg = self.get_tr(
-            "multiple_votes_specify_abstain",
+            "multiple_votes_specify_withdraw",
             count=len(pending_votes),
             vote_list="\n".join(vote_list),
-            abstain_example=abstain_example
+            withdraw_example=withdraw_example
         )
         await self.reply(broadcast_info, [MessageBuilder.text(msg)])
         return None
@@ -711,7 +711,7 @@ class VoteSystem(BasicSystem):
         disable_command = self.get_tr("gugubot.disable", global_key=True)
         list_command = self.get_tr("list")
         types_command = self.get_tr("types")
-        abstain_command = self.get_tr("abstain")
+        withdraw_command = self.get_tr("withdraw")
         remove_command = self.get_tr("remove")
         remove_all_command = self.get_tr("removeAll")
 
@@ -733,7 +733,7 @@ class VoteSystem(BasicSystem):
                 disable=disable_command,
                 list=list_command,
                 types=types_command,
-                abstain=abstain_command,
+                withdraw=withdraw_command,
                 vote_name_example=self.extract_keyword_example(self.vote_type_registry.get_all_keywords(), 2),
                 yes_example=yes_example,
                 no_example=no_example,
@@ -752,6 +752,8 @@ class VoteSystem(BasicSystem):
                 types=types_command,
                 yes_example=yes_example,
                 no_example=no_example,
+                yes_example_single=yes_example_single,
+                no_example_single=no_example_single,
                 withdraw_example=withdraw_example
             )
 
@@ -762,7 +764,6 @@ class VoteSystem(BasicSystem):
                                              consult_mode: bool) -> None:
         """使用配置处理开始投票"""
         self.debug_log(f"[VoteSystem Debug] 收到{vote_config.vote_type}类型的投票请求，发起人: {broadcast_info.sender}, "
-                       f"ID: {broadcast_info.sender_id}, "
                        f"征求模式: {consult_mode}")
 
         # 获取所有在线玩家的绑定信息
@@ -821,24 +822,22 @@ class VoteSystem(BasicSystem):
             # 如果发起人有投票资格，使用其QQ号投票
             # 如果是管理员绕过的情况，使用 sender_id 作为虚拟投票者ID
             self.debug_log(f"[VoteSystem Debug] 非征求模式，准备自动投票")
-            self.debug_log(f"[VoteSystem Debug] initiator_voter_id: {initiator_voter_id}")
-            self.debug_log(f"[VoteSystem Debug] eligible_voters: {eligible_voters}")
-            self.debug_log(f"[VoteSystem Debug] is_admin: {broadcast_info.is_admin}")
+            self.debug_log(f"[VoteSystem Debug] 发起人已解析: {initiator_voter_id is not None}, "
+                           f"合格投票人数: {len(eligible_voters)}, is_admin: {broadcast_info.is_admin}")
 
             if initiator_voter_id and initiator_voter_id in eligible_voters:
-                self.debug_log(f"[VoteSystem Debug] ✓ 发起人有投票资格，投赞成票: {initiator_voter_id}")
+                self.debug_log(f"[VoteSystem Debug] ✓ 发起人({broadcast_info.sender})有投票资格，投赞成票")
                 success, is_new = vote.cast_vote(initiator_voter_id, True)
                 self.debug_log(f"[VoteSystem Debug] cast_vote返回值: success={success}, is_new={is_new}")
-                self.debug_log(f"[VoteSystem Debug] 投票后yes_votes: {vote.yes_votes}")
-                self.debug_log(f"[VoteSystem Debug] 投票后no_votes: {vote.no_votes}")
+                self.debug_log(f"[VoteSystem Debug] 投票后 yes={vote.get_progress()['yes_votes']}, no={vote.get_progress()['no_votes']}")
             elif broadcast_info.is_admin:
                 # 管理员绕过：将管理员的 sender_id 临时添加到投票资格中并自动投赞成票
-                self.debug_log(f"[VoteSystem Debug] ✓ 管理员绕过在线限制，直接发起投票并投赞成票: {broadcast_info.sender_id}")
+                self.debug_log(f"[VoteSystem Debug] ✓ 管理员({broadcast_info.sender})绕过在线限制，直接发起投票并投赞成票")
                 vote.eligible_voters.add(broadcast_info.sender_id)
                 success, is_new = vote.cast_vote(broadcast_info.sender_id, True)
                 self.debug_log(f"[VoteSystem Debug] 管理员cast_vote返回值: success={success}, is_new={is_new}")
             else:
-                self.debug_log(f"[VoteSystem Debug] ✗ 发起人无法自动投票")
+                self.debug_log(f"[VoteSystem Debug] ✗ 发起人({broadcast_info.sender})无法自动投票")
 
         # 检查投票在开始就被满足（例如可投票成员只有一位）
         if self.vote_manager.check_and_finalize_vote(vote.vote_id) == VoteStatus.PASSED:
@@ -850,9 +849,9 @@ class VoteSystem(BasicSystem):
         has_multiple_votes = len(pending_votes) > 1
 
         # 广播投票开始消息
-        self.debug_log(f"[VoteSystem Debug] 准备获取投票进度，当前yes_votes: {vote.yes_votes}")
+        self.debug_log(f"[VoteSystem Debug] 准备获取投票进度")
         progress = vote.get_progress()
-        self.debug_log(f"[VoteSystem Debug] get_progress返回: {progress}")
+        self.debug_log(f"[VoteSystem Debug] 进度: yes={progress['yes_votes']}, no={progress['no_votes']}, total={progress['total_voters']}")
 
         # 获取投票名称
         vote_name = self.get_tr(vote_config.name_key)
@@ -869,7 +868,7 @@ class VoteSystem(BasicSystem):
                 vote_name=vote_name,
                 description=vote.description,
                 total_voters=progress["total_voters"],
-                required_percentage=f"{progress["required_percentage"]}%",
+                required_percentage=f"{progress['required_percentage']}%",
                 timeout=int(progress["timeout"]),
                 yes_example=yes_example,
                 no_example=no_example,
@@ -886,7 +885,7 @@ class VoteSystem(BasicSystem):
                 vote_name=vote_name,
                 description=vote.description,
                 total_voters=progress["total_voters"],
-                required_percentage=f"{progress["required_percentage"]}%",
+                required_percentage=f"{progress['required_percentage']}%",
                 timeout=int(progress["timeout"]),
                 yes_example=yes_example,
                 no_example=no_example,
@@ -938,6 +937,8 @@ class VoteSystem(BasicSystem):
         # 获取进行中的投票
         pending_votes = self.vote_manager.get_all_pending_votes()
         if not pending_votes:
+            msg = self.get_tr("no_active_vote")
+            await self.reply(broadcast_info, [MessageBuilder.text(msg)])
             return
 
         # 根据序号或数量选择投票
@@ -986,31 +987,26 @@ class VoteSystem(BasicSystem):
         actual_voter_id = await self._get_voter_id_from_broadcast(broadcast_info)
 
         if not actual_voter_id:
-            self.debug_log(f"[VoteSystem Debug] 无法获取投票者 {broadcast_info.sender} 的QQ号")
+            self.debug_log(f"[VoteSystem Debug] 无法解析投票者 {broadcast_info.sender} 的身份标识")
             msg = self.get_tr("not_eligible")
             await self.reply(broadcast_info, [MessageBuilder.text(msg)])
-            self.debug_log(f"§c[投票调试] {broadcast_info.sender} 无法获取QQ号", to_server=True)
+            self.debug_log(f"§c[投票调试] {broadcast_info.sender} 无法获取身份标识", to_server=True)
             return
 
-        self.debug_log(f"[VoteSystem Debug] 投票者 {broadcast_info.sender} (sender_id: {broadcast_info.sender_id}) -> QQ: {actual_voter_id}")
-        self.debug_log(f"§e[投票调试] {broadcast_info.sender} 的QQ: {actual_voter_id}", to_server=True)
+        self.debug_log(f"[VoteSystem Debug] 投票者 {broadcast_info.sender} 身份已解析，来源: {broadcast_info.source.origin}")
 
         # 检查是否有投票资格
         if actual_voter_id not in vote.eligible_voters:
-            self.debug_log(f"[VoteSystem Debug] QQ {actual_voter_id} 不在投票资格列表中")
-            self.debug_log(f"§c[投票调试] QQ {actual_voter_id} 不在投票资格列表中", to_server=True)
-            self.debug_log(f"§c[投票调试] 资格列表: {vote.eligible_voters}", to_server=True)
+            self.debug_log(f"[VoteSystem Debug] {broadcast_info.sender} 不在投票资格列表中（共 {len(vote.eligible_voters)} 人有资格）")
             msg = self.get_tr("not_eligible")
             await self.reply(broadcast_info, [MessageBuilder.text(msg)])
             return
 
         # 投票
-        self.debug_log(f"[VoteSystem Debug] 准备投票，voter_id: {actual_voter_id}, vote_yes: {vote_yes}")
-        self.debug_log(f"[VoteSystem Debug] 投票前yes_votes: {vote.yes_votes}")
-        self.debug_log(f"[VoteSystem Debug] 投票前no_votes: {vote.no_votes}")
+        self.debug_log(f"[VoteSystem Debug] {broadcast_info.sender} 准备投{'赞成' if vote_yes else '反对'}票")
+        self.debug_log(f"[VoteSystem Debug] 投票前 yes={vote.get_progress()['yes_votes']}, no={vote.get_progress()['no_votes']}")
         success, is_new_vote = vote.cast_vote(actual_voter_id, vote_yes)
-        self.debug_log(f"[VoteSystem Debug] 投票后yes_votes: {vote.yes_votes}")
-        self.debug_log(f"[VoteSystem Debug] 投票后no_votes: {vote.no_votes}")
+        self.debug_log(f"[VoteSystem Debug] 投票后 yes={vote.get_progress()['yes_votes']}, no={vote.get_progress()['no_votes']}")
         if success:
             progress = vote.get_progress()
             vote_type_tr = self.get_tr("vote_yes" if vote_yes else "vote_no")
@@ -1153,6 +1149,8 @@ class VoteSystem(BasicSystem):
             # 执行回调
             if vote.callback:
                 try:
+                    self.logger.debug(f"[VoteSystem] {vote.initiator}发起的{vote.vote_type}投票（ID："
+                                      f"{vote.vote_id}）通过，正在执行投票回调…")
                     await vote.callback()
                 except Exception as e:
                     self.logger.error(f"[VoteSystem] 执行投票回调失败: {e}")
@@ -1177,7 +1175,7 @@ class VoteSystem(BasicSystem):
                 vote_name=vote_name,
                 yes_votes=progress["yes_votes"],
                 total_voters=progress["total_voters"],
-                required_percentage=f"{progress["required_percentage"]}%"
+                required_percentage=f"{progress['required_percentage']}%"
             )
             await self._broadcast_to_all(msg)
 
@@ -1217,11 +1215,11 @@ class VoteSystem(BasicSystem):
 
                     # 获取该玩家的QQ账号列表
                     qq_ids = player.accounts.get(qq_source, [])
-                    self.debug_log(f"[VoteSystem Debug] 玩家 '{player_name}' 绑定的QQ: {qq_ids}")
+                    self.debug_log(f"[VoteSystem Debug] 玩家 '{player_name}' 绑定账号数: {len(qq_ids)}")
 
                     if qq_ids:
                         eligible.update([qq_id for qq_id in qq_ids])
-                        self.debug_log(f"§a[投票调试] {player_name} 已绑定QQ，有投票资格", to_server=True)
+                        self.debug_log(f"§a[投票调试] {player_name} 已绑定，有投票资格", to_server=True)
                     else:
                         self.debug_log(f"[VoteSystem Debug] 玩家 '{player_name}' 没有绑定QQ")
                         self.debug_log(f"§c[投票调试] {player_name} 未绑定QQ，无投票资格", to_server=True)
@@ -1229,7 +1227,6 @@ class VoteSystem(BasicSystem):
                     self.debug_log(f"[VoteSystem Debug] 在PlayerManager中找不到玩家 '{player_name}'")
                     self.debug_log(f"§c[投票调试] 找不到玩家 {player_name} 的绑定信息", to_server=True)
 
-            self.debug_log(f"[VoteSystem Debug] 最终有投票资格的QQ号集合: {eligible}")
             self.debug_log(f"[VoteSystem Debug] 有投票资格的人数: {len(eligible)}")
             self.debug_log(f"§e[投票调试] 总共 {len(eligible)} 人有投票资格", to_server=True)
 
@@ -1264,7 +1261,7 @@ class VoteSystem(BasicSystem):
 
         if player:
             qq_ids = player.accounts.get(qq_source, [])
-            self.debug_log(f"[VoteSystem Debug] 玩家 '{sender_name}' 的QQ号: {qq_ids}")
+            self.debug_log(f"[VoteSystem Debug] 玩家 '{sender_name}' 绑定账号数: {len(qq_ids)}")
             return [str(qq_id) for qq_id in qq_ids] if qq_ids else []
         else:
             self.debug_log(f"[VoteSystem Debug] 在PlayerManager中找不到玩家 '{sender_name}'")
@@ -1294,12 +1291,12 @@ class VoteSystem(BasicSystem):
         message_source = broadcast_info.source.origin
         sender_id = str(broadcast_info.sender_id)
 
-        self.debug_log(f"[VoteSystem Debug] 消息来源: {message_source}, QQ source配置: {qq_source}, sender_id: {sender_id}")
+        self.debug_log(f"[VoteSystem Debug] 消息来源: {message_source}, QQ source配置: {qq_source}")
 
         # 判断消息是否来自QQ connector
         if message_source == qq_source:
             # 来自QQ connector，sender_id就是QQ号
-            self.debug_log(f"[VoteSystem Debug] ✓ 消息来自QQ connector，直接使用sender_id作为QQ号: {sender_id}")
+            self.debug_log(f"[VoteSystem Debug] ✓ 消息来自QQ connector，直接使用sender_id")
             return sender_id
 
         # 来自其他connector（MC等），sender_id是玩家名，需要查询绑定的QQ号
@@ -1307,10 +1304,10 @@ class VoteSystem(BasicSystem):
         voter_ids = await self._get_voter_ids(sender_id)
         if voter_ids:
             voter_id = voter_ids[0]  # 使用第一个绑定的QQ号
-            self.debug_log(f"[VoteSystem Debug] ✓ 查询到玩家 '{sender_id}' 的QQ号: {voter_id}")
+            self.debug_log(f"[VoteSystem Debug] ✓ 查询到玩家 '{sender_id}' 的绑定账号")
             return voter_id
         else:
-            self.debug_log(f"[VoteSystem Debug] ✗ 无法获取玩家 {sender_id} 的绑定QQ号")
+            self.debug_log(f"[VoteSystem Debug] ✗ 无法获取玩家 {sender_id} 的绑定账号")
             return None
 
     def _get_online_players(self) -> list:
@@ -1342,7 +1339,7 @@ class VoteSystem(BasicSystem):
     async def _shutdown_server_callback(self) -> None:
         """关闭服务器的回调函数"""
         try:
-            self.logger.info("[VoteSystem] 执行关闭服务器")
+            self.logger.info(f"[VoteSystem] 执行关闭服务器")
 
             # 当服务器中有其他不存在投票资格的玩家或存在其他投票议程时，赋予额外的准备时间
             extra_countdown_time = self.config.get_keys(["system", "vote", "shutdown", "extra_countdown"], 0)
@@ -1377,8 +1374,7 @@ class VoteSystem(BasicSystem):
     async def _broadcast_to_all(self, message: str) -> None:
         """向所有连接器广播消息
 
-        这个方法会将投票消息广播到当前 MC 服务器和连接的 QQ 群，
-        但不会转发到其他服务器（避免跨服务器冲突）
+        这个方法会将投票消息广播到当前 MC 服务器和连接的 QQ 群，排除 bridge connector，避免跨服重复广播
 
         Parameters
         ----------
@@ -1391,6 +1387,11 @@ class VoteSystem(BasicSystem):
             # 获取当前服务器的标识符
             server_name = self.config.get_keys(
                 ["connector", "minecraft", "source_name"], "Minecraft"
+            )
+
+            # 获取 bridge connector 的 source_name，用于排除跨服转发
+            bridge_source_name = self.config.get_keys(
+                ["connector", "minecraft_bridge", "source_name"], "Bridge"
             )
 
             # 构造ProcessedInfo用于广播
@@ -1409,7 +1410,8 @@ class VoteSystem(BasicSystem):
 
             if self.system_manager and self.system_manager.connector_manager:
                 await self.system_manager.connector_manager.broadcast_processed_info(
-                    processed_info
+                    processed_info,
+                    exclude=[bridge_source_name]
                 )
 
         except Exception as e:
