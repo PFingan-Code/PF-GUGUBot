@@ -487,8 +487,8 @@ class VoteSystem(BasicSystem):
         return True
 
     async def _handle_types(self, boardcast_info: BoardcastInfo) -> bool:
-        """处理列出投票类型命令，支持分页显示"""
-        # 从命令中提取页码
+        """处理列出投票类型命令，仅显示序号+名字，提示用户查询详情"""
+        # 从命令中提取可能的类型名
         command = boardcast_info.message[0].get("data", {}).get("text", "")
         command_prefix = self.config.get("GUGUBot", {}).get("command_prefix", "#")
         system_name = self.get_tr("name")
@@ -497,10 +497,9 @@ class VoteSystem(BasicSystem):
         for i in [command_prefix, system_name, types_command]:
             command = command.replace(i, "", 1).strip()
 
-        # 解析页码
-        page = 1
-        if command and command.isdigit():
-            page = int(command)
+        # 如果提供了类型名，显示该类型的详情
+        if command:
+            return await self._handle_type_detail(boardcast_info, command)
 
         # 获取所有已注册的投票类型
         all_configs = self.vote_type_registry.get_all_configs()
@@ -510,68 +509,56 @@ class VoteSystem(BasicSystem):
             await self.reply(boardcast_info, [MessageBuilder.text(msg)])
             return True
 
-        # 分页配置：每页显示3个
-        items_per_page = 3
-        total_items = len(all_configs)
-        total_pages = (total_items + items_per_page - 1) // items_per_page
+        # 仅显示序号+类型名
+        vote_configs_list = list(all_configs.values())
+        type_lines = []
+        for i, config in enumerate(vote_configs_list, start=1):
+            name = self.get_tr(config.name_key)
+            type_lines.append(f"{i}. {name}")
 
-        # 验证页码
-        if page < 1 or page > total_pages:
-            msg = self.get_tr("invalid_page_number", total_pages=total_pages)
+        header = self.get_tr("available_vote_types_simple", count=len(vote_configs_list))
+        tip = self.get_tr(
+            "vote_type_detail_tip",
+            command_prefix=command_prefix,
+            name=system_name,
+            types=types_command
+        )
+        msg = header + "\n" + "\n".join(type_lines) + "\n\n" + tip
+
+        await self.reply(boardcast_info, [MessageBuilder.text(msg)])
+        return True
+
+    async def _handle_type_detail(self, boardcast_info: BoardcastInfo, type_name: str) -> bool:
+        """显示特定投票类型的详细信息"""
+        all_configs = self.vote_type_registry.get_all_configs()
+
+        # 按翻译名称匹配
+        matched_config = None
+        for config in all_configs.values():
+            name = self.get_tr(config.name_key)
+            if name == type_name or config.vote_type == type_name:
+                matched_config = config
+                break
+
+        if not matched_config:
+            msg = self.get_tr("vote_type_not_found", type_name=type_name)
             await self.reply(boardcast_info, [MessageBuilder.text(msg)])
             return True
 
-        # 计算当前页的起始和结束索引
-        start_idx = (page - 1) * items_per_page
-        end_idx = min(start_idx + items_per_page, total_items)
+        name = self.get_tr(matched_config.name_key)
+        description = self.get_tr(matched_config.description_key)
+        start_keywords = ", ".join(matched_config.start_keywords) if matched_config.start_keywords else self.get_tr("none")
+        consult_keywords = ", ".join(matched_config.consult_keywords) if matched_config.consult_keywords else self.get_tr("none")
 
-        # 构建投票类型列表
-        vote_type_items = []
-        vote_configs_list = list(all_configs.values())
-
-        for i in range(start_idx, end_idx):
-            config = vote_configs_list[i]
-
-            # 获取翻译后的名称和描述
-            name = self.get_tr(config.name_key)
-            description = self.get_tr(config.description_key)
-
-            # 格式化关键词列表
-            start_keywords = ", ".join(config.start_keywords) if config.start_keywords else "无"
-            consult_keywords = ", ".join(config.consult_keywords) if config.consult_keywords else "无"
-
-            # 构建单个投票类型的信息
-            item = self.get_tr(
-                "vote_type_item",
-                name=name,
-                description=description,
-                required_percentage=f"{int(config.required_percentage * 100)}%",
-                timeout=int(config.timeout),
-                start_keywords=start_keywords,
-                consult_keywords=consult_keywords
-            )
-            vote_type_items.append(item)
-
-        # 构建头部信息
-        header = self.get_tr(
-            "available_vote_types",
-            page=page,
-            total_pages=total_pages,
-            count=total_items
+        msg = self.get_tr(
+            "vote_type_item",
+            name=name,
+            description=description,
+            required_percentage=f"{int(matched_config.required_percentage * 100)}%",
+            timeout=int(matched_config.timeout),
+            start_keywords=start_keywords,
+            consult_keywords=consult_keywords
         )
-
-        # 构建分页导航提示
-        navigation = ""
-        if total_pages > 1:
-            navigation = self.get_tr(
-                "page_navigation",
-                command_prefix=command_prefix,
-                name=system_name,
-                types=types_command
-            )
-
-        # 组合消息
-        msg = header + "\n\n" + "\n\n".join(vote_type_items) + navigation
 
         await self.reply(boardcast_info, [MessageBuilder.text(msg)])
         return True
@@ -1133,7 +1120,7 @@ class VoteSystem(BasicSystem):
                 vote_name=vote_name,
                 yes_votes=progress["yes_votes"],
                 total_voters=progress["total_voters"],
-                current_percentage=f"{progress['current_percentage']:.1f}"
+                current_percentage=f"{progress['current_percentage']:.1f}%"
             )
             await self._broadcast_to_all(msg)
 
