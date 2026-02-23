@@ -16,15 +16,14 @@ from dataclasses import dataclass
 from mcdreforged.api.types import PluginServerInterface
 
 
-
 class VoteStatus(Enum):
     """投票状态枚举"""
-    PENDING = "pending"      # 进行中
-    PASSED = "passed"        # 通过
-    REJECTED = "rejected"    # 否决
+    PENDING = "pending"  # 进行中
+    PASSED = "passed"  # 通过
+    REJECTED = "rejected"  # 否决
     CANCELLED = "cancelled"  # 取消
-    TIMEOUT = "timeout"      # 超时
-    ERROR = "error"          # 错误
+    TIMEOUT = "timeout"  # 超时
+    ERROR = "error"  # 错误
 
 
 @dataclass
@@ -187,17 +186,17 @@ class Vote:
     """
 
     def __init__(
-        self,
-        vote_id: str,
-        vote_type: str,
-        initiator: str,
-        initiator_id: str,
-        eligible_voters: Set[str],
-        required_percentage: float = 1.0,
-        timeout: float = 300.0,
-        callback: Optional[Callable[[], Awaitable[None]]] = None,
-        description: str = "",
-        index: int = 1
+            self,
+            vote_id: str,
+            vote_type: str,
+            initiator: str,
+            initiator_id: str,
+            eligible_voters: Set[str],
+            required_percentage: float = 1.0,
+            timeout: float = 300.0,
+            callback: Optional[Callable[[], Awaitable[None]]] = None,
+            description: str = "",
+            index: int = 1
     ):
         """初始化投票实例
 
@@ -310,7 +309,7 @@ class Vote:
 
         Returns
         -------
-        Optional[VoteStatus]
+        VoteStatus, optional
             如果投票有结果则返回状态，否则返回None
         """
         if self.status != VoteStatus.PENDING:
@@ -379,7 +378,7 @@ class Vote:
         required_yes = int(total * self.required_percentage)
 
         elapsed = time.time() - self.start_time
-        remaining_time = max(0, self.timeout - elapsed)
+        remaining_time = max(0.0, self.timeout - elapsed)
 
         return {
             "vote_id": self.vote_id,
@@ -423,15 +422,15 @@ class VoteManager:
         self._vote_counter = 0
 
     def create_vote(
-        self,
-        vote_type: str,
-        initiator: str,
-        initiator_id: str,
-        eligible_voters: Set[str],
-        required_percentage: float = 1.0,
-        timeout: float = 300.0,
-        callback: Optional[Callable[[], Awaitable[None]]] = None,
-        description: str = ""
+            self,
+            vote_type: str,
+            initiator: str,
+            initiator_id: str,
+            eligible_voters: Set[str],
+            required_percentage: float = 1.0,
+            timeout: float = 300.0,
+            callback: Optional[Callable[[], Awaitable[None]]] = None,
+            description: str = ""
     ) -> Optional[Vote]:
         """创建新投票
 
@@ -456,7 +455,7 @@ class VoteManager:
 
         Returns
         -------
-        Optional[Vote]
+        Vote, optional
             创建的投票实例，如果已存在同类型投票则返回None
         """
         # 检查是否已有相同类型的进行中投票
@@ -510,7 +509,7 @@ class VoteManager:
 
         Returns
         -------
-        Optional[Vote]
+        Vote, optional
             投票实例，不存在则返回None
         """
         return self.active_votes.get(vote_id)
@@ -525,7 +524,7 @@ class VoteManager:
 
         Returns
         -------
-        Optional[Vote]
+        Vote, optional
             进行中的投票实例，不存在则返回None
         """
         for vote in self.active_votes.values():
@@ -618,7 +617,7 @@ class VoteManager:
 
         Returns
         -------
-        Optional[VoteStatus]
+        VoteStatus, optional
             投票最终状态，如果投票未结束则返回None
         """
         vote = self.get_vote(vote_id)
@@ -649,5 +648,3 @@ class VoteManager:
             vote for vote in self.active_votes.values()
             if vote.status == VoteStatus.PENDING
         ]
-
-
