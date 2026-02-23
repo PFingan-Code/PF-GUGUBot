@@ -49,6 +49,8 @@ class VoteTypeConfig:
         触发投票的关键词列表（精确匹配）
     consult_keywords : Optional[list[str]]
         触发征求模式投票的关键词列表（模糊匹配）
+    enabled : bool
+        是否启用该投票类型，默认True。设为False时不会注册关键词，也无法发起该类型投票
     """
     vote_type: str
     name_key: str
@@ -58,6 +60,7 @@ class VoteTypeConfig:
     callback: Optional[Callable[[], Awaitable[None]]] = None
     start_keywords: Optional[list[str]] = None
     consult_keywords: Optional[list[str]] = None
+    enabled: bool = True
 
     def __post_init__(self):
         """初始化默认值"""
@@ -79,7 +82,10 @@ class VoteTypeRegistry:
         self._keyword_map: Dict[str, str] = {}  # 关键词到投票类型的映射
 
     def register(self, config: VoteTypeConfig) -> bool:
-        """注册投票类型"""
+        """注册投票类型。若 config.enabled 为 False 则跳过注册并返回 False。"""
+        if not config.enabled:
+            return False
+
         if config.vote_type in self._registry:
             return False
 

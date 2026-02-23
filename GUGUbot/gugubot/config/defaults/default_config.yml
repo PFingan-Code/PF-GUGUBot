@@ -232,6 +232,7 @@ system:
 
     # 关闭服务器投票配置
     shutdown:
+      enable: false   # 是否启用关服投票类型
       required_percentage: 1.0   # 通过所需的同意百分比（0.0-1.0，1.0表示100%）
       timeout: 300   # 投票超时时间（秒，默认300秒即5分钟）
       countdown: 10   # 关闭服务器倒计时（秒，默认10秒）

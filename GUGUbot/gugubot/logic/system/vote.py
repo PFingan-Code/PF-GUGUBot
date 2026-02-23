@@ -104,16 +104,22 @@ class VoteSystem(BasicSystem):
             timeout=shutdown_config_dict.get("timeout", 300),
             callback=self._shutdown_server_callback,
             start_keywords=shutdown_keywords.get("start", ["关服", "关闭服务器", "shutdown"]),
-            consult_keywords=shutdown_keywords.get("consult", ["坏了坏了", "要不要关服"])
+            consult_keywords=shutdown_keywords.get("consult", ["坏了坏了", "要不要关服"]),
+            enabled=shutdown_config_dict.get("enable", True)
         )
         success = self.vote_type_registry.register(shutdown_config)
         if success:
             self.logger.info("[VoteSystem] 已注册默认投票类型: shutdown")
+        elif not shutdown_config.enabled:
+            self.logger.info("[VoteSystem] 默认投票类型 shutdown 已在配置中禁用，跳过注册")
         else:
             self.logger.warning("[VoteSystem] 注册默认投票类型失败: shutdown 已存在")
 
     def register_vote_type(self, config: VoteTypeConfig) -> bool:
         """注册新的投票类型（供外部调用）"""
+        if not config.enabled:
+            self.logger.info(f"[VoteSystem] 投票类型 {config.vote_type} 已禁用，跳过注册")
+            return False
         success = self.vote_type_registry.register(config)
         if success:
             self.logger.info(f"[VoteSystem] 已注册投票类型: {config.vote_type}")
