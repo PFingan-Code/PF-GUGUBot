@@ -229,7 +229,6 @@ system:
         - "abstain"
         - "withdraw"
 
-    keep_recent_minutes: 10   # 保留已结束投票的时间（分钟），用于历史查询
 
     # 关闭服务器投票配置
     shutdown:

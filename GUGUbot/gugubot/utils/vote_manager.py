@@ -577,7 +577,7 @@ class VoteManager:
         return success, is_new_vote
 
     def delete_vote(self, vote_id: str) -> bool:
-        """取消投票
+        """取消并立即移除投票
 
         Parameters
         ----------
@@ -595,13 +595,15 @@ class VoteManager:
 
         success = vote.cancel()
 
-        if success and self.logger:
-            self.logger.info(f"[VoteManager] 投票 {vote_id} 已取消")
+        if success:
+            del self.active_votes[vote_id]
+            if self.logger:
+                self.logger.info(f"[VoteManager] 投票 {vote_id} 已取消并移除")
 
         return success
 
     def check_and_finalize_vote(self, vote_id: str) -> Optional[VoteStatus]:
-        """检查并结束投票
+        """检查并结束投票，结束后立即从活动投票中移除
 
         Parameters
         ----------
@@ -619,10 +621,13 @@ class VoteManager:
 
         result = vote.check_result()
 
-        if result and self.logger:
-            self.logger.info(
-                f"[VoteManager] 投票 {vote_id} 结束，结果: {result.value}"
-            )
+        if result:
+            if self.logger:
+                self.logger.info(
+                    f"[VoteManager] 投票 {vote_id} 结束，结果: {result.value}"
+                )
+            # 投票已结束，立即从活动投票中移除
+            del self.active_votes[vote_id]
 
         return result
 
@@ -639,38 +644,4 @@ class VoteManager:
             if vote.status == VoteStatus.PENDING
         ]
 
-    def cleanup_finished_votes(self, keep_recent_minutes: int = 10) -> int:
-        """清理已结束的投票
-
-        Parameters
-        ----------
-        keep_recent_minutes : int
-            保留最近N分钟内的已结束投票，默认10分钟
-
-        Returns
-        -------
-        int
-            清理的投票数量
-        """
-        if keep_recent_minutes < 0:
-            keep_recent_minutes = 0
-
-        current_time = time.time()
-        cutoff_time = current_time - (keep_recent_minutes * 60)
-
-        to_remove = []
-        for vote_id, vote in self.active_votes.items():
-            if vote.status != VoteStatus.PENDING:
-                if vote.start_time < cutoff_time:
-                    to_remove.append(vote_id)
-
-        for vote_id in to_remove:
-            del self.active_votes[vote_id]
-
-        if to_remove and self.logger:
-            self.logger.debug(
-                f"[VoteManager] 清理了 {len(to_remove)} 个已结束的投票"
-            )
-
-        return len(to_remove)
 
