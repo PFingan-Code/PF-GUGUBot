@@ -154,7 +154,7 @@ system:
     enable: false
     allow_bridge_execute: true   # 是否允许通过 bridge 执行命令
     ignore_execute_command_patterns: # 忽略的命令模式列表（使用正则表达式）
-      - ".*?give.*?" # 忽略 give 指令
+      - ".*?give.*?" # 忽略 give 指令，为空则不忽略任何指令
 
   key_words: # 关键词回复
     enable: true
