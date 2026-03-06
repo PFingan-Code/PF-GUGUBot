@@ -10,7 +10,7 @@ from gugubot.connector import (BridgeConnector, ConnectorManager, MCConnector, Q
 from gugubot.logic.plugins import (ActiveWhiteListSystem, CrossBroadcastSystem, InactiveCheckSystem, UnboundCheckSystem)
 from gugubot.logic.system import (BanWordSystem, BoundNoticeSystem, BoundSystem, EchoSystem, ExecuteSystem,
                                   GeneralHelpSystem, KeyWordSystem, PlayerListSystem, StartupCommandSystem, StyleSystem,
-                                  SystemManager, TodoSystem, WhitelistSystem)
+                                  SystemManager, TodoSystem, WhitelistSystem, VoteSystem)
 from gugubot.utils import (StyleManager, check_plugin_version, help_msg_register, migrate_config_v1_to_v2)
 
 connector_manager: ConnectorManager = None
@@ -20,6 +20,7 @@ startup_command_system: StartupCommandSystem = None
 style_manager: StyleManager = None
 unbound_check_system: UnboundCheckSystem = None
 inactive_check_system: InactiveCheckSystem = None
+vote_system: VoteSystem = None
 
 
 # +---------------------------------------------------------------------+
@@ -31,6 +32,7 @@ async def on_load(server: PluginServerInterface, old) -> None:
     global style_manager
     global unbound_check_system
     global inactive_check_system
+    global vote_system
 
     # 尝试迁移旧版本配置
     config_path = Path(server.get_data_folder()) / "config.yml"
@@ -99,6 +101,7 @@ async def on_load(server: PluginServerInterface, old) -> None:
         startup_command_system = StartupCommandSystem(server, config=gugubot_config)
         style_system = StyleSystem(server, style_manager, config=gugubot_config)
         todo_system = TodoSystem(server, config=gugubot_config)
+        vote_system = VoteSystem(server, config=gugubot_config)
 
         # 创建活跃白名单系统
         active_whitelist_system = ActiveWhiteListSystem(server, config=gugubot_config)
@@ -120,6 +123,7 @@ async def on_load(server: PluginServerInterface, old) -> None:
         inactive_check_system.set_whitelist_system(whitelist_system)
         inactive_check_system.set_active_whitelist_system(active_whitelist_system)
 
+
         systems.insert(0, general_help_system)
         systems.insert(1, ban_word_system)
         systems.insert(2, bound_system)
@@ -132,6 +136,7 @@ async def on_load(server: PluginServerInterface, old) -> None:
         systems.insert(9, unbound_check_system)
         systems.insert(10, inactive_check_system)
         systems.insert(11, active_whitelist_system)
+        systems.insert(12, vote_system)
 
     # 跨平台强制广播（#mc / !!qq），放在 echo 前以便处理后可拦截不再走 echo）
     cross_broadcast_system = CrossBroadcastSystem(config=gugubot_config)
