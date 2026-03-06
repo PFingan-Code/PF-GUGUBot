@@ -163,7 +163,7 @@ class ExecuteSystem(BasicSystem):
 
         elif content.startswith(f"{command_prefix}{mcdr_cmd}"):
             # 权限检查：必须是管理员才能执行命令
-            if not broadcast_info.is_admin and not await self._is_admin(broadcast_info.sender_id):
+            if broadcast_info.is_admin or await self._is_admin(broadcast_info.sender_id):
                 return False
 
             # 提取命令内容
