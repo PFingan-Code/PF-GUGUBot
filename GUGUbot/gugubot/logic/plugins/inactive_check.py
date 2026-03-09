@@ -611,18 +611,21 @@ class InactiveCheckSystem(BasicConfig, BasicSystem):
                     for bedrock_name in player.bedrock_name:
                         uuid = self._get_bedrock_player_uuid(bedrock_name)
 
-                        if uuid:
+                        if not uuid:
+                            continue
+
+                        self.logger.debug(
+                            f"基岩版玩家 {bedrock_name} 的 UUID: {uuid}"
+                        )
+                        player_file = player_data_dir / f"{uuid}.dat"
+                        if player_file.exists():
+                            found_any_file = True
+                            mtime = player_file.stat().st_mtime
+                            latest_mtime = max(latest_mtime, mtime)
+                            mtime_str = datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M:%S')
                             self.logger.debug(
-                                f"基岩版玩家 {bedrock_name} 的 UUID: {uuid}"
+                                f"找到基岩版玩家 {bedrock_name} (UUID: {uuid}) 的存档文件，修改时间: {mtime_str}"
                             )
-                            player_file = player_data_dir / f"{uuid}.dat"
-                            if player_file.exists():
-                                found_any_file = True
-                                mtime = player_file.stat().st_mtime
-                                latest_mtime = max(latest_mtime, mtime)
-                                self.logger.debug(
-                                    f"找到基岩版玩家 {bedrock_name} (UUID: {uuid}) 的存档文件，修改时间: {datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M:%S')}"
-                                )
 
                     # 检查 Java 版玩家，使用文件修改时间
                     for java_name in player.java_name:
@@ -650,8 +653,9 @@ class InactiveCheckSystem(BasicConfig, BasicSystem):
                             current_recorded_time = qq_last_play_time.get(qq_str, 0)
                             if latest_mtime > current_recorded_time:
                                 qq_last_play_time[qq_str] = latest_mtime
+                                mtime_str = datetime.fromtimestamp(latest_mtime).strftime('%Y-%m-%d %H:%M:%S')
                                 self.logger.debug(
-                                    f"更新 QQ {qq_str} 的游玩时间记录: {datetime.fromtimestamp(latest_mtime).strftime('%Y-%m-%d %H:%M:%S')}"
+                                    f"更新 QQ {qq_str} 的游玩时间记录: {mtime_str}"
                                 )
                         # 保存更新
                         self["qq_last_play_time"] = qq_last_play_time

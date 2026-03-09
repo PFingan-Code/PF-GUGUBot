@@ -7,6 +7,7 @@
 import json
 import logging
 import threading
+import time
 import traceback
 from typing import Any, Callable, Dict, List, Optional
 
@@ -235,8 +236,6 @@ class WebSocketServer:
                             pass
 
                     # 等待关闭完成
-                    import time
-
                     time.sleep(0.5)
 
                 # 关闭服务器

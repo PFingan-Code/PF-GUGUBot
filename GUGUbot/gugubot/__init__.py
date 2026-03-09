@@ -5,13 +5,50 @@ from pathlib import Path
 from mcdreforged.api.types import Info, PluginServerInterface
 
 from gugubot.config import BotConfig
+
 # from gugubot.logic.bot_core import GUGUBotCore
-from gugubot.connector import (BridgeConnector, ConnectorManager, MCConnector, QQWebSocketConnector, TestConnector)
-from gugubot.logic.plugins import (ActiveWhiteListSystem, CrossBroadcastSystem, InactiveCheckSystem, UnboundCheckSystem)
-from gugubot.logic.system import (BanWordSystem, BoundNoticeSystem, BoundSystem, EchoSystem, ExecuteSystem,
-                                  GeneralHelpSystem, KeyWordSystem, PlayerListSystem, StartupCommandSystem, StyleSystem,
-                                  SystemManager, TodoSystem, WhitelistSystem)
-from gugubot.utils import (StyleManager, check_plugin_version, help_msg_register, migrate_config_v1_to_v2)
+from gugubot.connector import (
+    BridgeConnector,
+    ConnectorManager,
+    MCConnector,
+    QQWebSocketConnector,
+    TestConnector,
+)
+from gugubot.logic.plugins import (
+    ActiveWhiteListSystem,
+    CrossBroadcastSystem,
+    InactiveCheckSystem,
+    UnboundCheckSystem,
+)
+from gugubot.logic.plugins.mg_event import (
+    create_on_mc_achievement,
+    create_on_mc_death,
+)
+from gugubot.logic.plugins.player_notice import (
+    create_on_player_join,
+    create_on_player_left,
+)
+from gugubot.logic.system import (
+    BanWordSystem,
+    BoundNoticeSystem,
+    BoundSystem,
+    EchoSystem,
+    ExecuteSystem,
+    GeneralHelpSystem,
+    KeyWordSystem,
+    PlayerListSystem,
+    StartupCommandSystem,
+    StyleSystem,
+    SystemManager,
+    TodoSystem,
+    WhitelistSystem,
+)
+from gugubot.utils import (
+    StyleManager,
+    check_plugin_version,
+    help_msg_register,
+    migrate_config_v1_to_v2,
+)
 
 connector_manager: ConnectorManager = None
 mc_connector: MCConnector = None
@@ -23,7 +60,7 @@ inactive_check_system: InactiveCheckSystem = None
 
 
 # +---------------------------------------------------------------------+
-async def on_load(server: PluginServerInterface, old) -> None:
+async def on_load(server: PluginServerInterface, _) -> None:
     global connector_manager
     global mc_connector
     global gugubot_config
@@ -37,7 +74,7 @@ async def on_load(server: PluginServerInterface, old) -> None:
     if config_path.exists():
         try:
             with server.open_bundled_file(
-                    "gugubot/config/defaults/default_config.yml"
+                "gugubot/config/defaults/default_config.yml"
             ) as file_handler:
                 default_config_content = file_handler.read().decode("utf-8")
             migrate_config_v1_to_v2(
@@ -162,11 +199,6 @@ async def on_load(server: PluginServerInterface, old) -> None:
     help_msg_register(server, gugubot_config)
 
     # # 注册监听任务
-    from gugubot.logic.plugins.mg_event import (
-        create_on_mc_achievement,
-        create_on_mc_death,
-    )
-
     server.register_event_listener(
         "PlayerAdvancementEvent",
         create_on_mc_achievement(gugubot_config, connector_manager),
@@ -180,11 +212,6 @@ async def on_load(server: PluginServerInterface, old) -> None:
 # # 防止初始化报错
 # qq_bot = None
 
-from gugubot.logic.plugins.player_notice import (
-    create_on_player_join,
-    create_on_player_left,
-)
-
 
 async def on_info(server: PluginServerInterface, info: Info) -> None:
     if connector_manager is not None:
@@ -194,29 +221,13 @@ async def on_info(server: PluginServerInterface, info: Info) -> None:
         await on_player_left(server, info)
 
 
-#     # 玩家上线显示群公告
-#     if qq_bot.config["forward"].get("show_group_notice", False):
-#         player_name = "[".join(info.content.split(" logged in with entity id")[0].split("[")[:-1])
-#
-#         latest_notice = get_latest_group_notice(qq_bot, logger=server.logger)
-
-#         if latest_notice:
-
-#             latest_notice_json = {
-#                 "text": f"群公告：{latest_notice}",
-#                 "color": "gray",
-#                 "italic": False
-#             }
-#             server.execute(f'tellraw {player_name} {json.dumps(latest_notice_json)}')
-
-
 async def on_user_info(server: PluginServerInterface, info: Info) -> None:
     if mc_connector is not None:
         await mc_connector.on_message(server, info)
 
 
 # 卸载
-async def on_unload(server: PluginServerInterface) -> None:
+async def on_unload(_: PluginServerInterface) -> None:
     try:
         # 停止未绑定检查定时任务
         if unbound_check_system:
@@ -250,9 +261,7 @@ async def on_server_startup(server: PluginServerInterface) -> None:
         server.logger.error(f"[GUGUBot] 服务器启动通知失败: {e}")
 
 
-async def on_server_stop(
-        server: PluginServerInterface, server_return_code: int
-) -> None:
+async def on_server_stop(server: PluginServerInterface, _: int) -> None:
     """服务器停止时的回调函数。"""
     try:
         if connector_manager:
@@ -260,5 +269,6 @@ async def on_server_stop(
             await broadcast_server_stop(server, connector_manager, gugubot_config)
     except Exception as e:
         server.logger.error(f"[GUGUBot] 服务器停止通知失败: {e}")
+
 
 # +---------------------------------------------------------------------+

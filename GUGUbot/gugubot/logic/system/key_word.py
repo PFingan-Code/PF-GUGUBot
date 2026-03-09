@@ -2,6 +2,7 @@
 import asyncio
 import copy
 import hashlib
+import requests as req
 from pathlib import Path
 from typing import Dict, Optional
 
@@ -225,8 +226,6 @@ class KeyWordSystem(BasicConfig, BasicSystem):
 
     def _download_image(self, url: str) -> Optional[Path]:
         """下载图片并返回本地缓存路径（同步，在线程池中运行）。"""
-        import requests as req
-
         try:
             url_hash = hashlib.md5(url.encode()).hexdigest()
             response = req.get(url, timeout=15)
@@ -331,7 +330,7 @@ class KeyWordSystem(BasicConfig, BasicSystem):
 
         keyword_list = []
         for k, v in self.items():
-            keyword_list.append(f"{k}: {McMessageBuilder.array_to_RText(v)}")
+            keyword_list.append(f"{k}: {McMessageBuilder.array_to_rtext(v)}")
         keyword_list = "\n".join(keyword_list)
         await self.reply(
             broadcast_info,

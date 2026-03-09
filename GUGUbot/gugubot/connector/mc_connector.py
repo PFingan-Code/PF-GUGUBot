@@ -4,7 +4,7 @@ from typing import Any, Optional
 
 from mcdreforged.api.types import Info, PluginServerInterface
 
-from gugubot.builder.mc_builder import McMessageBuilder
+from gugubot.builder import McMessageBuilder
 from gugubot.config import BotConfig
 from gugubot.connector.basic_connector import BasicConnector
 from gugubot.parser.mc_parser import MCParser
@@ -103,10 +103,10 @@ class MCConnector(BasicConnector):
             if qq_connector := self.connector_manager.get_connector(qq_source):
                 bot_id = getattr(getattr(qq_connector, "bot", None), "self_id", None)
 
-            rtext_content = self.builder.array_to_RText(
-                message, sender_id=sender_id,
+            rtext_content = self.builder.array_to_rtext(
+                message,
                 low_game_version=is_low_version, chat_image=use_chat_image, image_previewer=use_image_previewer,
-                player_manager=player_manager, is_admin=is_admin, bot_id=bot_id
+                player_manager=player_manager, bot_id=bot_id
             )
 
             if player_manager:

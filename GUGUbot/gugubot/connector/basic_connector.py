@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Any, Optional
 
-from gugubot.config.BotConfig import BotConfig
+from gugubot.config import BotConfig
 from gugubot.parser.basic_parser import BasicParser
 from gugubot.utils.types import BroadcastInfo, ProcessedInfo
 
@@ -33,13 +33,13 @@ class BasicConnector(ABC):
     """
 
     def __init__(
-            self,
-            source: str = "",
-            parser: Optional[BasicParser] = None,
-            builder: Any = None,
-            server: Any = None,
-            logger: Any = None,
-            config: BotConfig = None,
+        self,
+        source: str = "",
+        parser: Optional[BasicParser] = None,
+        builder: Any = None,
+        server: Any = None,
+        logger: Any = None,
+        config: BotConfig = None,
     ) -> None:
         self.source: str = source
         self.parser: Optional[BasicParser] = parser
