@@ -36,6 +36,7 @@ class Bot:
         self.send_message = send_message
         self.max_wait_time = max_wait_time if 0 < max_wait_time <= 9 else 9
         self.function_return = {}
+        self.pending_requests = {}
         self.self_id = None  # 机器人自己的QQ号
 
     @staticmethod
@@ -43,6 +44,19 @@ class Bot:
         if params is None:
             params = {}
         return {"action": action, "params": params, "echo": params.get("echo", "")}
+
+    def _cleanup_pending_requests(self) -> None:
+        now = time.time()
+        stale_keys = [
+            k
+            for k, t in self.pending_requests.items()
+            if now - t > self.max_wait_time + 5
+        ]
+        for k in stale_keys:
+            if k in self.function_return:
+                del self.function_return[k]
+            if k in self.pending_requests:
+                del self.pending_requests[k]
 
     def __getattr__(self, name):
         if (
@@ -55,22 +69,26 @@ class Bot:
                 # For methods that are expected to return a value,
                 # automatically add an echo id to track the response.
 
+                self._cleanup_pending_requests()
                 function_return_id = str(uuid.uuid4())
                 kwargs["echo"] = function_return_id
                 command_request = self.format_request(name, kwargs)
                 await self.send_message(command_request)
 
                 start_time = time.time()
+                self.pending_requests[function_return_id] = start_time
 
-                while True:
-                    if function_return_id in self.function_return:
-                        result = self.function_return[function_return_id]
-                        del self.function_return[function_return_id]
-                        return result
+                try:
+                    while True:
+                        if function_return_id in self.function_return:
+                            return self.function_return[function_return_id]
 
-                    await asyncio.sleep(0.2)
-                    if time.time() - start_time >= self.max_wait_time:
-                        return None
+                        await asyncio.sleep(0.2)
+                        if time.time() - start_time >= self.max_wait_time:
+                            return None
+                finally:
+                    self.function_return.pop(function_return_id, None)
+                    self.pending_requests.pop(function_return_id, None)
 
         else:
 
@@ -459,7 +477,7 @@ class QQWebSocketConnector(BasicConnector):
             try:
                 message_data = json.loads(raw_message)
                 echo = message_data.get("echo")
-                if echo:
+                if echo and echo in self.bot.pending_requests:
                     # API 响应，直接存储到 function_return（线程安全）
                     self.bot.function_return[echo] = message_data
                     return
