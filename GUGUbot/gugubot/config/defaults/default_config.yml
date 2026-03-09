@@ -108,7 +108,7 @@ connector:
       sslopt: { } # SSL选项
       reconnect: 5 # 重连时间（秒）
       ping_interval: 5 # 心跳间隔时间（秒）:: 定期发送心跳包检测连接状态
-      ping_timeout: 5 # 心跳超时时间（秒）:: 心跳无响应后判定断线
+      ping_timeout: 4 # 心跳超时时间（秒）:: 心跳无响应后判定断线
       max_wait_time: 5 # 最大等待时间
       token: "" # 令牌
 
