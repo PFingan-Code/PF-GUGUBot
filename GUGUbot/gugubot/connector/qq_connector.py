@@ -490,7 +490,8 @@ class QQWebSocketConnector(BasicConnector):
                 pass
 
             # Event messages are scheduled on the MCDR event loop
-            self.server.schedule_task(self.parser(self).process_message(raw_message))
+            if self.parser is not None:
+                self.server.schedule_task(self.parser.process_message(raw_message))
 
         except Exception as e:
             # Log with translation key and include the full traceback
