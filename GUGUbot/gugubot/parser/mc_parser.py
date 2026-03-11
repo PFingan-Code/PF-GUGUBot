@@ -15,7 +15,9 @@ class MCParser(BasicParser):
     处理来自Minecraft服务器的消息，包括玩家聊天、系统消息等。
     """
 
-    async def parse(self, raw_message: Info, server: PluginServerInterface) -> Optional[BroadcastInfo]:
+    async def parse(
+        self, raw_message: Info, server: PluginServerInterface
+    ) -> Optional[BroadcastInfo]:
         """解析Minecraft消息。
 
         Parameters
@@ -36,9 +38,7 @@ class MCParser(BasicParser):
                 return None
 
             self.logger.debug(
-                f"[GUGUBot]收到Minecraft消息 - "
-                f"玩家: {player}, "
-                f"内容: {content}"
+                f"[GUGUBot]收到Minecraft消息 - " f"玩家: {player}, " f"内容: {content}"
             )
 
             broadcast_info = BroadcastInfo(
@@ -52,7 +52,7 @@ class MCParser(BasicParser):
                 source_id=None,
                 sender=raw_message.player,
                 sender_id=raw_message.player,
-                is_admin=await self.connector._is_admin(raw_message.player)
+                is_admin=await self.connector._is_admin(raw_message.player),
             )
 
             return broadcast_info
@@ -71,7 +71,9 @@ class MCParser(BasicParser):
         if content.strip().startswith(qq_cmd_prefix):
             return False
 
-        ignore_mc_command_patterns = config.get_keys(["connector", "minecraft", "ignore_mc_command_patterns"], [])
+        ignore_mc_command_patterns = config.get_keys(
+            ["connector", "minecraft", "ignore_mc_command_patterns"], []
+        )
 
         for pattern in ignore_mc_command_patterns:
             if re.match(pattern, content):

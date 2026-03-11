@@ -5,7 +5,7 @@ from typing import List, Optional, Union
 from mcdreforged.api.types import PluginServerInterface
 
 from gugubot.builder import MessageBuilder
-from gugubot.config.BotConfig import BotConfig
+from gugubot.config import BotConfig
 from gugubot.logic.system.basic_system import BasicSystem
 from gugubot.logic.system.whitelist import WhitelistSystem
 from gugubot.utils.player_manager import Player, PlayerManager
@@ -80,8 +80,6 @@ class BoundSystem(BasicSystem):
 
     async def _handle_msg(self, broadcast_info: BroadcastInfo) -> bool:
         """处理消息"""
-        content = broadcast_info.message[0].get("data", {}).get("text", "")
-
         if self.is_command(broadcast_info):
             return await self._handle_command(broadcast_info)
 

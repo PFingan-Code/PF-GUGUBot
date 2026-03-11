@@ -1,36 +1,46 @@
+"""
+Manager for multiple connector instances.
+Provides registration, removal, and message broadcasting across connectors.
+"""
+
 import asyncio
 import logging
 import re
 import traceback
 from typing import Dict, List, Optional
 
-from gugubot.config.BotConfig import BotConfig
+from gugubot.config import BotConfig
 from gugubot.connector.basic_connector import BasicConnector
 from gugubot.utils.types import ProcessedInfo
 
 
 class ConnectorManager:
-    """管理多个连接器实例的管理器。
+    """Manage multiple connector instances.
 
-    提供添加、移除连接器和消息广播功能。
+    Provides registration, removal, and message broadcasting across
+    connectors.
 
     Attributes
     ----------
-    connectors : List[BasicConnector]
-        当前管理的所有连接器实例
+    connectors : list[BasicConnector]
+        All connector instances currently managed.
     logger : logging.Logger
-        日志记录器实例
+        Logger instance.
     """
 
     def __init__(
-            self, server, bot_config: BotConfig, logger: Optional[logging.Logger] = None
+        self, server, bot_config: BotConfig, logger: Optional[logging.Logger] = None
     ) -> None:
-        """初始化连接器管理器。
+        """Initialize the connector manager.
 
         Parameters
         ----------
+        server : Any
+            MCDR server instance.
+        bot_config : BotConfig
+            Bot configuration object.
         logger : logging.Logger, optional
-            用于日志记录的Logger实例。如果未提供，将创建一个新的。
+            Logger instance.  Falls back to ``server.logger`` when omitted.
         """
         self.connectors: List[BasicConnector] = []
 
@@ -41,27 +51,27 @@ class ConnectorManager:
         self.system_manager = None  # gugubot.logic.system.system_manager.SystemManager
 
     def register_system_manager(self, system_manager) -> None:
-        """注册系统管理器实例。
+        """Register the system manager instance.
 
         Parameters
         ----------
         system_manager : SystemManager
-            系统管理器实例
+            The system manager to register.
         """
         self.system_manager = system_manager
 
     def get_connector(self, source: str) -> Optional[BasicConnector]:
-        """根据源标识获取连接器实例。
+        """Look up a connector by its source identifier.
 
         Parameters
         ----------
         source : str
-            连接器的源标识
+            Source identifier of the desired connector.
 
         Returns
         -------
-        Optional[BasicConnector]
-            如果找到对应的连接器实例则返回，否则返回None
+        BasicConnector or None
+            The matching connector, or ``None`` if not found.
         """
         for connector in self.connectors:
             if connector.source == source:
@@ -69,17 +79,17 @@ class ConnectorManager:
         return None
 
     async def register_connector(self, connector: BasicConnector) -> None:
-        """添加一个新的连接器实例。
+        """Register and connect a new connector.
 
         Parameters
         ----------
         connector : BasicConnector
-            要添加的连接器实例
+            The connector instance to register.
 
         Raises
         ------
         ValueError
-            如果连接器已经存在于管理器中
+            If the connector is already registered.
         """
         if connector in self.connectors:
             raise ValueError(f"连接器 {connector.source} 已经存在")
@@ -99,17 +109,20 @@ class ConnectorManager:
             raise
 
     async def remove_connector(self, connector: BasicConnector) -> None:
-        """移除一个连接器实例。
+        """Disconnect and remove a connector.
+
+        The connector is always removed from the internal list, even if
+        disconnecting raises an exception.
 
         Parameters
         ----------
         connector : BasicConnector
-            要移除的连接器实例
+            The connector instance to remove.
 
         Raises
         ------
         ValueError
-            如果连接器不在管理器中
+            If the connector is not registered.
         """
         if connector not in self.connectors:
             raise ValueError(f"连接器 {connector.source} 不存在")
@@ -121,40 +134,46 @@ class ConnectorManager:
         except Exception as e:
             error_msg = str(e) + "\n" + traceback.format_exc()
             self.logger.error(f"断开 {connector.source} 失败: {error_msg}")
-            # 仍然从列表中移除，即使断开连接失败
+            # Still remove from the list even if disconnect failed
             self.connectors.remove(connector)
             raise
 
     async def broadcast_processed_info(
-            self,
-            processed_info: ProcessedInfo,
-            include: Optional[List[str]] = None,
-            exclude: Optional[List[str]] = None,
+        self,
+        processed_info: ProcessedInfo,
+        include: Optional[List[str]] = None,
+        exclude: Optional[List[str]] = None,
     ) -> Dict[str, Exception]:
-        """向所有连接器广播消息。
+        """Broadcast a message to all (or a filtered subset of) connectors.
 
         Parameters
         ----------
-        processed_info : Any
-            要广播的消息
-        include : Optional[List[str]]
-            仅向这些源的连接器发送消息（如果为None，则发送给所有连接器）
-        exclude : Optional[List[str]]
-            不向这些源的连接器发送消息
+        processed_info : ProcessedInfo
+            The processed message to broadcast.
+        include : list[str] or None, optional
+            If given, only send to connectors whose source matches one of
+            these patterns.
+        exclude : list[str] or None, optional
+            If given, skip connectors whose source matches any of these
+            patterns.
 
         Returns
         -------
-        Dict[str, Exception]
-            发送失败的连接器及其对应的异常信息
+        dict[str, Exception]
+            A mapping of connector source to the exception raised during
+            sending, for every connector that failed.
         """
         failures: Dict[str, Exception] = {}
         tasks = []
         to_connectors = self.connectors
 
-        # 使用 re.escape 将来源名按字面匹配，避免 source_name 中的正则特殊字符（如 [ ]）导致排除/包含失效
+        # Use re.escape for literal matching so special chars in source names
+        # (e.g. brackets) don't break include/exclude filters.
         if include is not None:
             to_connectors = [
-                c for c in to_connectors if any(re.match(re.escape(p), c.source) for p in include)
+                c
+                for c in to_connectors
+                if any(re.match(re.escape(p), c.source) for p in include)
             ]
 
         if exclude is not None:
@@ -169,12 +188,10 @@ class ConnectorManager:
         debug_msg = connector_info + "\n" + message_info
         self.logger.debug(debug_msg)
 
-        # 创建所有发送任务
         for connector in to_connectors:
             task = asyncio.create_task(self._safe_send(connector, processed_info))
             tasks.append((connector, task))
 
-        # 等待所有任务完成
         for connector, task in tasks:
             try:
                 await task
@@ -184,21 +201,21 @@ class ConnectorManager:
         return failures
 
     async def _safe_send(
-            self, connector: BasicConnector, processed_info: ProcessedInfo
+        self, connector: BasicConnector, processed_info: ProcessedInfo
     ) -> None:
-        """安全地向单个连接器发送消息。
+        """Send a message to a single connector, logging errors.
 
         Parameters
         ----------
         connector : BasicConnector
-            目标连接器
-        processed_info : Any
-            要发送的消息
+            Target connector.
+        processed_info : ProcessedInfo
+            The processed message to send.
 
         Raises
         ------
         Exception
-            如果发送失败
+            Re-raised after logging if the send fails.
         """
         try:
             await connector.send_message(processed_info)
@@ -208,24 +225,27 @@ class ConnectorManager:
             raise
 
     async def disconnect_all(self) -> Dict[str, Exception]:
-        """断开所有连接器的连接。
+        """Disconnect and remove every registered connector.
 
         Returns
         -------
-        Dict[str, Exception]
-            断开连接失败的连接器及其对应的异常信息
+        dict[str, Exception]
+            A mapping of connector source to the exception raised during
+            disconnection, for every connector that failed.
         """
+        failures: Dict[str, Exception] = {}
         tasks = []
 
-        # 创建所有断开连接的任务
-        for connector in self.connectors[:]:  # 使用切片创建副本，因为我们会修改列表
+        for connector in self.connectors[:]:  # iterate over a copy to avoid mutating the list
             task = asyncio.create_task(self.remove_connector(connector))
             tasks.append((connector, task))
 
-        # 等待所有任务完成
         for connector, task in tasks:
             try:
                 await task
             except Exception as e:
                 error_msg = str(e) + "\n" + traceback.format_exc()
                 self.logger.error(f"[gugubot]断开 {connector.source} 失败: {error_msg}")
+                failures[connector.source] = e
+
+        return failures

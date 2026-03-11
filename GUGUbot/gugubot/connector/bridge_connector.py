@@ -1,8 +1,12 @@
+"""Bridge connector implementation for cross-server communication between Minecraft servers."""
+
 import asyncio
 import json
-from typing import Any, Dict
+import time
+import threading
+from typing import Any, Dict, Optional
 
-from gugubot.config.BotConfig import BotConfig
+from gugubot.config import BotConfig
 from gugubot.connector.basic_connector import BasicConnector
 from gugubot.parser.mc_parser import MCParser
 from gugubot.utils.types import BroadcastInfo, ProcessedInfo, Source
@@ -10,37 +14,34 @@ from gugubot.ws import WebSocketFactory
 
 
 class BridgeConnector(BasicConnector):
-    """桥接连接器，支持服务器模式和客户端模式
+    """Bridge connector supporting both server and client modes.
 
-    根据配置中的is_main_server决定运行模式：
-    - True: 启动WebSocket服务器，等待其他服务器连接
-    - False: 作为客户端连接到主服务器
+    The operating mode is determined by the ``is_main_server`` config flag:
+
+    * ``True`` -- start a WebSocket server and wait for other servers to
+      connect.
+    * ``False`` -- connect to the main server as a client.
     """
 
-    def __init__(self, server, config: BotConfig = None):
+    def __init__(self, server, config: Optional[BotConfig] = None):
         source_name = config.get_keys(
             ["connector", "minecraft_bridge", "source_name"], "Bridge"
         )
-        super().__init__(source=source_name, parser=MCParser, config=config)
-        self.server = server
+        super().__init__(
+            source=source_name, parser=MCParser, server=server, config=config
+        )
 
-        # 存储日志前缀和唯一标识
         connector_basic_name = self.server.tr("gugubot.connector.name")
         self.log_prefix = f"[{connector_basic_name}{self.source}]"
 
-        # 添加连接计数器和状态标志
-        import time
-
         self._connect_count = 0
         self._client_id = f"{source_name}_{int(time.time() * 1000)}"
-        self._is_reconnecting = False  # 防止多个重连线程同时运行
+        self._is_reconnecting = False  # guards against concurrent reconnect threads
 
-        # 判断是否为服务器模式
         self.is_main_server = config.get_keys(
             ["connector", "minecraft_bridge", "is_main_server"], True
         )
 
-        # 获取配置
         self.reconnect = config.get_keys(
             ["connector", "minecraft_bridge", "connection", "reconnect"], 5
         )
@@ -63,22 +64,20 @@ class BridgeConnector(BasicConnector):
             ["connector", "minecraft_bridge", "connection", "sslopt"], {}
         )
 
-        # 创建WebSocket实例
         self.ws_server = None
         self.ws_client = None
 
     async def connect(self) -> None:
-        """建立连接"""
+        """Establish the bridge connection (server or client, per config)."""
         if self.is_main_server and self.enable:
             self._start_server()
         elif not self.is_main_server and self.enable:
             self._connect_to_server()
 
     def _start_server(self) -> None:
-        """启动WebSocket服务器"""
+        """Start the WebSocket bridge server in a daemon thread."""
         self.logger.info(f"{self.log_prefix} 正在启动桥接服务器")
 
-        # 创建服务器并传递回调函数
         self.ws_server = WebSocketFactory.create_bridge_server(
             self.config,
             on_message=self._handle_server_message,
@@ -87,19 +86,17 @@ class BridgeConnector(BasicConnector):
             logger=self.logger,
         )
 
-        # 启动服务器（守护线程）
         self.ws_server.start(daemon=True)
 
         self.logger.info(f"{self.log_prefix} 桥接服务器就绪 ~")
 
     def _connect_to_server(self) -> None:
-        """连接到主服务器"""
-        # 清理旧连接
+        """Connect to the main bridge server as a client."""
         if self.ws_client:
             try:
                 if self.ws_client.is_connected():
                     self.ws_client.disconnect(timeout=1)
-            except:
+            except Exception:
                 pass
 
         self._connect_count += 1
@@ -111,7 +108,6 @@ class BridgeConnector(BasicConnector):
         else:
             self.logger.info(f"{self.log_prefix} 正在连接到桥接服务器")
 
-        # 创建客户端
         self.ws_client = WebSocketFactory.create_bridge_client(
             self.config,
             on_message=self._handle_client_message,
@@ -121,7 +117,6 @@ class BridgeConnector(BasicConnector):
             logger=self.logger,
         )
 
-        # 连接到服务器
         self.ws_client.connect(
             reconnect=self.reconnect,
             ping_interval=self.ping_interval,
@@ -133,51 +128,48 @@ class BridgeConnector(BasicConnector):
             thread_name=f"[GUGUBot]Bridge_{self._client_id}",
         )
 
-    def _on_client_connect(self, client: Dict, server: Any) -> None:
-        """新客户端连接到服务器时"""
+    def _on_client_connect(self, client: Dict, _: Any) -> None:
+        """Handle a new client connecting to the bridge server."""
         client_address = client.get("address") if client else "unknown"
         client_count = self.ws_server.get_client_count() if self.ws_server else 0
         self.logger.info(
             f"{self.log_prefix} 新客户端连接: {client_address} (总数: {client_count})"
         )
 
-    def _on_client_disconnect(self, client: Dict, server: Any) -> None:
-        """客户端从服务器断开时"""
+    def _on_client_disconnect(self, client: Dict, _: Any) -> None:
+        """Handle a client disconnecting from the bridge server."""
         client_address = client.get("address") if client else "unknown"
         client_count = self.ws_server.get_client_count() if self.ws_server else 0
         self.logger.info(
             f"{self.log_prefix} 客户端断开: {client_address} (剩余: {client_count})"
         )
 
-    def _on_client_open(self, ws) -> None:
-        """客户端连接建立时"""
+    def _on_client_open(self, _: Any) -> None:
+        """Handle the client WebSocket connection being established."""
         self.logger.info(f"{self.log_prefix} 连接成功 ~")
 
-    def _on_client_error(self, ws, error: Exception) -> None:
-        """客户端连接错误时"""
+    def _on_client_error(self, _: Any, error: Exception) -> None:
+        """Handle a client WebSocket connection error."""
         self.logger.error(
             f"{self.log_prefix} 连接错误: {type(error).__name__} - {error}"
         )
 
-    def _on_client_close(self, ws, status_code: int, reason: str) -> None:
-        """客户端连接关闭时"""
-        import threading
+    def _on_client_close(self, ws, _: int, reason: str) -> None:
+        """Handle the client WebSocket connection closing; schedule reconnect."""
 
-        # 检查是否是当前活动的连接
+        # Ignore stale close events from previous connections
         if self.ws_client and self.ws_client.ws and self.ws_client.ws != ws:
             return
 
         reason_text = f"({reason})" if reason else ""
         self.logger.info(f"{self.log_prefix} 连接已断开 {reason_text}")
 
-        # 实现持续重连
+        # Schedule a persistent reconnect loop in a background thread
         if self.reconnect > 0 and self.enable and not self._is_reconnecting:
             self._is_reconnecting = True
             self.logger.info(f"{self.log_prefix} 将在 {self.reconnect} 秒后重连...")
 
             def delayed_reconnect():
-                import time
-
                 attempt = 0
 
                 try:
@@ -186,7 +178,7 @@ class BridgeConnector(BasicConnector):
                         time.sleep(self.reconnect)
 
                         if not self.enable or (
-                                self.ws_client and self.ws_client.is_connected()
+                            self.ws_client and self.ws_client.is_connected()
                         ):
                             return
 
@@ -211,12 +203,12 @@ class BridgeConnector(BasicConnector):
                 daemon=True,
             ).start()
 
-    def _handle_server_message(self, client: Dict, server: Any, message: str) -> None:
-        """处理服务器端接收到的消息"""
+    def _handle_server_message(self, client: Dict, _: Any, message: str) -> None:
+        """Process a message received on the server side and relay it."""
         try:
             message_data = json.loads(message) if isinstance(message, str) else message
 
-            # 广播给其他客户端
+            # Relay to other connected clients
             if self.ws_server and self.ws_server.get_client_count() > 1:
                 message_data["bridge_source"] = client.get("address", ["unknown", 0])[0]
                 sender_id = message_data.get("sender_id", None)
@@ -226,40 +218,36 @@ class BridgeConnector(BasicConnector):
                     if other_client["id"] != client["id"]:
                         self.ws_server.send_message(other_client, message_data)
 
-            # 处理消息并传递给本地系统
             asyncio.run(self._process_bridge_message(message_data))
 
         except Exception as e:
             self.logger.error(f"{self.log_prefix} 消息处理失败: {e}")
 
-    def _handle_client_message(self, ws, message: str) -> None:
-        """处理客户端接收到的消息"""
+    def _handle_client_message(self, _: Any, message: str) -> None:
+        """Process a message received on the client side."""
         try:
             message_data = json.loads(message) if isinstance(message, str) else message
 
             if (
-                    isinstance(message_data, dict)
-                    and message_data.get("type") == "server_shutdown"
+                isinstance(message_data, dict)
+                and message_data.get("type") == "server_shutdown"
             ):
                 return
 
-            # 处理消息并传递给本地系统
             asyncio.run(self._process_bridge_message(message_data))
 
         except Exception as e:
             self.logger.error(f"{self.log_prefix} 消息处理失败: {e}")
 
     async def _process_bridge_message(self, message_data: Dict) -> None:
-        """处理桥接消息"""
+        """Reconstruct a ``BroadcastInfo`` from bridge data and dispatch it."""
         try:
             target = message_data.get("target", {}) or {}
             if target and self.source not in target and len(target) == 1:
                 return
 
-            # 从消息数据中恢复 Source 对象
             source_data = message_data.get("source")
             source = Source.from_any(source_data)
-            # 添加当前 connector 作为接收来源
             source.add(self.source)
 
             processed_info = BroadcastInfo(
@@ -287,33 +275,40 @@ class BridgeConnector(BasicConnector):
             self.logger.error(f"{self.log_prefix} 处理桥接消息失败: {e}")
 
     async def send_message(self, processed_info: ProcessedInfo) -> None:
-        """发送消息"""
+        """Serialize and send a message over the bridge."""
         if not self.enable:
             return
 
-        # 将 Source 序列化为列表以便通过 WebSocket 传输
+        # Serialize Source as a list for WebSocket transport
         source_list = processed_info.source.to_list() if processed_info.source else []
 
         message_data = {
-            "sender": processed_info.sender or "System",
+            "sender": processed_info.sender
+            or self.config.get_keys(
+                ["connector", "minecraft_bridge", "source_name"], "System"
+            ),
             "sender_id": processed_info.sender_id,
             "event_sub_type": processed_info.event_sub_type,
             "receiver": processed_info.receiver,
-            "source": source_list,  # 使用列表格式传输完整的来源链
+            "source": source_list,
             "source_id": processed_info.source_id,
             "raw": processed_info.raw,
             "processed_message": processed_info.processed_message,
             "target": processed_info.target,
-            "is_admin": await self._is_admin(processed_info.sender_id) if self.is_main_server else None,
+            "is_admin": (
+                await self._is_admin(processed_info.sender_id)
+                if self.is_main_server
+                else None
+            ),
         }
 
         if self.is_main_server:
-            # 服务器模式：广播给所有连接的客户端
+            # Server mode: broadcast to all connected clients
             if self.ws_server and self.ws_server.is_running():
                 count = self.ws_server.broadcast(message_data)
                 self.logger.debug(f"{self.log_prefix} 广播消息给 {count} 个客户端")
         else:
-            # 客户端模式：发送给服务器
+            # Client mode: send to the server
             if self.ws_client and self.ws_client.is_connected():
                 if self.ws_client.send(message_data):
                     self.logger.debug(f"{self.log_prefix} 发送消息到服务器")
@@ -321,7 +316,7 @@ class BridgeConnector(BasicConnector):
                     self.logger.warning(f"{self.log_prefix} 发送消息失败")
 
     async def disconnect(self) -> None:
-        """断开连接"""
+        """Disconnect the bridge (server or client)."""
         try:
             self.enable = False
 
@@ -336,8 +331,8 @@ class BridgeConnector(BasicConnector):
         except Exception as e:
             self.logger.warning(f"{self.log_prefix} 断开连接时出错: {e}")
 
-    async def on_message(self, raw: Any) -> BroadcastInfo:
-        """处理接收到的消息"""
+    async def on_message(self, raw: Any) -> None:
+        """Handle an incoming raw message via the parser."""
         if not self.enable:
             return None
 
@@ -346,7 +341,7 @@ class BridgeConnector(BasicConnector):
         return None
 
     async def _is_admin(self, sender_id) -> bool:
-        """检查是否是管理员"""
+        """Return whether *sender_id* is an admin."""
         bound_system = self.connector_manager.system_manager.get_system("bound")
 
         if not bound_system:

@@ -5,8 +5,8 @@ from typing import List, Optional
 
 from mcdreforged.api.types import PluginServerInterface
 
-from gugubot.config.BotConfig import BotConfig
-from gugubot.connector.connector_manager import ConnectorManager
+from gugubot.config import BotConfig
+from gugubot.connector import ConnectorManager
 from gugubot.logic.system.basic_system import BasicSystem
 from gugubot.utils.types import BroadcastInfo
 

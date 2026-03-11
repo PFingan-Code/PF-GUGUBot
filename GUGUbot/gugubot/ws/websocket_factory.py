@@ -1,6 +1,7 @@
-"""WebSocket工厂类
+"""WebSocket factory module.
 
-用于创建和管理WebSocket客户端和服务器实例
+Provides factory methods for creating and managing WebSocket client
+and server instances.
 """
 
 import logging
@@ -11,9 +12,10 @@ from .websocket_server import WebSocketServer
 
 
 class WebSocketFactory:
-    """WebSocket工厂类
+    """WebSocket factory class.
 
-    提供统一的接口来创建WebSocket客户端和服务器实例
+    Provides a unified interface for creating WebSocket client and
+    server instances.
     """
 
     @staticmethod
@@ -26,29 +28,29 @@ class WebSocketFactory:
             on_close: Optional[Callable] = None,
             logger: Optional[logging.Logger] = None,
     ) -> WebSocketClient:
-        """创建WebSocket客户端
+        """Create a WebSocket client.
 
         Parameters
         ----------
         url : str
-            WebSocket服务器URL
+            WebSocket server URL.
         token : Optional[str]
-            认证令牌
+            Authentication token.
         on_message : Optional[Callable]
-            消息接收回调
+            Message received callback.
         on_open : Optional[Callable]
-            连接建立回调
+            Connection opened callback.
         on_error : Optional[Callable]
-            错误处理回调
+            Error handling callback.
         on_close : Optional[Callable]
-            连接关闭回调
+            Connection closed callback.
         logger : Optional[logging.Logger]
-            日志记录器
+            Logger instance.
 
         Returns
         -------
         WebSocketClient
-            WebSocket客户端实例
+            A WebSocket client instance.
         """
         headers = {"Authorization": f"Bearer {token}"} if token else None
 
@@ -71,27 +73,27 @@ class WebSocketFactory:
             on_client_disconnect: Optional[Callable] = None,
             logger: Optional[logging.Logger] = None,
     ) -> WebSocketServer:
-        """创建WebSocket服务器
+        """Create a WebSocket server.
 
         Parameters
         ----------
         host : str
-            监听地址
+            Listening address.
         port : int
-            监听端口
+            Listening port.
         on_message : Optional[Callable]
-            消息接收回调
+            Message received callback.
         on_client_connect : Optional[Callable]
-            客户端连接回调
+            Client connected callback.
         on_client_disconnect : Optional[Callable]
-            客户端断开回调
+            Client disconnected callback.
         logger : Optional[logging.Logger]
-            日志记录器
+            Logger instance.
 
         Returns
         -------
         WebSocketServer
-            WebSocket服务器实例
+            A WebSocket server instance.
         """
         return WebSocketServer(
             host=host,
@@ -110,25 +112,25 @@ class WebSocketFactory:
             on_client_disconnect: Optional[Callable] = None,
             logger: Optional[logging.Logger] = None,
     ) -> WebSocketServer:
-        """根据配置创建桥接服务器
+        """Create a bridge server from configuration.
 
         Parameters
         ----------
         config : Any
-            配置对象
+            Configuration object.
         on_message : Optional[Callable]
-            消息接收回调
+            Message received callback.
         on_client_connect : Optional[Callable]
-            客户端连接回调
+            Client connected callback.
         on_client_disconnect : Optional[Callable]
-            客户端断开回调
+            Client disconnected callback.
         logger : Optional[logging.Logger]
-            日志记录器
+            Logger instance.
 
         Returns
         -------
         WebSocketServer
-            配置好的桥接服务器实例
+            A configured bridge server instance.
         """
         host = config.get_keys(
             ["connector", "minecraft_bridge", "connection", "host"], "0.0.0.0"
@@ -155,27 +157,27 @@ class WebSocketFactory:
             on_close: Optional[Callable] = None,
             logger: Optional[logging.Logger] = None,
     ) -> WebSocketClient:
-        """根据配置创建桥接客户端
+        """Create a bridge client from configuration.
 
         Parameters
         ----------
         config : Any
-            配置对象
+            Configuration object.
         on_message : Optional[Callable]
-            消息接收回调
+            Message received callback.
         on_open : Optional[Callable]
-            连接建立回调
+            Connection opened callback.
         on_error : Optional[Callable]
-            错误处理回调
+            Error handling callback.
         on_close : Optional[Callable]
-            连接关闭回调
+            Connection closed callback.
         logger : Optional[logging.Logger]
-            日志记录器
+            Logger instance.
 
         Returns
         -------
         WebSocketClient
-            配置好的桥接客户端实例
+            A configured bridge client instance.
         """
         host = config.get_keys(
             ["connector", "minecraft_bridge", "connection", "host"], "127.0.0.1"

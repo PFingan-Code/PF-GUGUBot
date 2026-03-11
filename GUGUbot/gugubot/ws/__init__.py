@@ -1,6 +1,6 @@
-from .websocket_client import WebSocketClient
-from .websocket_factory import WebSocketFactory
-from .websocket_server import WebSocketServer
+from gugubot.ws.websocket_client import WebSocketClient
+from gugubot.ws.websocket_factory import WebSocketFactory
+from gugubot.ws.websocket_server import WebSocketServer
 
 __all__ = [
     "WebSocketServer",

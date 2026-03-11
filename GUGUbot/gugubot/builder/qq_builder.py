@@ -1,28 +1,38 @@
-import html
+# -*- coding: utf-8 -*-
+"""Message Handler for QQ(A social platform)"""
+
 import re
+
+import html
 from typing import Dict, List
 
+from gugubot.builder.basic_builder import BasicBuilder
 
-class ArrayHandler:
+
+class ArrayHandler(BasicBuilder):
+    """QQ array message handler"""
+
     @staticmethod
     def build(
-            array: List[Dict[str, Dict[str, str]]],
+        array: List[Dict[str, Dict[str, str]]],
     ) -> List[Dict[str, Dict[str, str]]]:
+        """Parse array message from array."""
         return array
 
     @staticmethod
     def parse(
-            message: List[Dict[str, Dict[str, str]]],
+        message: List[Dict[str, Dict[str, str]]],
     ) -> List[Dict[str, Dict[str, str]]]:
+        """Parse array message to array."""
         return message
 
 
-class CQHandler:
+class CQHandler(BasicBuilder):
+    """CQ code handler"""
+
     @staticmethod
     def parse(message: str) -> List[Dict[str, Dict[str, str]]]:
-        """
-        Parse CQ string to Array.
-        """
+        """Parse CQ string to Array."""
         cq_pattern = re.compile(r"\[CQ:(\w+)((?:,\w+=[^,\]]*)*)\]")
         kv_pattern = re.compile(r",(\w+)=([^,\]]*)")
 
