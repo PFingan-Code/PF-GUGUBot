@@ -85,6 +85,9 @@ class BotConfig(BasicConfig):
         Validate config file and prompt user where is wrong,
             including YAML/JSON syntax errors.
         """
+        if not self.path.exists():
+            return
+
         # Check YAML or JSON syntax
         try:
             with open(self.path, "r", encoding="UTF-8") as f:
