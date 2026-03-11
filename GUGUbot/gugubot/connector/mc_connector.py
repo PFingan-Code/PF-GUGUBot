@@ -176,7 +176,8 @@ class MCConnector(BasicConnector):
             if not raw.is_player:
                 return
 
-            await self.parser(self).process_message(raw, server=self.server)
+            if self.parser is not None:
+                await self.parser.process_message(raw, server=self.server)
 
         except Exception as e:
             self.logger.error(f"{self.log_prefix} 处理消息失败: {e}")

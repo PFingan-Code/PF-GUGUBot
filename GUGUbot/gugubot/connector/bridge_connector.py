@@ -269,7 +269,8 @@ class BridgeConnector(BasicConnector):
                 target=target,
             )
 
-            await self.parser(self).system_manager.broadcast_command(processed_info)
+            if self.parser is not None:
+                await self.parser.system_manager.broadcast_command(processed_info)
 
         except Exception as e:
             self.logger.error(f"{self.log_prefix} 处理桥接消息失败: {e}")
@@ -336,8 +337,8 @@ class BridgeConnector(BasicConnector):
         if not self.enable:
             return None
 
-        if self.parser:
-            return await self.parser(self).parse(raw)
+        if self.parser is not None:
+            return await self.parser.parse(raw)
         return None
 
     async def _is_admin(self, sender_id) -> bool:
