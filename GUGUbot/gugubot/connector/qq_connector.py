@@ -443,9 +443,7 @@ class QQWebSocketConnector(BasicConnector):
         except Exception as e:
             error_msg = str(e) + "\n" + traceback.format_exc()
             self.logger.warning(
-                f"{self.log_prefix} {self.server.tr(
-                    "gugubot.connector.QQ.error_close", error=error_msg
-                )}"
+                f"{self.log_prefix} {self.server.tr('gugubot.connector.QQ.error_close', error=error_msg)}"
             )
             raise
 
