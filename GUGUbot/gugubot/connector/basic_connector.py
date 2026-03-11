@@ -67,6 +67,7 @@ class BasicConnector(ABC):
             self._parser_instance is None
             and self._parser_class is not None
             and self.connector_manager is not None
+            and self.connector_manager.system_manager is not None
         ):
             self._parser_instance = self._parser_class(self)
         return self._parser_instance
