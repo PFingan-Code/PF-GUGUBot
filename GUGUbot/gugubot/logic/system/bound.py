@@ -329,13 +329,13 @@ class BoundSystem(BasicSystem):
                                 .get("whitelist_add_with_bound", False)
                         and self.whitelist
                 ):
-                    return self.whitelist.add_player(
+                    return self.whitelist.add_player(  # 返回白名单添加状态
                         player_name,
                         force_offline=is_offline,
                         force_online=is_online,
                         force_bedrock=is_bedrock,
                     )
-                return False
+                return True  # 如未开启绑定时添加白名单，返回True
 
             async def _set_group_card_if_qq(
                     player_name: str,
