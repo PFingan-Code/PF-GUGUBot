@@ -312,10 +312,7 @@ class BoundSystem(BasicSystem):
     ) -> bool:
         """执行玩家绑定"""
         try:
-            # 如果用户未指定任何选项，则使用系统默认模式
-            if not any([is_bedrock, is_online, is_offline]):
-                is_offline = not self.whitelist.online_mode
-                is_online = self.whitelist.online_mode
+            # 如果用户未指定任何选项，将选择权交给whitelist
 
             # 检查玩家名是否已被其他用户绑定
             if self.player_manager.is_name_bound_by_other_user(
@@ -332,12 +329,13 @@ class BoundSystem(BasicSystem):
                                 .get("whitelist_add_with_bound", False)
                         and self.whitelist
                 ):
-                    self.whitelist.add_player(
+                    return self.whitelist.add_player(  # 返回白名单添加状态
                         player_name,
                         force_offline=is_offline,
                         force_online=is_online,
                         force_bedrock=is_bedrock,
                     )
+                return True  # 如未开启绑定时添加白名单，返回True
 
             async def _set_group_card_if_qq(
                     player_name: str,
@@ -370,20 +368,20 @@ class BoundSystem(BasicSystem):
                 ):
                     existing_player.add_name(player_name, is_bedrock)
                     self.player_manager.save()
-                    _bound_whitelist(player_name, is_offline, is_online, is_bedrock)
+                    success = _bound_whitelist(player_name, is_offline, is_online, is_bedrock)
                     await _set_group_card_if_qq(
                         player_name, platform, broadcast_info, target_id
                     )
-                    return True
+                    return success
 
                 elif player_name not in existing_player.accounts.get(platform, []):
                     existing_player.add_account(platform, target_id)
                     self.player_manager.save()
-                    _bound_whitelist(player_name, is_offline, is_online, is_bedrock)
+                    success = _bound_whitelist(player_name, is_offline, is_online, is_bedrock)
                     await _set_group_card_if_qq(
                         player_name, platform, broadcast_info, target_id
                     )
-                    return True
+                    return success
 
                 return False
 
@@ -395,12 +393,12 @@ class BoundSystem(BasicSystem):
                 is_bedrock=is_bedrock,
             )
             self.player_manager.save()
-            _bound_whitelist(player_name, is_offline, is_online, is_bedrock)
+            success = _bound_whitelist(player_name, is_offline, is_online, is_bedrock)
             await _set_group_card_if_qq(
                 player_name, platform, broadcast_info, target_id
             )
 
-            return True
+            return success
         except Exception as e:
             self.logger.error(f"绑定玩家失败: {e}")
             return False
