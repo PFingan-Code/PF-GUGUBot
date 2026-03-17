@@ -17,10 +17,6 @@ class BasicConnector(ABC):
         Identifier or description of the underlying source (for example a
         URL, websocket address, or client name).  Concrete implementations
         should set this value to describe where messages come from.
-    parser : Optional[BasicParser]
-        Parser instance (created from the parser class passed to ``__init__``).
-        Initialized on first access after this connector is registered to a
-        ``ConnectorManager``.
     builder : Any
         Object responsible for building outgoing messages from internal
         message objects into the raw format required by the source.
@@ -62,7 +58,13 @@ class BasicConnector(ABC):
 
     @property
     def parser(self) -> Optional[BasicParser]:
-        """Parser instance; created on first access after connector_manager is set."""
+        """Parser instance.
+
+        This property returns the parser instance created from the parser
+        class passed to ``__init__``.  The instance is lazily initialized
+        on first access after this connector has been registered to a
+        ``ConnectorManager``.
+        """
         if (
             self._parser_instance is None
             and self._parser_class is not None
