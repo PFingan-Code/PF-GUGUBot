@@ -1,7 +1,7 @@
 """Abstract base connector class."""
 
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from typing import Any, Optional, Type
 
 from gugubot.config import BotConfig
 from gugubot.parser.basic_parser import BasicParser
@@ -17,9 +17,6 @@ class BasicConnector(ABC):
         Identifier or description of the underlying source (for example a
         URL, websocket address, or client name).  Concrete implementations
         should set this value to describe where messages come from.
-    parser : Any
-        Object responsible for parsing raw incoming data into internal
-        message objects.
     builder : Any
         Object responsible for building outgoing messages from internal
         message objects into the raw format required by the source.
@@ -33,14 +30,15 @@ class BasicConnector(ABC):
     def __init__(
         self,
         source: str = "",
-        parser: Optional[BasicParser] = None,
+        parser: Optional[Type[BasicParser]] = None,
         builder: Any = None,
         server: Any = None,
         logger: Any = None,
         config: Optional[BotConfig] = None,
     ) -> None:
         self.source: str = source
-        self.parser: Optional[BasicParser] = parser
+        self._parser_class: Optional[Type[BasicParser]] = parser
+        self._parser_instance: Optional[BasicParser] = None
         self.builder: Any = builder
         self.server: Any = server
         self.connector_manager: Any = (
@@ -57,6 +55,24 @@ class BasicConnector(ABC):
         self.enable_send: bool = self.config.get_keys(
             ["connector", self.source, "enable_send"], self.enable
         )
+
+    @property
+    def parser(self) -> Optional[BasicParser]:
+        """Parser instance.
+
+        This property returns the parser instance created from the parser
+        class passed to ``__init__``.  The instance is lazily initialized
+        on first access after this connector has been registered to a
+        ``ConnectorManager``.
+        """
+        if (
+            self._parser_instance is None
+            and self._parser_class is not None
+            and self.connector_manager is not None
+            and self.connector_manager.system_manager is not None
+        ):
+            self._parser_instance = self._parser_class(self)
+        return self._parser_instance
 
     @abstractmethod
     async def connect(self) -> None:
