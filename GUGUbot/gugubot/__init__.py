@@ -49,6 +49,7 @@ from gugubot.utils import (
     help_msg_register,
     migrate_config_v1_to_v2,
 )
+from gugubot.webui_register import register_gugubot_webui_page
 
 connector_manager: ConnectorManager = None
 mc_connector: MCConnector = None
@@ -197,6 +198,9 @@ async def on_load(server: PluginServerInterface, _) -> None:
 
     # 注册 !!gugubot 命令
     help_msg_register(server, gugubot_config)
+
+    # PF-MCDR-WebUI：侧边栏「插件网页」与 /api/plugin/gugubot/...
+    register_gugubot_webui_page(server, gugubot_config, connector_manager)
 
     # # 注册监听任务
     server.register_event_listener(

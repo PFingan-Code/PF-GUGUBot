@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light dark" />
+  <title>GUGUBot</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --gb-bg: #ffffff;
+      --gb-bg-muted: #f8fafc;
+      --gb-text: #0f172a;
+      --gb-text-muted: #64748b;
+      --gb-border: #e2e8f0;
+      --gb-link: #2563eb;
+      --gb-link-hover: #1d4ed8;
+      --gb-code-bg: #e2e8f0;
+      --gb-pre-bg: #ffffff;
+      --gb-pre-border: #e2e8f0;
+      --gb-btn-bg: #ffffff;
+      --gb-btn-border: #cbd5e1;
+      --gb-btn-hover: #f1f5f9;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      color: var(--gb-text);
+      line-height: 1.55;
+      background: var(--gb-bg);
+    }
+
+    html[data-theme="dark"] {
+      --gb-bg: #0f1419;
+      --gb-bg-muted: #161b22;
+      --gb-text: #e6edf3;
+      --gb-text-muted: #8b949e;
+      --gb-border: #30363d;
+      --gb-link: #58a6ff;
+      --gb-link-hover: #79b8ff;
+      --gb-code-bg: #21262d;
+      --gb-pre-bg: #161b22;
+      --gb-pre-border: #30363d;
+      --gb-btn-bg: #21262d;
+      --gb-btn-border: #30363d;
+      --gb-btn-hover: #30363d;
+    }
+
+    body {
+      margin: 0;
+      padding: 1.25rem 1.5rem;
+      max-width: 52rem;
+      background: var(--gb-bg);
+      color: var(--gb-text);
+    }
+
+    h1 {
+      font-size: 1.35rem;
+      margin: 0 0 0.35rem;
+      font-weight: 600;
+    }
+
+    .lead {
+      color: var(--gb-text-muted);
+      font-size: 0.95rem;
+      margin: 0 0 1.25rem;
+    }
+
+    a {
+      color: var(--gb-link);
+      text-decoration: none;
+    }
+
+    a:hover {
+      color: var(--gb-link-hover);
+      text-decoration: underline;
+    }
+
+    .card {
+      border: 1px solid var(--gb-border);
+      border-radius: 8px;
+      padding: 1rem 1.1rem;
+      margin-bottom: 1rem;
+      background: var(--gb-bg-muted);
+    }
+
+    .card h2 {
+      font-size: 1rem;
+      margin: 0 0 0.6rem;
+      font-weight: 600;
+    }
+
+    button {
+      margin: 0 0.5rem 0.5rem 0;
+      padding: 0.45rem 0.85rem;
+      cursor: pointer;
+      border-radius: 6px;
+      border: 1px solid var(--gb-btn-border);
+      background: var(--gb-btn-bg);
+      color: var(--gb-text);
+      font-size: 0.9rem;
+    }
+
+    button:hover {
+      background: var(--gb-btn-hover);
+    }
+
+    pre {
+      margin: 0.75rem 0 0;
+      padding: 0.75rem;
+      background: var(--gb-pre-bg);
+      border: 1px solid var(--gb-pre-border);
+      border-radius: 6px;
+      overflow: auto;
+      max-height: 360px;
+      font-size: 0.8rem;
+      color: var(--gb-text);
+    }
+
+    .muted {
+      color: var(--gb-text-muted);
+      font-size: 0.85rem;
+    }
+
+    code {
+      font-size: 0.85em;
+      background: var(--gb-code-bg);
+      padding: 0.1em 0.35em;
+      border-radius: 4px;
+      color: var(--gb-text);
+    }
+  </style>
+  <script>
+    (function () {
+      function syncTheme() {
+        var dark = false;
+        try {
+          var p = window.parent && window.parent.document;
+          if (p && p.documentElement) {
+            var el = p.documentElement;
+            var body = p.body;
+            if (el.classList.contains('dark') || (body && body.classList.contains('dark'))) {
+              dark = true;
+            } else if (el.getAttribute('data-theme') === 'dark' || el.getAttribute('data-mui-color-scheme') === 'dark') {
+              dark = true;
+            } else if (el.getAttribute('data-theme') === 'light' || el.getAttribute('data-mui-color-scheme') === 'light') {
+              document.documentElement.setAttribute('data-theme', 'light');
+              return;
+            }
+          }
+        } catch (e) { }
+        if (!dark && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+          dark = true;
+        }
+        if (dark) {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        } else {
+          document.documentElement.setAttribute('data-theme', 'light');
+        }
+      }
+      syncTheme();
+      try {
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', syncTheme);
+      } catch (e) {
+        window.matchMedia('(prefers-color-scheme: dark)').addListener(syncTheme);
+      }
+    })();
+  </script>
+</head>
+
+<body>
+  <p class="lead">
+    QQ 与 Minecraft 互通机器人。本页由 GUGUBot 通过 <code>register_plugin_page</code> 注册，出现在 WebUI 侧边栏「插件网页」中。页面文件为 MCDR
+    <code>config/gugubot/gugubot_webui.html</code>，每次插件加载时由内置模板覆盖。
+  </p>
+
+  <div class="card">
+    <h2>说明</h2>
+    <p class="muted" style="margin:0">
+      下方接口需已登录 WebUI（Cookie）。API 由 guguwebui 代理至本插件，路径为
+      <code>/api/plugin/gugubot/...</code>，详见 PF-MCDR-WebUI 文档「插件后端 API 代理」。
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>状态</h2>
+    <button type="button" id="btn-status">拉取运行状态</button>
+    <p class="muted" style="margin:0.5rem 0 0">仓库：<a href="https://github.com/PFingan-Code/PF-GUGUBot" target="_blank"
+        rel="noopener">PF-GUGUBot</a></p>
+    <pre id="out">（点击按钮）</pre>
+  </div>
+
+  <script>
+    function apiRoot() {
+      try {
+        var cfg = window.parent && window.parent.__GUGU_CONFIG__;
+        var root = (cfg && cfg.root_path) ? String(cfg.root_path) : '';
+        return root.replace(/\/$/, '') + '/api';
+      } catch (e) {
+        return '/api';
+      }
+    }
+
+    function pluginBase() {
+      return apiRoot() + '/plugin/gugubot';
+    }
+
+    async function show(label, payload) {
+      var el = document.getElementById('out');
+      el.textContent = label + '\n' + JSON.stringify(payload, null, 2);
+    }
+
+    document.getElementById('btn-status').onclick = async function () {
+      try {
+        var r = await fetch(pluginBase() + '/status', { credentials: 'include' });
+        var t = await r.text();
+        try { t = JSON.parse(t); } catch (e) { }
+        await show('GET /status → HTTP ' + r.status, t);
+      } catch (e) {
+        await show('请求失败', String(e));
+      }
+    };
+  </script>
+</body>
+
+</html>
