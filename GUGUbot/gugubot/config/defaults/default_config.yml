@@ -150,6 +150,8 @@ system:
     enable: true
     mc_command: "mc"    # QQ 端命令：{command_prefix}{mc_command} 消息
     qq_command: "!!qq"  # MC 端命令：{qq_command} 消息
+    qq_forward_group_ids: # !!qq 转发目标群号 :: 留空则使用 QQ connector 的 forward_group_ids/group_ids
+      -
 
   execute: # 命令执行系统
     enable: false

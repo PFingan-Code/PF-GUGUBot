@@ -97,6 +97,17 @@ class CrossBroadcastSystem(BasicSystem):
         connector = self.system_manager.connector_manager.get_connector(qq_source)
         if not connector or not connector.enable:
             return False
+
+        # 自定义 !!qq 转发目标群，留空则由 QQ connector 自行决定
+        qq_forward_group_ids = self.config.get_keys(
+            ["system", "cross_broadcast", "qq_forward_group_ids"], []
+        )
+        target = None
+        if qq_forward_group_ids and any(qq_forward_group_ids):
+            target = {
+                str(gid): "group" for gid in qq_forward_group_ids if gid
+            }
+
         processed_info = ProcessedInfo(
             processed_message=message,
             _source=broadcast_info.source,
@@ -107,6 +118,7 @@ class CrossBroadcastSystem(BasicSystem):
             logger=broadcast_info.logger,
             event_sub_type=broadcast_info.event_sub_type,
             sender_id=broadcast_info.sender_id,
+            target=target,
         )
         await self.system_manager.connector_manager.broadcast_processed_info(
             processed_info, include=[qq_source]
