@@ -98,6 +98,7 @@ connector:
     enable_send: true # 是否发送 :: 广播时是否向此 connector 发送（在 echo 等逻辑处即不投递）
 
     is_main_server: true     # 是否为主服务器 :: 发送消息到其他服务器
+    show_in_game: true     # 游戏内显示其他服务器消息 :: 关闭后来自其他服务器的消息不会在MC游戏内聊天中显示，但仍会转发到QQ等其他平台
 
     connection: # 桥接服务器连接设置
       host: 127.0.0.1 # 主机地址
