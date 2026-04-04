@@ -90,6 +90,18 @@ class MCConnector(BasicConnector):
             ["connector", "minecraft", "image_previewer"], False
         )
 
+        # If the message is from another server and the other server is not allowed to show in game, skip
+        bridge_connector_name = self.config.get_keys(
+            ["connector", "minecraft_bridge", "source_name"], "Bridge"
+        )
+        bridge_connector = self.connector_manager.get_connector(bridge_connector_name)
+        if (
+            bridge_connector
+            and not getattr(bridge_connector, "show_in_game", True)
+            and bridge_connector_name in processed_info.source
+        ):
+            return
+
         try:
             game_version = self.server.get_server_information().version or ""
             game_version = game_version.lower() if game_version else ""
