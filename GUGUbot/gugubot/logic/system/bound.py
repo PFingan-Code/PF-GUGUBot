@@ -184,15 +184,17 @@ class BoundSystem(BasicSystem):
         last_text = last_text_message.get("data", {}).get("text", "")
         for i in [command_prefix, system_name]:
             last_text = last_text.replace(i, "", 1).strip()
-        parts = last_text.split(maxsplit=1)
-        if parts:
-            player_name = parts[0]
-
+        type_modifiers = {"bedrock", "基岩", "be", "offline", "离线", "off", "online", "在线", "on"}
         is_bedrock = is_offline = is_online = False
-        if len(parts) > 1:
-            is_bedrock = parts[1].lower() in ["bedrock", "基岩", "be"]
-            is_offline = parts[1].lower() in ["offline", "离线", "off"]
-            is_online = parts[1].lower() in ["online", "在线", "on"]
+        parts = last_text.rsplit(maxsplit=1)
+        if len(parts) > 1 and parts[-1].lower() in type_modifiers:
+            player_name = parts[0].strip()
+            modifier = parts[-1].lower()
+            is_bedrock = modifier in ("bedrock", "基岩", "be")
+            is_offline = modifier in ("offline", "离线", "off")
+            is_online = modifier in ("online", "在线", "on")
+        elif last_text.strip():
+            player_name = last_text.strip()
 
         if not player_name:
             await self.reply(
@@ -421,13 +423,15 @@ class BoundSystem(BasicSystem):
             if command.lower() in ["bedrock", "基岩", "be"]:
                 return await self._unbind_bedrock_only(broadcast_info)
 
-            # 解析玩家名和基岩版参数
-            parts = command.split(maxsplit=1)
-            player_name = parts[0]
-            is_bedrock = False
-
-            if len(parts) > 1:
-                is_bedrock = parts[1].lower() in ["bedrock", "基岩", "be"]
+            # 解析玩家名和基岩版参数，从右侧拆分以支持带空格的玩家名
+            bedrock_modifiers = {"bedrock", "基岩", "be"}
+            parts = command.rsplit(maxsplit=1)
+            if len(parts) > 1 and parts[-1].lower() in bedrock_modifiers:
+                player_name = parts[0].strip()
+                is_bedrock = True
+            else:
+                player_name = command.strip()
+                is_bedrock = False
 
             # 解绑指定玩家
             return await self._unbind_specific_player(
