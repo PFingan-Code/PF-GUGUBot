@@ -4,6 +4,7 @@ import asyncio
 import json
 import time
 import threading
+import traceback
 from typing import Any, Dict, Optional
 
 from gugubot.config import BotConfig
@@ -24,11 +25,11 @@ class BridgeConnector(BasicConnector):
     """
 
     def __init__(self, server, config: Optional[BotConfig] = None):
-        source_name = config.get_keys(
-            ["connector", "minecraft_bridge", "source_name"], "Bridge"
-        )
         super().__init__(
-            source=source_name, parser=MCParser, server=server, config=config
+            source="minecraft_bridge", parser=MCParser, server=server, config=config
+        )
+        self.source = source_name = config.get_keys(
+            ["connector", "minecraft_bridge", "source_name"], "Bridge"
         )
 
         connector_basic_name = self.server.tr("gugubot.connector.name")
@@ -62,6 +63,10 @@ class BridgeConnector(BasicConnector):
         )
         self.extra_sslopt = config.get_keys(
             ["connector", "minecraft_bridge", "connection", "sslopt"], {}
+        )
+
+        self.show_in_game = config.get_keys(
+            ["connector", "minecraft_bridge", "show_in_game"], True
         )
 
         self.ws_server = None
@@ -273,7 +278,9 @@ class BridgeConnector(BasicConnector):
                 await self.parser.system_manager.broadcast_command(processed_info)
 
         except Exception as e:
-            self.logger.error(f"{self.log_prefix} 处理桥接消息失败: {e}")
+            self.logger.error(
+                f"{self.log_prefix} 处理桥接消息失败: {e}\n{traceback.format_exc()}"
+            )
 
     async def send_message(self, processed_info: ProcessedInfo) -> None:
         """Serialize and send a message over the bridge."""
