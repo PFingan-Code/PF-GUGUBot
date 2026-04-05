@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light dark" />
+  <title>GUGUBot 配置</title>
+  <script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg:         #ffffff; --bg-muted: #f8fafc; --bg-card: #f1f5f9;
+      --text:       #0f172a; --text-muted: #64748b; --border: #e2e8f0;
+      --primary:    #2563eb; --primary-h: #1d4ed8;
+      --danger:     #dc2626; --success:   #16a34a;
+      --input-bg:   #ffffff; --input-bd:  #cbd5e1;
+      --toggle-off: #cbd5e1; --toggle-on: #2563eb;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      font-size: 14px; color: var(--text); line-height: 1.55; background: var(--bg);
+    }
+    html[data-theme="dark"] {
+      --bg: #0f1419; --bg-muted: #161b22; --bg-card: #21262d;
+      --text: #e6edf3; --text-muted: #8b949e; --border: #30363d;
+      --primary: #388bfd; --primary-h: #58a6ff;
+      --danger: #f85149; --success: #3fb950;
+      --input-bg: #161b22; --input-bd: #30363d;
+      --toggle-off: #30363d; --toggle-on: #388bfd;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    body { margin: 0; padding: 1rem 1.25rem 3rem; max-width: 900px; }
+
+    h1 { font-size: 1.2rem; margin: 0 0 0.4rem; font-weight: 700; }
+    .lead { color: var(--text-muted); font-size: 0.875rem; margin: 0 0 0.9rem; }
+
+    /* Toolbar */
+    .toolbar { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 0.75rem; padding-bottom: 0.65rem; border-bottom: 1px solid var(--border); }
+    #status-bar { flex: 1; font-size: 0.8rem; color: var(--text-muted); text-align: right; white-space: nowrap; }
+
+    /* Buttons */
+    button { padding: 0.38rem 0.75rem; cursor: pointer; border-radius: 6px; border: 1px solid var(--input-bd); background: var(--bg-card); color: var(--text); font-size: 0.83rem; }
+    button:hover { background: var(--border); }
+    button.primary { background: var(--primary); color: #fff; border-color: var(--primary); }
+    button.primary:hover { background: var(--primary-h); }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+
+    /* Info badges */
+    .info-row { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.65rem; }
+    .badge { display: inline-flex; align-items: center; padding: 0.1rem 0.45rem; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-card); font-size: 0.76rem; color: var(--text-muted); }
+    .badge.ok  { border-color: var(--success); color: var(--success); }
+
+    /* Sections */
+    details { border: 1px solid var(--border); border-radius: 8px; margin-bottom: 0.6rem; background: var(--bg-muted); }
+    details > summary { padding: 0.6rem 0.85rem; font-weight: 600; font-size: 0.92rem; cursor: pointer; list-style: none; display: flex; align-items: center; gap: 0.35rem; user-select: none; }
+    details > summary::before { content: '▶'; font-size: 0.6rem; color: var(--text-muted); transition: transform .15s; }
+    details[open] > summary::before { transform: rotate(90deg); }
+    details > summary::-webkit-details-marker { display: none; }
+    .sec-body { padding: 0.4rem 0.85rem 0.85rem; }
+    details.sub { margin: 0.35rem 0; background: var(--bg); }
+    details.sub > summary { font-size: 0.88rem; font-weight: 500; padding: 0.45rem 0.7rem; }
+    details.sub > .sec-body { padding: 0.2rem 0.7rem 0.7rem; }
+
+    /* Fields grid */
+    .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 0.55rem 1rem; }
+    @media (max-width: 580px) { .fields { grid-template-columns: 1fr; } }
+    .field { display: flex; flex-direction: column; gap: 0.15rem; }
+    .field.full { grid-column: 1/-1; }
+    .flabel { font-size: 0.8rem; font-weight: 500; color: var(--text-muted); display: flex; align-items: center; gap: 0.25rem; }
+    .flabel .tip { display: inline-flex; align-items: center; justify-content: center; width: 13px; height: 13px; border-radius: 50%; background: var(--border); font-size: 0.62rem; cursor: help; flex-shrink: 0; }
+    .fdesc { font-size: 0.73rem; color: var(--text-muted); }
+
+    /* Inputs */
+    input[type="text"], input[type="number"], input[type="password"], textarea, select {
+      width: 100%; padding: 0.32rem 0.45rem; border: 1px solid var(--input-bd); border-radius: 5px;
+      background: var(--input-bg); color: var(--text); font-size: 0.83rem; font-family: inherit;
+    }
+    input:focus, textarea:focus { outline: none; border-color: var(--primary); }
+    textarea { resize: vertical; min-height: 60px; font-family: monospace; }
+    input[type="number"] { max-width: 130px; }
+
+    /* Toggle */
+    .twrap { display: flex; align-items: center; gap: 0.4rem; margin-top: 0.15rem; }
+    .toggle { position: relative; display: inline-block; width: 38px; height: 21px; flex-shrink: 0; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .slider { position: absolute; cursor: pointer; inset: 0; background: var(--toggle-off); border-radius: 21px; transition: .18s; }
+    .slider::before { content: ''; position: absolute; height: 15px; width: 15px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: .18s; }
+    .toggle input:checked + .slider { background: var(--toggle-on); }
+    .toggle input:checked + .slider::before { transform: translateX(17px); }
+    .tlabel { font-size: 0.82rem; }
+
+    /* Toast */
+    #toast { position: fixed; bottom: 1.2rem; right: 1.2rem; padding: 0.55rem 0.9rem; border-radius: 7px; font-size: 0.83rem; font-weight: 500; background: var(--success); color: #fff; box-shadow: 0 4px 14px rgba(0,0,0,.2); transform: translateY(70px); opacity: 0; transition: transform .22s, opacity .22s; z-index: 9999; pointer-events: none; }
+    #toast.show { transform: translateY(0); opacity: 1; }
+    #toast.err  { background: var(--danger); }
+
+    code { font-size: .82em; background: var(--bg-card); padding: .1em .3em; border-radius: 3px; }
+    .muted { color: var(--text-muted); font-size: .83rem; }
+    #raw-yaml { width: 100%; font-family: monospace; font-size: .75rem; min-height: 180px; }
+  </style>
+  <script>
+    (function () {
+      function sync() {
+        var dark = false;
+        try {
+          var el = window.parent.document.documentElement;
+          if (el.classList.contains('dark') || el.getAttribute('data-theme') === 'dark' || el.getAttribute('data-mui-color-scheme') === 'dark') dark = true;
+          else if (el.getAttribute('data-theme') === 'light' || el.getAttribute('data-mui-color-scheme') === 'light') { document.documentElement.setAttribute('data-theme','light'); return; }
+        } catch(e){}
+        if (!dark && window.matchMedia('(prefers-color-scheme:dark)').matches) dark = true;
+        document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+      }
+      sync();
+      try { window.matchMedia('(prefers-color-scheme:dark)').addEventListener('change', sync); }
+      catch(e) { window.matchMedia('(prefers-color-scheme:dark)').addListener(sync); }
+    })();
+  </script>
+</head>
+<body>
+
+<h1>GUGUBot 配置</h1>
+<p class="lead">配置文件：<code>config/gugubot/config.yml</code>。修改后点击「保存」，再点「重载」生效。</p>
+
+<div class="toolbar">
+  <button id="btn-load">↻ 加载配置</button>
+  <button id="btn-save" class="primary">✓ 保存配置</button>
+  <button id="btn-reload">⟳ 重载插件</button>
+  <div id="status-bar">—</div>
+</div>
+
+<div class="info-row" id="info-row" style="display:none">
+  <span id="bv" class="badge"></span>
+  <span id="bm" class="badge"></span>
+  <span id="bc" class="badge ok"></span>
+</div>
+
+<div id="form-root"><p class="muted">正在加载配置…</p></div>
+
+<details id="raw-sec">
+  <summary>原始 YAML 预览</summary>
+  <div class="sec-body">
+    <p class="muted" style="margin:0 0 .4rem">只读。复杂字段（<code>chat_templates</code>、<code>custom_group_name</code> 等）请直接编辑服务器上的 yml 文件。</p>
+    <textarea id="raw-yaml" readonly rows="18" spellcheck="false">（加载后显示）</textarea>
+  </div>
+</details>
+
+<div id="toast"></div>
+
+<script>
+/* ======================================================================
+   META：path → { label?, desc?, type?, title?, open? }
+   - 对象节点用 title / open
+   - 叶子节点用 label / desc / type
+   type 覆盖（只在自动推断不够时写）：
+     'password' | 'array-number' | 'yaml' | 'bool' | 'text' | 'number' | 'array'
+   ====================================================================== */
+const META = {
+  /* ── 顶层节 ── */
+  'GUGUBot':              { title: 'GUGUBot 基础设置', open: true },
+  'connector':            { title: '连接器' },
+  'connector.QQ':         { title: 'QQ 连接器' },
+  'connector.QQ.connection':   { title: '连接参数' },
+  'connector.QQ.permissions':  { title: '权限设置' },
+  'connector.QQ.others':       { title: '其他选项' },
+  'connector.minecraft':       { title: 'Minecraft 连接器' },
+  'connector.minecraft_bridge':        { title: 'Bridge 桥接器' },
+  'connector.minecraft_bridge.connection': { title: '连接参数' },
+  'style':                { title: '风格设置' },
+  'system':               { title: '系统设置' },
+  'system.ban_words':     { title: '违禁词系统' },
+  'system.bound':         { title: '玩家绑定' },
+  'system.bound_notice':  { title: '绑定提醒' },
+  'system.echo':          { title: '消息转发（Echo）' },
+  'system.cross_broadcast': { title: '跨平台广播' },
+  'system.execute':       { title: '命令执行' },
+  'system.key_words':     { title: '关键词回复' },
+  'system.list':          { title: '在线玩家查询' },
+  'system.name':          { title: '机器人昵称' },
+  'system.start_command': { title: '开服指令' },
+  'system.startup_command': { title: '启动指令' },
+  'system.whitelist':     { title: '白名单' },
+  'system.unbound_check': { title: '未绑定检查' },
+  'system.unbound_check.notify_targets': { title: '通知目标' },
+  'system.inactive_check': { title: '不活跃检查' },
+  'system.inactive_check.notify_targets': { title: '通知目标' },
+
+  /* ── GUGUBot ── */
+  'GUGUBot.command_prefix':           { label: '命令前缀',             desc: '机器人指令前缀，默认 #' },
+  'GUGUBot.group_admin':              { label: '群指令仅管理员',        desc: '开启后只有管理员才能执行机器人命令' },
+  'GUGUBot.show_message_in_console':  { label: '显示详细消息到控制台',  desc: '展示超详细上报消息（调试用）' },
+
+  /* ── QQ connector ── */
+  'connector.QQ.source_name':    { label: '显示名称' },
+  'connector.QQ.enable':         { label: '启用' },
+  'connector.QQ.enable_receive': { label: '允许接收转发', desc: '其他连接器 echo 转发时是否转发到 QQ' },
+  'connector.QQ.enable_send':    { label: '允许发送',     desc: '广播时是否向 QQ 发送消息' },
+  'connector.QQ.connection.host':         { label: '主机地址' },
+  'connector.QQ.connection.port':         { label: '端口' },
+  'connector.QQ.connection.post_path':    { label: 'WebSocket 路径', desc: '通常留空' },
+  'connector.QQ.connection.use_ssl':      { label: '使用 SSL' },
+  'connector.QQ.connection.verify':       { label: '验证 SSL 证书' },
+  'connector.QQ.connection.ca_certs':     { label: 'CA 证书路径', desc: '留空使用系统证书' },
+  'connector.QQ.connection.reconnect':    { label: '重连间隔（秒）' },
+  'connector.QQ.connection.max_wait_time':{ label: '最大等待时间（秒）' },
+  'connector.QQ.connection.token':        { label: 'QQ 令牌',    type: 'password' },
+  'connector.QQ.connection.sslopt':       { label: 'SSL 选项',   type: 'yaml', desc: 'YAML 对象，通常留 {}' },
+  'connector.QQ.permissions.admin_ids':        { label: '管理员 QQ 号',  type: 'array-number', desc: '每行一个 QQ 号' },
+  'connector.QQ.permissions.admin_group_ids':  { label: '管理群群号',    type: 'array-number', desc: '群内所有成员均有管理权限' },
+  'connector.QQ.permissions.group_ids':        { label: '监听群群号',    type: 'array-number', desc: '这些群的消息会转发到 MC' },
+  'connector.QQ.permissions.forward_group_ids':{ label: '转发目标群号',  type: 'array-number', desc: 'MC 消息转发到这些群，留空则使用监听群' },
+  'connector.QQ.permissions.friend_is_admin':  { label: '好友即是管理',  desc: '机器人好友拥有管理权限' },
+  'connector.QQ.permissions.custom_group_name':{ label: '自定义群显示名', type: 'yaml', desc: '格式：\n  "群号": 显示名' },
+  'connector.QQ.others.forward_other_bot': { label: '转发官方机器人回复' },
+  'connector.QQ.others.change_group_card': { label: '绑定时修改群名片', desc: '绑定 ID 时自动将群名片改为游戏名' },
+  'connector.QQ.chat_templates': { label: '消息模板', type: 'yaml', desc: 'MC→QQ 消息模板，按权重随机选择' },
+
+  /* ── Minecraft connector ── */
+  'connector.minecraft.source_name':    { label: '服务器显示名称' },
+  'connector.minecraft.enable':         { label: '启用' },
+  'connector.minecraft.enable_receive': { label: '允许接收转发' },
+  'connector.minecraft.enable_send':    { label: '允许发送' },
+  'connector.minecraft.mc_achievement':     { label: '转发成就通知' },
+  'connector.minecraft.mc_death':           { label: '转发死亡消息' },
+  'connector.minecraft.player_join_notice': { label: '玩家加入通知' },
+  'connector.minecraft.player_left_notice': { label: '玩家离开通知' },
+  'connector.minecraft.bot_join_notice':    { label: '假人加入通知' },
+  'connector.minecraft.bot_left_notice':    { label: '假人离开通知' },
+  'connector.minecraft.server_start_notice':{ label: '服务器启动通知' },
+  'connector.minecraft.server_stop_notice': { label: '服务器停止通知' },
+  'connector.minecraft.chat_image':         { label: '使用 ChatImage 显示图片' },
+  'connector.minecraft.image_previewer':    { label: '使用 ImagePreview 显示图片' },
+  'connector.minecraft.ignore_mc_command_patterns': { label: '忽略的 MC 指令模式',  desc: '每行一个正则，匹配的消息不转发' },
+  'connector.minecraft.player_join_patterns':       { label: '玩家加入消息正则',    desc: '第一个捕获组为玩家名' },
+  'connector.minecraft.player_left_patterns':       { label: '玩家离开消息正则',    desc: '第一个捕获组为玩家名' },
+  'connector.minecraft.bot_names_pattern':          { label: '假人名称匹配模式',    desc: '匹配的玩家名视为假人，不发通知' },
+
+  /* ── Bridge connector ── */
+  'connector.minecraft_bridge.source_name':    { label: '显示名称' },
+  'connector.minecraft_bridge.enable':         { label: '启用' },
+  'connector.minecraft_bridge.enable_receive': { label: '允许接收转发' },
+  'connector.minecraft_bridge.enable_send':    { label: '允许发送' },
+  'connector.minecraft_bridge.is_main_server': { label: '是主服务器', desc: '主服务器负责广播消息给其他服务器' },
+  'connector.minecraft_bridge.show_in_game':   { label: '游戏内显示跨服消息', desc: '关闭后来自其他服务器的聊天不显示在本服游戏内' },
+  'connector.minecraft_bridge.connection.host':         { label: '主机地址' },
+  'connector.minecraft_bridge.connection.port':         { label: '端口' },
+  'connector.minecraft_bridge.connection.use_ssl':      { label: '使用 SSL' },
+  'connector.minecraft_bridge.connection.verify':       { label: '验证 SSL 证书' },
+  'connector.minecraft_bridge.connection.ca_certs':     { label: 'CA 证书路径', desc: '留空使用系统证书' },
+  'connector.minecraft_bridge.connection.reconnect':    { label: '重连间隔（秒）' },
+  'connector.minecraft_bridge.connection.ping_interval':{ label: '心跳间隔（秒）' },
+  'connector.minecraft_bridge.connection.ping_timeout': { label: '心跳超时（秒）' },
+  'connector.minecraft_bridge.connection.max_wait_time':{ label: '最大等待时间（秒）' },
+  'connector.minecraft_bridge.connection.token':        { label: '令牌', type: 'password' },
+  'connector.minecraft_bridge.connection.sslopt':       { label: 'SSL 选项', type: 'yaml', desc: 'YAML 对象，通常留 {}' },
+
+  /* ── style ── */
+  'style.current_style':  { label: '当前风格',          desc: '机器人回复风格，使用 #风格 查看可用风格' },
+  'style.style_cooldown': { label: '风格切换冷却（秒）' },
+
+  /* ── system ── */
+  'system.ban_words.enable': { label: '启用' },
+  'system.bound.enable':                      { label: '启用' },
+  'system.bound.max_java_bound':              { label: '最大 Java 版绑定数' },
+  'system.bound.max_bedrock_bound':           { label: '最大基岩版绑定数' },
+  'system.bound.whitelist_add_with_bound':    { label: '绑定时自动添加白名单' },
+  'system.bound.whitelist_remove_with_leave': { label: '退群时移除白名单' },
+  'system.bound.player_name_pattern':         { label: '玩家名正则限制', desc: '留空不限制。示例：^[a-zA-Z0-9_]{3,16}$' },
+  'system.bound_notice.enable':      { label: '启用' },
+  'system.bound_notice.exclude_ids': { label: '排除用户 QQ 号', type: 'array-number', desc: '这些用户不会被任何系统处理（如 Q 群管家）' },
+  'system.echo.enable': { label: '启用', desc: '在各连接器之间互相转发消息' },
+  'system.cross_broadcast.enable':      { label: '启用' },
+  'system.cross_broadcast.mc_command':  { label: 'QQ 端命令', desc: 'QQ 内发 {前缀}{命令} <消息> 仅转到 MC' },
+  'system.cross_broadcast.qq_command':  { label: 'MC 端命令', desc: 'MC 内发 {命令} <消息> 仅转到 QQ' },
+  'system.execute.enable':                         { label: '启用' },
+  'system.execute.allow_bridge_execute':           { label: '允许通过 Bridge 执行命令' },
+  'system.execute.ignore_execute_command_patterns':{ label: '忽略的命令模式', desc: '每行一个正则，匹配的命令不执行' },
+  'system.key_words.enable':                     { label: '启用' },
+  'system.key_words.admin_only':                 { label: '仅管理员可用' },
+  'system.key_words.forward_to_other_connector': { label: '触发时转发源消息', desc: '关闭后触发关键词只回复，不转发源消息' },
+  'system.key_words.max_add_time':               { label: '关键词添加超时（秒）' },
+  'system.key_words.cache_image':                { label: '缓存图片到本地', desc: '避免 QQ 图片链接过期' },
+  'system.list.enable':               { label: '启用' },
+  'system.list.merge_bridge_results': { label: '合并多服务器结果' },
+  'system.list.bridge_timeout':       { label: 'Bridge 响应超时（秒）' },
+  'system.list.colon_separator':      { label: '冒号分隔符' },
+  'system.list.comma_separator':      { label: '逗号分隔符' },
+  'system.list.use_bot_list':         { label: '用 /bot list 获取假人', desc: 'Leaves/Lophine 端需要开启' },
+  'system.list.bot_list_pattern':     { label: '/bot list 匹配模式' },
+  'system.list.use_query_protocol':   { label: '使用 Query 协议', desc: '绕过 RCON 1024 字节限制，需 enable-query=true' },
+  'system.name.enable':            { label: '启用' },
+  'system.start_command.enable':   { label: '启用' },
+  'system.startup_command.enable': { label: '启用' },
+  'system.whitelist.enable':       { label: '启用' },
+  'system.unbound_check.enable':         { label: '启用' },
+  'system.unbound_check.timeout_days':   { label: '未绑定超时天数' },
+  'system.unbound_check.check_interval': { label: '检查间隔（秒）' },
+  'system.unbound_check.notify_targets.admin_private': { label: '私聊管理员' },
+  'system.unbound_check.notify_targets.admin_groups':  { label: '发到管理群' },
+  'system.unbound_check.notify_targets.origin_group':  { label: '发到原群' },
+  'system.inactive_check.enable':           { label: '启用' },
+  'system.inactive_check.inactive_days':    { label: '不活跃天数阈值' },
+  'system.inactive_check.never_played_days':{ label: '从未游玩天数阈值' },
+  'system.inactive_check.check_interval':   { label: '检查间隔（秒）' },
+  'system.inactive_check.auto_fix_card':    { label: '自动修正群名片', desc: '修正为第一个 Java 或基岩版游戏名' },
+  'system.inactive_check.notify_targets.admin_private': { label: '私聊管理员' },
+  'system.inactive_check.notify_targets.admin_groups':  { label: '发到管理群' },
+  'system.inactive_check.notify_targets.origin_group':  { label: '发到原群' },
+};
+
+/* ======================================================================
+   类型推断
+   ====================================================================== */
+function inferType(value, pathStr) {
+  // META 强制覆盖
+  const m = META[pathStr];
+  if (m && m.type) return m.type;
+
+  if (value === null || value === undefined) return 'text';
+  if (typeof value === 'boolean') return 'bool';
+  if (typeof value === 'number')  return 'number';
+  if (typeof value === 'string')  return 'text';
+  if (Array.isArray(value)) {
+    // 空数组 or 全是数字/null → array-number；否则 array（字符串）；含对象 → yaml
+    if (value.length === 0) return 'array';
+    if (value.some(v => v !== null && typeof v === 'object')) return 'yaml';
+    if (value.every(v => v === null || typeof v === 'number')) return 'array-number';
+    return 'array';
+  }
+  if (typeof value === 'object') {
+    // 空对象 → yaml（动态 key 对象）
+    if (Object.keys(value).length === 0) return 'yaml';
+    return 'object';
+  }
+  return 'text';
+}
+
+/* key → 可读标签（snake_case → Title Case） */
+function fmtKey(k) {
+  return k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+/* ======================================================================
+   DOM 构建
+   ====================================================================== */
+let _uid = 0;
+function uid() { return 'f' + (++_uid); }
+
+function mkField(pathArr, value) {
+  const pathStr = pathArr.join('.');
+  const m = META[pathStr] || {};
+  const type = inferType(value, pathStr);
+  const id = uid();
+
+  const div = document.createElement('div');
+  const isLong = (type === 'array' || type === 'array-number' || type === 'yaml');
+  div.className = 'field' + (isLong ? ' full' : '');
+
+  const labelText = m.label || fmtKey(pathArr[pathArr.length - 1]);
+  const labelEl = document.createElement('div');
+  labelEl.className = 'flabel';
+  labelEl.innerHTML = `<label for="${id}">${labelText}</label>` +
+    (m.desc ? `<span class="tip" title="${m.desc.replace(/"/g,'&quot;').replace(/\n/g,' ')}">?</span>` : '');
+  div.appendChild(labelEl);
+
+  if (type === 'bool') {
+    const tw = document.createElement('div');
+    tw.className = 'twrap';
+    const checked = !!value;
+    tw.innerHTML = `<label class="toggle"><input type="checkbox" id="${id}"${checked ? ' checked' : ''}
+        data-path="${pathStr}" data-type="bool"><span class="slider"></span></label>
+      <span class="tlabel">${checked ? '开启' : '关闭'}</span>`;
+    tw.querySelector('input').addEventListener('change', e => {
+      tw.querySelector('.tlabel').textContent = e.target.checked ? '开启' : '关闭';
+    });
+    div.appendChild(tw);
+
+  } else if (type === 'array' || type === 'array-number') {
+    const arr = Array.isArray(value) ? value.filter(v => v != null) : [];
+    const ta = document.createElement('textarea');
+    ta.id = id; ta.rows = 3; ta.spellcheck = false;
+    ta.placeholder = '每行一条，空行忽略';
+    ta.value = arr.join('\n');
+    ta.dataset.path = pathStr;
+    ta.dataset.type = type;
+    div.appendChild(ta);
+
+  } else if (type === 'yaml') {
+    const ta = document.createElement('textarea');
+    ta.id = id; ta.rows = 4; ta.spellcheck = false;
+    try { ta.value = jsyaml.dump(value, {indent:2,lineWidth:-1}).trimEnd(); }
+    catch { ta.value = String(value); }
+    ta.dataset.path = pathStr;
+    ta.dataset.type = 'yaml';
+    div.appendChild(ta);
+
+  } else if (type === 'number') {
+    const inp = document.createElement('input');
+    inp.type = 'number'; inp.id = id; inp.step = 'any';
+    inp.value = value != null ? String(value) : '';
+    inp.dataset.path = pathStr; inp.dataset.type = 'number';
+    div.appendChild(inp);
+
+  } else if (type === 'password') {
+    const inp = document.createElement('input');
+    inp.type = 'password'; inp.id = id; inp.autocomplete = 'off';
+    inp.placeholder = '留空保留原值';
+    inp.value = value != null ? String(value) : '';
+    inp.dataset.path = pathStr; inp.dataset.type = 'password';
+    div.appendChild(inp);
+
+  } else { // text
+    const inp = document.createElement('input');
+    inp.type = 'text'; inp.id = id;
+    inp.value = value != null ? String(value) : '';
+    inp.dataset.path = pathStr; inp.dataset.type = 'text';
+    div.appendChild(inp);
+  }
+
+  return div;
+}
+
+/**
+ * 递归渲染一个对象节点为 <details> 折叠面板。
+ * 叶子字段放入同一个 .fields 网格；子对象递归嵌套。
+ */
+function mkSection(pathArr, obj, depth) {
+  const pathStr = pathArr.join('.');
+  const m = META[pathStr] || {};
+  const title = m.title || fmtKey(pathArr[pathArr.length - 1] || 'Config');
+
+  const det = document.createElement('details');
+  if (m.open || depth === 0) det.open = true;
+  if (depth > 0) det.classList.add('sub');
+
+  det.innerHTML = `<summary>${title}</summary>`;
+  const body = document.createElement('div');
+  body.className = 'sec-body';
+
+  const grid = document.createElement('div');
+  grid.className = 'fields';
+  let hasLeaves = false;
+
+  Object.entries(obj).forEach(([key, val]) => {
+    const childPath = [...pathArr, key];
+    const childType = inferType(val, childPath.join('.'));
+    if (childType === 'object') {
+      // 先把已有叶子 grid flush 进 body
+      if (hasLeaves) { body.appendChild(grid.cloneNode(true)); grid.innerHTML = ''; hasLeaves = false; }
+      body.appendChild(mkSection(childPath, val, depth + 1));
+    } else {
+      grid.appendChild(mkField(childPath, val));
+      hasLeaves = true;
+    }
+  });
+
+  if (hasLeaves) body.appendChild(grid);
+  det.appendChild(body);
+  return det;
+}
+
+function buildForm(cfg) {
+  const root = document.getElementById('form-root');
+  root.innerHTML = '';
+  Object.entries(cfg).forEach(([key, val]) => {
+    const pathArr = [key];
+    const type = inferType(val, key);
+    if (type === 'object') {
+      root.appendChild(mkSection(pathArr, val, 0));
+    } else {
+      // 顶层叶子（理论上不存在，但做容错）
+      const grid = document.createElement('div');
+      grid.className = 'fields';
+      grid.appendChild(mkField(pathArr, val));
+      root.appendChild(grid);
+    }
+  });
+}
+
+/* ======================================================================
+   工具
+   ====================================================================== */
+const CONFIG_PATH = 'config/gugubot/config.yml';
+
+function apiRoot() {
+  try {
+    const cfg = window.parent && window.parent.__GUGU_CONFIG__;
+    const root = (cfg && cfg.root_path) ? String(cfg.root_path) : '';
+    return root.replace(/\/$/, '') + '/api';
+  } catch(e) { return '/api'; }
+}
+
+function setPath(obj, pathArr, value) {
+  let o = obj;
+  for (let i = 0; i < pathArr.length - 1; i++) {
+    if (o[pathArr[i]] == null || typeof o[pathArr[i]] !== 'object') o[pathArr[i]] = {};
+    o = o[pathArr[i]];
+  }
+  o[pathArr[pathArr.length - 1]] = value;
+}
+
+function deepCopy(v) { return JSON.parse(JSON.stringify(v)); }
+
+let toastTid;
+function toast(msg, isErr) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'show' + (isErr ? ' err' : '');
+  clearTimeout(toastTid);
+  toastTid = setTimeout(() => { el.className = ''; }, 3500);
+}
+
+function setStatus(msg, isErr) {
+  const el = document.getElementById('status-bar');
+  el.textContent = msg;
+  el.style.color = isErr ? 'var(--danger)' : 'var(--text-muted)';
+}
+
+/* ======================================================================
+   加载
+   ====================================================================== */
+let _lastCfg = null;
+
+async function loadConfig() {
+  setStatus('正在加载配置…');
+  document.getElementById('btn-load').disabled = true;
+  try {
+    const r = await fetch(
+      `${apiRoot()}/load_config_file?path=${encodeURIComponent(CONFIG_PATH)}`,
+      { credentials: 'include' }
+    );
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const text = await r.text();
+    const cfg = jsyaml.load(text) || {};
+    _lastCfg = cfg;
+    buildForm(cfg);  // 动态渲染
+    document.getElementById('raw-yaml').value = text;
+    setStatus('配置加载成功');
+    toast('配置加载成功');
+  } catch(e) {
+    setStatus('加载失败：' + e.message, true);
+    toast('加载失败：' + e.message, true);
+  } finally {
+    document.getElementById('btn-load').disabled = false;
+  }
+}
+
+/* ======================================================================
+   保存：遍历所有带 data-path 的控件，覆写到 _lastCfg 的深拷贝上
+   ====================================================================== */
+async function saveConfig() {
+  if (!_lastCfg) { toast('请先加载配置', true); return; }
+  setStatus('正在保存…');
+  document.getElementById('btn-save').disabled = true;
+  try {
+    const cfg = deepCopy(_lastCfg);
+
+    document.querySelectorAll('[data-path]').forEach(el => {
+      const pathArr = el.dataset.path.split('.');
+      const type    = el.dataset.type;
+      let value;
+
+      switch (type) {
+        case 'bool':
+          value = el.checked; break;
+        case 'number': {
+          const n = parseFloat(el.value);
+          value = isNaN(n) ? 0 : n; break;
+        }
+        case 'array-number':
+          value = el.value.split('\n').map(s => s.trim()).filter(Boolean).map(s => {
+            const n = Number(s); return isNaN(n) ? s : n;
+          }); break;
+        case 'array':
+          value = el.value.split('\n').map(s => s.trim()).filter(Boolean); break;
+        case 'yaml':
+          try { value = jsyaml.load(el.value); }
+          catch { value = el.value; } break;
+        case 'password':
+          if (el.value === '') return; // 空 = 保留原值
+          value = el.value; break;
+        default:
+          value = el.value;
+      }
+      setPath(cfg, pathArr, value);
+    });
+
+    const text = jsyaml.dump(cfg, { indent: 2, lineWidth: -1, noRefs: true });
+    const r = await fetch(`${apiRoot()}/save_config_file`, {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: CONFIG_PATH, content: text }),
+    });
+    const res = await r.json().catch(() => ({}));
+    if (res.status === 'success' || r.ok) {
+      _lastCfg = cfg;
+      document.getElementById('raw-yaml').value = text;
+      setStatus('保存成功（重载插件后生效）');
+      toast('保存成功！重载插件后生效。');
+    } else {
+      throw new Error(res.message || `HTTP ${r.status}`);
+    }
+  } catch(e) {
+    setStatus('保存失败：' + e.message, true);
+    toast('保存失败：' + e.message, true);
+  } finally {
+    document.getElementById('btn-save').disabled = false;
+  }
+}
+
+/* ======================================================================
+   重载插件
+   ====================================================================== */
+async function reloadPlugin() {
+  setStatus('正在重载插件…');
+  document.getElementById('btn-reload').disabled = true;
+  try {
+    const r = await fetch(`${apiRoot()}/send_command`, {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ command: '!!MCDR plugin reload gugubot' }),
+    });
+    const res = await r.json().catch(() => ({}));
+    if (res.status === 'success') {
+      setStatus('插件已重载'); toast('插件重载命令已发送');
+    } else {
+      throw new Error(res.message || `HTTP ${r.status}`);
+    }
+  } catch(e) {
+    setStatus('重载失败：' + e.message, true);
+    toast('重载失败：' + e.message, true);
+  } finally {
+    document.getElementById('btn-reload').disabled = false;
+  }
+}
+
+/* ======================================================================
+   运行状态（版本号 / 连接器）
+   ====================================================================== */
+async function fetchStatus() {
+  try {
+    const r = await fetch(`${apiRoot()}/plugin/gugubot/status`, { credentials: 'include' });
+    if (!r.ok) return;
+    const d = await r.json();
+    if (!d.ok) return;
+    document.getElementById('info-row').style.display = 'flex';
+    document.getElementById('bv').textContent = 'v' + (d.version || '?');
+    document.getElementById('bm').textContent = d.is_main_server ? '主服务器' : '子服务器';
+    document.getElementById('bc').textContent = '连接器：' + (d.connectors || []).join(', ');
+  } catch(e) {}
+}
+
+/* ======================================================================
+   初始化
+   ====================================================================== */
+fetchStatus();
+loadConfig();
+document.getElementById('btn-load').addEventListener('click', loadConfig);
+document.getElementById('btn-save').addEventListener('click', saveConfig);
+document.getElementById('btn-reload').addEventListener('click', reloadPlugin);
+</script>
+</body>
+</html>
