@@ -179,13 +179,16 @@ class PlayerListSystem(BasicSystem):
         command = content.replace(command_prefix, "", 1).strip()
 
         # 1. Check for internal bridge response command
-        if command.startswith(self.bridge_response_cmd):
-            await self._handle_bridge_response(broadcast_info, command)
+        # Match directly on content to handle prefix differences between servers
+        if self.bridge_response_cmd in content:
+            inner = content[content.index(self.bridge_response_cmd):]
+            await self._handle_bridge_response(broadcast_info, inner)
             return True
 
         # 2. Check for internal bridge query command
-        if command.startswith(self.bridge_query_cmd):
-            await self._handle_bridge_query(broadcast_info, command)
+        if self.bridge_query_cmd in content:
+            inner = content[content.index(self.bridge_query_cmd):]
+            await self._handle_bridge_query(broadcast_info, inner)
             return True
 
         if not self.is_command(broadcast_info):
@@ -629,10 +632,7 @@ class PlayerListSystem(BasicSystem):
             if not bridge_connector:
                 return
 
-            command_prefix = self.config.get("GUGUBot", {}).get("command_prefix", "#")
-            command_text = (
-                f"{command_prefix}{self.bridge_query_cmd}|{query_id}|{list_type.value}"
-            )
+            command_text = f"{self.bridge_query_cmd}|{query_id}|{list_type.value}"
 
             processed_info = ProcessedInfo(
                 processed_message=[MessageBuilder.text(command_text)],
@@ -721,9 +721,8 @@ class PlayerListSystem(BasicSystem):
             players_str = ",".join(real_players) if real_players else ""
             bots_str = ",".join(bots) if bots else ""
 
-            command_prefix = self.config.get("GUGUBot", {}).get("command_prefix", "#")
             response_text = "|".join([
-                f"{command_prefix}{self.bridge_response_cmd}",
+                self.bridge_response_cmd,
                 query_id,
                 server_name,
                 players_str,
@@ -951,8 +950,7 @@ class PlayerListSystem(BasicSystem):
             if not bridge_connector:
                 return
 
-            command_prefix = self.config.get("GUGUBot", {}).get("command_prefix", "#")
-            command_text = f"{command_prefix}{self.bridge_query_cmd}"
+            command_text = self.bridge_query_cmd
 
             processed_info = ProcessedInfo(
                 processed_message=[MessageBuilder.text(command_text)],
