@@ -52,6 +52,17 @@ class MCConnector(BasicConnector):
         connector_basic_name = self.server.tr("gugubot.connector.name")
         self.log_prefix = f"[{connector_basic_name}{self.source}]"
 
+    def _is_remote_mc_origin(self, origin: str, qq_source: str) -> bool:
+        """Return True if origin is another MC server that should not appear in local chat.
+
+        Allow: self (local MC), QQ, and any locally-registered non-MC connector (Bridge, Test, …).
+        Block: unregistered names (remote MC) or another locally-registered MCConnector.
+        """
+        if not origin or origin in (self.source, qq_source):
+            return False
+        registered = self.connector_manager.get_connector(origin)
+        return registered is None or isinstance(registered, MCConnector)
+
     async def connect(self) -> None:
         """Establish the connection (no-op since MCDR manages the lifecycle)."""
         self.logger.info(f"{self.log_prefix} 就绪 ~")
@@ -90,17 +101,21 @@ class MCConnector(BasicConnector):
             ["connector", "minecraft", "image_previewer"], False
         )
 
-        # If the message is from another server and the other server is not allowed to show in game, skip
-        bridge_connector_name = self.config.get_keys(
+        qq_source = self.config.get_keys(["connector", "QQ", "source_name"], "QQ")
+
+        # When the bridge has show_in_game disabled, suppress cross-server MC chat:
+        # drop if the last hop is an unregistered connector (direct remote-MC message),
+        # or if the origin is another MC server (relayed through a known Bridge hop).
+        bridge_source = self.config.get_keys(
             ["connector", "minecraft_bridge", "source_name"], "Bridge"
         )
-        bridge_connector = self.connector_manager.get_connector(bridge_connector_name)
-        if (
-            bridge_connector
-            and not getattr(bridge_connector, "show_in_game", True)
-            and bridge_connector_name in processed_info.source
-        ):
-            return
+        bridge = self.connector_manager.get_connector(bridge_source)
+        if bridge is not None and not getattr(bridge, "show_in_game", True):
+            cur = processed_info.source.current
+            if (
+                cur and self.connector_manager.get_connector(cur) is None
+            ) or self._is_remote_mc_origin(processed_info.source.origin, qq_source):
+                return
 
         try:
             game_version = self.server.get_server_information().version or ""
@@ -112,7 +127,6 @@ class MCConnector(BasicConnector):
 
             # Retrieve the bot's QQ ID so @-mentions targeting the bot can be filtered
             bot_id = None
-            qq_source = self.config.get_keys(["connector", "QQ", "source_name"], "QQ")
             if qq_connector := self.connector_manager.get_connector(qq_source):
                 bot_id = getattr(getattr(qq_connector, "bot", None), "self_id", None)
 
