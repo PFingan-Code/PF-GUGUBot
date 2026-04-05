@@ -94,6 +94,13 @@ def make_api_handler(
                 "connectors": connectors,
             }
 
+        if norm == "reload" and method == "POST":
+            try:
+                server.reload_plugin(PLUGIN_ID)
+                return {"ok": True, "message": f"{PLUGIN_ID} 重载成功"}
+            except Exception as e:
+                return {"ok": False, "error": str(e)}
+
         return {
             "ok": False,
             "error": "not_found",
