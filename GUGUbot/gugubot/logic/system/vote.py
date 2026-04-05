@@ -12,11 +12,17 @@ from typing import Optional, Set, List
 from mcdreforged.api.types import PluginServerInterface
 
 from gugubot.builder import MessageBuilder
-from gugubot.config.BotConfig import BotConfig
+from gugubot.config import BotConfig
 from gugubot.logic.system.basic_system import BasicSystem
 from gugubot.utils.player_manager import PlayerManager
 from gugubot.utils.types import BroadcastInfo
-from gugubot.utils.vote_manager import VoteManager, VoteStatus, Vote, VoteTypeRegistry, VoteTypeConfig
+from gugubot.utils.vote_manager import (
+    VoteManager,
+    VoteStatus,
+    Vote,
+    VoteTypeRegistry,
+    VoteTypeConfig,
+)
 
 
 class VoteSystem(BasicSystem):
@@ -43,9 +49,9 @@ class VoteSystem(BasicSystem):
     """
 
     def __init__(
-            self,
-            server: PluginServerInterface,
-            config: Optional[BotConfig] = None,
+        self,
+        server: PluginServerInterface,
+        config: Optional[BotConfig] = None,
     ) -> None:
         """初始化投票系统
 
@@ -67,7 +73,9 @@ class VoteSystem(BasicSystem):
         self._load_config()
 
         # 获取调试配置
-        self.debug_enabled = self.config.get_keys(["GUGUBot", "show_message_in_console"], False)
+        self.debug_enabled = self.config.get_keys(
+            ["GUGUBot", "show_message_in_console"], False
+        )
 
         # 当前投票监控任务（vote_id -> Task，支持多个并发投票）
         self._monitor_tasks: dict[str, asyncio.Task] = {}
@@ -94,10 +102,16 @@ class VoteSystem(BasicSystem):
         """
         # 加载全局投票关键词
         vote_keywords_config = self.config.get_keys(["system", "vote", "keywords"], {})
-        self.yes_keywords = vote_keywords_config.get("yes", ["111", "同意", "赞成", "yes"])
+        self.yes_keywords = vote_keywords_config.get(
+            "yes", ["111", "同意", "赞成", "yes"]
+        )
         self.no_keywords = vote_keywords_config.get("no", ["222", "反对", "拒绝", "no"])
-        self.withdraw_keywords = vote_keywords_config.get("withdraw", ["弃票", "撤回", "abstain", "withdraw"])
-        self.delete_keywords = vote_keywords_config.get("delete", ["删除投票", "delete_vote"])
+        self.withdraw_keywords = vote_keywords_config.get(
+            "withdraw", ["弃票", "撤回", "abstain", "withdraw"]
+        )
+        self.delete_keywords = vote_keywords_config.get(
+            "delete", ["删除投票", "delete_vote"]
+        )
 
     def _register_default_vote_types(self) -> None:
         """注册内置的默认投票类型。
@@ -127,15 +141,21 @@ class VoteSystem(BasicSystem):
             required_percentage=shutdown_config_dict.get("required_percentage", 1.0),
             timeout=shutdown_config_dict.get("timeout", 300),
             callback=self._shutdown_server_callback,
-            start_keywords=shutdown_keywords.get("start", ["关服", "关闭服务器", "shutdown"]),
-            consult_keywords=shutdown_keywords.get("consult", ["坏了坏了", "要不要关服"]),
-            enabled=shutdown_config_dict.get("enable", True)
+            start_keywords=shutdown_keywords.get(
+                "start", ["关服", "关闭服务器", "shutdown"]
+            ),
+            consult_keywords=shutdown_keywords.get(
+                "consult", ["坏了坏了", "要不要关服"]
+            ),
+            enabled=shutdown_config_dict.get("enable", True),
         )
         success = self.vote_type_registry.register(shutdown_config)
         if success:
             self.logger.info("[VoteSystem] 已注册默认投票类型: shutdown")
         elif not shutdown_config.enabled:
-            self.logger.info("[VoteSystem] 默认投票类型 shutdown 已在配置中禁用，跳过注册")
+            self.logger.info(
+                "[VoteSystem] 默认投票类型 shutdown 已在配置中禁用，跳过注册"
+            )
         else:
             self.logger.warning("[VoteSystem] 注册默认投票类型失败: shutdown 已存在")
 
@@ -153,13 +173,17 @@ class VoteSystem(BasicSystem):
             注册成功返回 ``True``；已禁用或已存在则返回 ``False``。
         """
         if not config.enabled:
-            self.logger.info(f"[VoteSystem] 投票类型 {config.vote_type} 已禁用，跳过注册")
+            self.logger.info(
+                f"[VoteSystem] 投票类型 {config.vote_type} 已禁用，跳过注册"
+            )
             return False
         success = self.vote_type_registry.register(config)
         if success:
             self.logger.info(f"[VoteSystem] 已注册投票类型: {config.vote_type}")
         else:
-            self.logger.warning(f"[VoteSystem] 注册投票类型失败: {config.vote_type} 已存在")
+            self.logger.warning(
+                f"[VoteSystem] 注册投票类型失败: {config.vote_type} 已存在"
+            )
         return success
 
     def unregister_vote_type(self, vote_type: str) -> bool:
@@ -326,7 +350,7 @@ class VoteSystem(BasicSystem):
         return "".join(text_parts).strip()
 
     async def _handle_keywords(
-            self, broadcast_info: BroadcastInfo, message_text: str
+        self, broadcast_info: BroadcastInfo, message_text: str
     ) -> bool:
         """检测消息文本中的投票关键词并执行对应操作。
 
@@ -345,7 +369,9 @@ class VoteSystem(BasicSystem):
         bool
             任意关键词匹配并处理返回 ``True``，否则返回 ``False``。
         """
-        self.debug_log(f"[VoteSystem Debug] _handle_keywords 被调用，消息: '{message_text}'")
+        self.debug_log(
+            f"[VoteSystem Debug] _handle_keywords 被调用，消息: '{message_text}'"
+        )
 
         # 检查弃票关键词（所有用户）
         self.debug_log(f"[VoteSystem Debug] 检查弃票关键词: {self.withdraw_keywords}")
@@ -358,7 +384,9 @@ class VoteSystem(BasicSystem):
                 return True
 
         # 检查取消投票关键词（仅管理员，用于删除整个投票）
-        self.debug_log(f"[VoteSystem Debug] 检查取消投票关键词（管理员）: {self.delete_keywords}")
+        self.debug_log(
+            f"[VoteSystem Debug] 检查取消投票关键词（管理员）: {self.delete_keywords}"
+        )
         for keyword in self.delete_keywords:
             if keyword == message_text:
                 self.debug_log(f"[VoteSystem Debug] 匹配到取消投票关键词: '{keyword}'")
@@ -366,15 +394,21 @@ class VoteSystem(BasicSystem):
                     await self._handle_delete(broadcast_info)
                     return True
                 else:
-                    self.debug_log("[VoteSystem Debug] 发送者不是管理员，忽略取消投票请求")
+                    self.debug_log(
+                        "[VoteSystem Debug] 发送者不是管理员，忽略取消投票请求"
+                    )
 
         # 先尝试精确匹配（用于 start_keywords）
         result = self.vote_type_registry.get_by_keyword(message_text)
         if result:
             vote_config, is_consult = result
-            self.debug_log(f"[VoteSystem Debug] 精确匹配到投票关键词: '{message_text}', "
-                           f"类型: {vote_config.vote_type}, 征求模式: {is_consult}")
-            await self._handle_start_vote_with_config(broadcast_info, vote_config, is_consult)
+            self.debug_log(
+                f"[VoteSystem Debug] 精确匹配到投票关键词: '{message_text}', "
+                f"类型: {vote_config.vote_type}, 征求模式: {is_consult}"
+            )
+            await self._handle_start_vote_with_config(
+                broadcast_info, vote_config, is_consult
+            )
             return True
 
         # 模糊匹配（用于 consult_keywords）
@@ -394,8 +428,12 @@ class VoteSystem(BasicSystem):
             vote_config, is_consult = result
 
             if is_consult:
-                self.debug_log(f"[VoteSystem Debug] 模糊匹配到征求模式关键词: '{keyword}'")
-                await self._handle_start_vote_with_config(broadcast_info, vote_config, True)
+                self.debug_log(
+                    f"[VoteSystem Debug] 模糊匹配到征求模式关键词: '{keyword}'"
+                )
+                await self._handle_start_vote_with_config(
+                    broadcast_info, vote_config, True
+                )
                 return True
 
         # 检查投赞成票关键词
@@ -437,7 +475,7 @@ class VoteSystem(BasicSystem):
             投票序号，如果没有则返回 None
         """
         # 移除关键词，获取剩余部分
-        remaining = message_text[len(keyword):].strip()
+        remaining = message_text[len(keyword) :].strip()
 
         if remaining.isdigit():
             return int(remaining)
@@ -506,7 +544,7 @@ class VoteSystem(BasicSystem):
                 vote_list="\n".join(vote_list),
                 command_prefix=command_prefix,
                 name=system_name,
-                remove=remove_command
+                remove=remove_command,
             )
             await self.reply(broadcast_info, [MessageBuilder.text(msg)])
             return True
@@ -529,7 +567,7 @@ class VoteSystem(BasicSystem):
                 "vote_removed",
                 admin=broadcast_info.sender,
                 index=index,
-                description=vote.description
+                description=vote.description,
             )
             await self._broadcast_to_all(msg)
 
@@ -567,11 +605,7 @@ class VoteSystem(BasicSystem):
                 if task:
                     task.cancel()
 
-        msg = self.get_tr(
-            "all_votes_removed",
-            admin=broadcast_info.sender,
-            count=count
-        )
+        msg = self.get_tr("all_votes_removed", admin=broadcast_info.sender, count=count)
         await self._broadcast_to_all(msg)
 
         return True
@@ -611,7 +645,7 @@ class VoteSystem(BasicSystem):
                 total_voters=progress["total_voters"],
                 current_percentage=f"{progress['current_percentage']:.1f}%",
                 required_percentage=f"{progress['required_percentage']}%",
-                remaining_time=remaining_time
+                remaining_time=remaining_time,
             )
             vote_items.append(item)
 
@@ -662,19 +696,23 @@ class VoteSystem(BasicSystem):
             name = self.get_tr(config.name_key)
             type_lines.append(f"{i}. {name}")
 
-        header = self.get_tr("available_vote_types_simple", count=len(vote_configs_list))
+        header = self.get_tr(
+            "available_vote_types_simple", count=len(vote_configs_list)
+        )
         tip = self.get_tr(
             "vote_type_detail_tip",
             command_prefix=command_prefix,
             name=system_name,
-            types=types_command
+            types=types_command,
         )
         msg = header + "\n" + "\n".join(type_lines) + "\n\n" + tip
 
         await self.reply(broadcast_info, [MessageBuilder.text(msg)])
         return True
 
-    async def _handle_type_detail(self, broadcast_info: BroadcastInfo, type_name: str) -> bool:
+    async def _handle_type_detail(
+        self, broadcast_info: BroadcastInfo, type_name: str
+    ) -> bool:
         """显示特定投票类型的详细信息。
 
         Parameters
@@ -706,8 +744,16 @@ class VoteSystem(BasicSystem):
 
         name = self.get_tr(matched_config.name_key)
         description = self.get_tr(matched_config.description_key)
-        start_keywords = ", ".join(matched_config.start_keywords) if matched_config.start_keywords else self.get_tr("none")
-        consult_keywords = ", ".join(matched_config.consult_keywords) if matched_config.consult_keywords else self.get_tr("none")
+        start_keywords = (
+            ", ".join(matched_config.start_keywords)
+            if matched_config.start_keywords
+            else self.get_tr("none")
+        )
+        consult_keywords = (
+            ", ".join(matched_config.consult_keywords)
+            if matched_config.consult_keywords
+            else self.get_tr("none")
+        )
 
         msg = self.get_tr(
             "vote_type_item",
@@ -716,7 +762,7 @@ class VoteSystem(BasicSystem):
             required_percentage=f"{int(matched_config.required_percentage * 100)}%",
             timeout=int(matched_config.timeout),
             start_keywords=start_keywords,
-            consult_keywords=consult_keywords
+            consult_keywords=consult_keywords,
         )
 
         await self.reply(broadcast_info, [MessageBuilder.text(msg)])
@@ -751,7 +797,9 @@ class VoteSystem(BasicSystem):
 
         return await self._handle_withdraw_keyword(broadcast_info, index)
 
-    async def _handle_withdraw_keyword(self, broadcast_info: BroadcastInfo, index: Optional[int] = None) -> bool:
+    async def _handle_withdraw_keyword(
+        self, broadcast_info: BroadcastInfo, index: Optional[int] = None
+    ) -> bool:
         """处理弃票（通过关键词或命令）
 
         Parameters
@@ -774,7 +822,9 @@ class VoteSystem(BasicSystem):
             return True
 
         # 根据序号或数量选择投票
-        vote = await self._select_vote_for_withdraw(broadcast_info, pending_votes, index)
+        vote = await self._select_vote_for_withdraw(
+            broadcast_info, pending_votes, index
+        )
         if not vote:
             return True
 
@@ -799,7 +849,7 @@ class VoteSystem(BasicSystem):
             msg = self.get_tr(
                 "withdraw_success",
                 voter=broadcast_info.sender,
-                vote_name=self._get_vote_name(vote)
+                vote_name=self._get_vote_name(vote),
             )
             await self._broadcast_to_all(msg)
         else:
@@ -810,10 +860,10 @@ class VoteSystem(BasicSystem):
         return True
 
     async def _select_vote_for_withdraw(
-            self,
-            broadcast_info: BroadcastInfo,
-            pending_votes: List[Vote],
-            index: Optional[int]
+        self,
+        broadcast_info: BroadcastInfo,
+        pending_votes: List[Vote],
+        index: Optional[int],
     ) -> Optional[Vote]:
         """为弃票操作选择投票实例
 
@@ -846,13 +896,15 @@ class VoteSystem(BasicSystem):
 
         # 有多个投票但没指定序号，提示用户
         vote_list = [f"[{v.index}] {v.description}" for v in pending_votes]
-        withdraw_example = f"{self.withdraw_keywords[0]} 1" if self.withdraw_keywords else "弃票 1"
+        withdraw_example = (
+            f"{self.withdraw_keywords[0]} 1" if self.withdraw_keywords else "弃票 1"
+        )
 
         msg = self.get_tr(
             "multiple_votes_specify_withdraw",
             count=len(pending_votes),
             vote_list="\n".join(vote_list),
-            withdraw_example=withdraw_example
+            withdraw_example=withdraw_example,
         )
         await self.reply(broadcast_info, [MessageBuilder.text(msg)])
         return None
@@ -904,7 +956,9 @@ class VoteSystem(BasicSystem):
                 list=list_command,
                 types=types_command,
                 withdraw=withdraw_command,
-                vote_name_example=self.extract_keyword_example(self.vote_type_registry.get_all_keywords(), 2),
+                vote_name_example=self.extract_keyword_example(
+                    self.vote_type_registry.get_all_keywords(), 2
+                ),
                 yes_example=yes_example,
                 no_example=no_example,
                 yes_example_single=yes_example_single,
@@ -912,7 +966,7 @@ class VoteSystem(BasicSystem):
                 remove=remove_command,
                 removeAll=remove_all_command,
                 delete_example=delete_example,
-                withdraw_example=withdraw_example
+                withdraw_example=withdraw_example,
             )
         else:
             msg = self.get_tr(
@@ -924,14 +978,18 @@ class VoteSystem(BasicSystem):
                 no_example=no_example,
                 yes_example_single=yes_example_single,
                 no_example_single=no_example_single,
-                withdraw_example=withdraw_example
+                withdraw_example=withdraw_example,
             )
 
         await self.reply(broadcast_info, [MessageBuilder.text(msg)])
         return True
 
-    async def _handle_start_vote_with_config(self, broadcast_info: BroadcastInfo, vote_config: VoteTypeConfig,
-                                             consult_mode: bool) -> None:
+    async def _handle_start_vote_with_config(
+        self,
+        broadcast_info: BroadcastInfo,
+        vote_config: VoteTypeConfig,
+        consult_mode: bool,
+    ) -> None:
         """根据投票类型配置发起一次新投票。
 
         Parameters
@@ -944,8 +1002,10 @@ class VoteSystem(BasicSystem):
             ``True`` 为征求模式（发起人不自动投赞成票）；
             ``False`` 为普通模式（发起人自动投赞成票）。
         """
-        self.debug_log(f"[VoteSystem Debug] 收到{vote_config.vote_type}类型的投票请求，发起人: {broadcast_info.sender}, "
-                       f"征求模式: {consult_mode}")
+        self.debug_log(
+            f"[VoteSystem Debug] 收到{vote_config.vote_type}类型的投票请求，发起人: {broadcast_info.sender}, "
+            f"征求模式: {consult_mode}"
+        )
 
         # 发起投票前从磁盘重新加载最新绑定数据，确保资格名单是最新的。
         self.player_manager.load()
@@ -971,7 +1031,9 @@ class VoteSystem(BasicSystem):
                 return
 
         # 检查是否已有进行中的投票
-        existing_vote = self.vote_manager.get_pending_vote_by_type(vote_config.vote_type)
+        existing_vote = self.vote_manager.get_pending_vote_by_type(
+            vote_config.vote_type
+        )
         if existing_vote:
             msg = self.get_tr("vote_already_exists")
             await self.reply(broadcast_info, [MessageBuilder.text(msg)])
@@ -994,7 +1056,7 @@ class VoteSystem(BasicSystem):
             required_percentage=vote_config.required_percentage,
             timeout=vote_config.timeout,
             callback=vote_config.callback,
-            description=self.get_tr(vote_config.description_key)
+            description=self.get_tr(vote_config.description_key),
         )
 
         if not vote:
@@ -1008,22 +1070,36 @@ class VoteSystem(BasicSystem):
             # 如果发起人有投票资格，使用其QQ号投票
             # 如果是管理员绕过的情况，使用 sender_id 作为虚拟投票者ID
             self.debug_log(f"[VoteSystem Debug] 非征求模式，准备自动投票")
-            self.debug_log(f"[VoteSystem Debug] 发起人已解析: {initiator_voter_id is not None}, "
-                           f"合格投票人数: {len(eligible_voters)}, is_admin: {broadcast_info.is_admin}")
+            self.debug_log(
+                f"[VoteSystem Debug] 发起人已解析: {initiator_voter_id is not None}, "
+                f"合格投票人数: {len(eligible_voters)}, is_admin: {broadcast_info.is_admin}"
+            )
 
             if initiator_voter_id and initiator_voter_id in eligible_voters:
-                self.debug_log(f"[VoteSystem Debug] ✓ 发起人({broadcast_info.sender})有投票资格，投赞成票")
+                self.debug_log(
+                    f"[VoteSystem Debug] ✓ 发起人({broadcast_info.sender})有投票资格，投赞成票"
+                )
                 success, is_new, _ = vote.cast_vote(initiator_voter_id, True)
-                self.debug_log(f"[VoteSystem Debug] cast_vote返回值: success={success}, is_new={is_new}")
-                self.debug_log(f"[VoteSystem Debug] 投票后 yes={vote.get_progress()['yes_votes']}, no={vote.get_progress()['no_votes']}")
+                self.debug_log(
+                    f"[VoteSystem Debug] cast_vote返回值: success={success}, is_new={is_new}"
+                )
+                self.debug_log(
+                    f"[VoteSystem Debug] 投票后 yes={vote.get_progress()['yes_votes']}, no={vote.get_progress()['no_votes']}"
+                )
             elif broadcast_info.is_admin:
                 # 管理员绕过：将管理员的 sender_id 临时添加到投票资格中并自动投赞成票
-                self.debug_log(f"[VoteSystem Debug] ✓ 管理员({broadcast_info.sender})绕过在线限制，直接发起投票并投赞成票")
+                self.debug_log(
+                    f"[VoteSystem Debug] ✓ 管理员({broadcast_info.sender})绕过在线限制，直接发起投票并投赞成票"
+                )
                 vote.eligible_voters.add(broadcast_info.sender_id)
                 success, is_new, _ = vote.cast_vote(broadcast_info.sender_id, True)
-                self.debug_log(f"[VoteSystem Debug] 管理员cast_vote返回值: success={success}, is_new={is_new}")
+                self.debug_log(
+                    f"[VoteSystem Debug] 管理员cast_vote返回值: success={success}, is_new={is_new}"
+                )
             else:
-                self.debug_log(f"[VoteSystem Debug] ✗ 发起人({broadcast_info.sender})无法自动投票")
+                self.debug_log(
+                    f"[VoteSystem Debug] ✗ 发起人({broadcast_info.sender})无法自动投票"
+                )
 
         # 检查投票在开始就被满足（例如可投票成员只有一位）
         if self.vote_manager.check_and_finalize_vote(vote.vote_id) == VoteStatus.PASSED:
@@ -1037,7 +1113,9 @@ class VoteSystem(BasicSystem):
         # 广播投票开始消息
         self.debug_log(f"[VoteSystem Debug] 准备获取投票进度")
         progress = vote.get_progress()
-        self.debug_log(f"[VoteSystem Debug] 进度: yes={progress['yes_votes']}, no={progress['no_votes']}, total={progress['total_voters']}")
+        self.debug_log(
+            f"[VoteSystem Debug] 进度: yes={progress['yes_votes']}, no={progress['no_votes']}, total={progress['total_voters']}"
+        )
 
         # 获取投票名称
         vote_name = self.get_tr(vote_config.name_key)
@@ -1062,7 +1140,7 @@ class VoteSystem(BasicSystem):
                 withdraw_example=withdraw_example,
                 yes_votes=progress["yes_votes"],
                 no_votes=progress["no_votes"],
-                current_percentage=f"{progress['current_percentage']:.1f}%"
+                current_percentage=f"{progress['current_percentage']:.1f}%",
             )
         else:
             msg = self.get_tr(
@@ -1079,7 +1157,7 @@ class VoteSystem(BasicSystem):
                 withdraw_example=withdraw_example,
                 yes_votes=progress["yes_votes"],
                 no_votes=progress["no_votes"],
-                current_percentage=f"{progress['current_percentage']:.1f}%"
+                current_percentage=f"{progress['current_percentage']:.1f}%",
             )
 
         await self._broadcast_to_all(msg)
@@ -1093,22 +1171,32 @@ class VoteSystem(BasicSystem):
             # 获取关键词示例
             yes_keywords = self.yes_keywords
             no_keywords = self.no_keywords
-            yes_example = f"{yes_keywords[0]} {vote.index}" if yes_keywords else f"yes {vote.index}"
-            no_example = f"{no_keywords[0]} {vote.index}" if no_keywords else f"no {vote.index}"
+            yes_example = (
+                f"{yes_keywords[0]} {vote.index}"
+                if yes_keywords
+                else f"yes {vote.index}"
+            )
+            no_example = (
+                f"{no_keywords[0]} {vote.index}" if no_keywords else f"no {vote.index}"
+            )
 
             msg = self.get_tr(
                 "multiple_votes_reminder",
                 count=len(pending_votes),
                 vote_list="\n".join(vote_list),
                 yes_example=yes_example,
-                no_example=no_example
+                no_example=no_example,
             )
             await self._broadcast_to_all(msg)
 
         # 启动投票监控任务
-        self._monitor_tasks[vote.vote_id] = asyncio.create_task(self._monitor_vote(vote.vote_id))
+        self._monitor_tasks[vote.vote_id] = asyncio.create_task(
+            self._monitor_vote(vote.vote_id)
+        )
 
-    async def _handle_vote(self, broadcast_info: BroadcastInfo, vote_yes: bool, index: Optional[int] = None) -> None:
+    async def _handle_vote(
+        self, broadcast_info: BroadcastInfo, vote_yes: bool, index: Optional[int] = None
+    ) -> None:
         """处理投票（赞成或反对）
 
         Parameters
@@ -1151,20 +1239,24 @@ class VoteSystem(BasicSystem):
                 example_keywords = self.no_keywords
                 tr_key = "multiple_votes_specify_no"
 
-            example = f"{example_keywords[0]} 1" if example_keywords else ("yes 1" if vote_yes else "no 1")
+            example = (
+                f"{example_keywords[0]} 1"
+                if example_keywords
+                else ("yes 1" if vote_yes else "no 1")
+            )
             if vote_yes:
                 msg = self.get_tr(
                     tr_key,
                     count=len(pending_votes),
                     vote_list="\n".join(vote_list),
-                    yes_example=example
+                    yes_example=example,
                 )
             else:
                 msg = self.get_tr(
                     tr_key,
                     count=len(pending_votes),
                     vote_list="\n".join(vote_list),
-                    no_example=example
+                    no_example=example,
                 )
             await self.reply(broadcast_info, [MessageBuilder.text(msg)])
             return
@@ -1173,33 +1265,42 @@ class VoteSystem(BasicSystem):
         actual_voter_id = await self._get_voter_id_from_broadcast(broadcast_info)
 
         if not actual_voter_id:
-            self.debug_log(f"[VoteSystem Debug] 无法解析投票者 {broadcast_info.sender} 的身份标识")
+            self.debug_log(
+                f"[VoteSystem Debug] 无法解析投票者 {broadcast_info.sender} 的身份标识"
+            )
             msg = self.get_tr("not_eligible")
             await self.reply(broadcast_info, [MessageBuilder.text(msg)])
             return
 
-        self.debug_log(f"[VoteSystem Debug] 投票者 {broadcast_info.sender} 身份已解析，来源: {broadcast_info.source.origin}")
+        self.debug_log(
+            f"[VoteSystem Debug] 投票者 {broadcast_info.sender} 身份已解析，来源: {broadcast_info.source.origin}"
+        )
 
         # 检查是否有投票资格
         if actual_voter_id not in vote.eligible_voters:
-            self.debug_log(f"[VoteSystem Debug] {broadcast_info.sender} 不在投票资格列表中（共 {len(vote.eligible_voters)} 人有资格）")
+            self.debug_log(
+                f"[VoteSystem Debug] {broadcast_info.sender} 不在投票资格列表中（共 {len(vote.eligible_voters)} 人有资格）"
+            )
             msg = self.get_tr("not_eligible")
             await self.reply(broadcast_info, [MessageBuilder.text(msg)])
             return
 
         # 投票
-        self.debug_log(f"[VoteSystem Debug] {broadcast_info.sender} 准备投{'赞成' if vote_yes else '反对'}票")
-        self.debug_log(f"[VoteSystem Debug] 投票前 yes={vote.get_progress()['yes_votes']}, no={vote.get_progress()['no_votes']}")
+        self.debug_log(
+            f"[VoteSystem Debug] {broadcast_info.sender} 准备投{'赞成' if vote_yes else '反对'}票"
+        )
+        self.debug_log(
+            f"[VoteSystem Debug] 投票前 yes={vote.get_progress()['yes_votes']}, no={vote.get_progress()['no_votes']}"
+        )
         success, is_new_vote, is_same_vote = vote.cast_vote(actual_voter_id, vote_yes)
-        self.debug_log(f"[VoteSystem Debug] 投票后 yes={vote.get_progress()['yes_votes']}, no={vote.get_progress()['no_votes']}")
+        self.debug_log(
+            f"[VoteSystem Debug] 投票后 yes={vote.get_progress()['yes_votes']}, no={vote.get_progress()['no_votes']}"
+        )
         if success:
             # 如果投的是和之前一样的票，只提示本人，不广播
             if is_same_vote:
                 vote_type_tr = self.get_tr("vote_yes" if vote_yes else "vote_no")
-                msg = self.get_tr(
-                    "vote_already_same",
-                    vote_type=vote_type_tr
-                )
+                msg = self.get_tr("vote_already_same", vote_type=vote_type_tr)
                 await self.reply(broadcast_info, [MessageBuilder.text(msg)])
                 return
 
@@ -1215,7 +1316,7 @@ class VoteSystem(BasicSystem):
                 yes_votes=progress["yes_votes"],
                 no_votes=progress["no_votes"],
                 total_voters=progress["total_voters"],
-                current_percentage=f"{progress['current_percentage']:.1f}%"
+                current_percentage=f"{progress['current_percentage']:.1f}%",
             )
             await self._broadcast_to_all(msg)
 
@@ -1260,7 +1361,7 @@ class VoteSystem(BasicSystem):
                 vote_list="\n".join(vote_list),
                 command_prefix=command_prefix,
                 name=self.get_tr("name"),
-                remove=self.get_tr("remove")
+                remove=self.get_tr("remove"),
             )
             await self.reply(broadcast_info, [MessageBuilder.text(msg)])
             return
@@ -1270,7 +1371,7 @@ class VoteSystem(BasicSystem):
             msg = self.get_tr(
                 "vote_deleted",
                 admin=broadcast_info.sender,
-                vote_name=self._get_vote_name(vote)
+                vote_name=self._get_vote_name(vote),
             )
             await self._broadcast_to_all(msg)
 
@@ -1343,15 +1444,17 @@ class VoteSystem(BasicSystem):
                 vote_name=vote_name,
                 yes_votes=progress["yes_votes"],
                 total_voters=progress["total_voters"],
-                current_percentage=f"{progress['current_percentage']:.1f}%"
+                current_percentage=f"{progress['current_percentage']:.1f}%",
             )
             await self._broadcast_to_all(msg)
 
             # 执行回调
             if vote.callback:
                 try:
-                    self.logger.debug(f"[VoteSystem] {vote.initiator}发起的{vote.vote_type}投票（ID："
-                                      f"{vote.vote_id}）通过，正在执行投票回调…")
+                    self.logger.debug(
+                        f"[VoteSystem] {vote.initiator}发起的{vote.vote_type}投票（ID："
+                        f"{vote.vote_id}）通过，正在执行投票回调…"
+                    )
                     await vote.callback()
                 except Exception as e:
                     self.logger.error(f"[VoteSystem] 执行投票回调失败: {e}")
@@ -1364,7 +1467,7 @@ class VoteSystem(BasicSystem):
                 vote_name=vote_name,
                 yes_votes=progress["yes_votes"],
                 no_votes=progress["no_votes"],
-                total_voters=progress["total_voters"]
+                total_voters=progress["total_voters"],
             )
             await self._broadcast_to_all(msg)
 
@@ -1376,7 +1479,7 @@ class VoteSystem(BasicSystem):
                 vote_name=vote_name,
                 yes_votes=progress["yes_votes"],
                 total_voters=progress["total_voters"],
-                required_percentage=f"{progress['required_percentage']}%"
+                required_percentage=f"{progress['required_percentage']}%",
             )
             await self._broadcast_to_all(msg)
 
@@ -1400,34 +1503,46 @@ class VoteSystem(BasicSystem):
             self.debug_log(f"[VoteSystem Debug] 在线玩家数量: {len(online_players)}")
 
             # 获取QQ连接器的source_name
-            qq_source = self.config.get_keys(
-                ["connector", "QQ", "source_name"], "QQ"
-            )
+            qq_source = self.config.get_keys(["connector", "QQ", "source_name"], "QQ")
             self.debug_log(f"[VoteSystem Debug] QQ source_name: {qq_source}")
 
             # 获取每个玩家的绑定QQ
             for player_name in online_players:
-                self.debug_log(f"[VoteSystem Debug] 正在查询玩家 '{player_name}' 的绑定信息...")
+                self.debug_log(
+                    f"[VoteSystem Debug] 正在查询玩家 '{player_name}' 的绑定信息..."
+                )
 
                 # 通过PlayerManager获取玩家对象
                 player = self.player_manager.get_player(player_name)
 
                 if not player:
-                    self.debug_log(f"[VoteSystem Debug] 在PlayerManager中找不到玩家 '{player_name}'")
-                    self.debug_log(f"[VoteSystem Debug] 找不到玩家 {player_name} 的绑定信息")
+                    self.debug_log(
+                        f"[VoteSystem Debug] 在PlayerManager中找不到玩家 '{player_name}'"
+                    )
+                    self.debug_log(
+                        f"[VoteSystem Debug] 找不到玩家 {player_name} 的绑定信息"
+                    )
                     return set()  # 无法获取玩家信息，返回空集合
 
                 self.debug_log(f"[VoteSystem Debug] 找到玩家对象: {player.name}")
                 # 获取该玩家的QQ账号列表
                 qq_ids = player.accounts.get(qq_source, [])
-                self.debug_log(f"[VoteSystem Debug] 玩家 '{player_name}' 绑定账号数: {len(qq_ids)}")
+                self.debug_log(
+                    f"[VoteSystem Debug] 玩家 '{player_name}' 绑定账号数: {len(qq_ids)}"
+                )
 
                 if qq_ids:
                     eligible.update([qq_id for qq_id in qq_ids])
-                    self.debug_log(f"[VoteSystem Debug] {player_name} 已绑定，有投票资格")
+                    self.debug_log(
+                        f"[VoteSystem Debug] {player_name} 已绑定，有投票资格"
+                    )
                 else:
-                    self.debug_log(f"[VoteSystem Debug] 玩家 '{player_name}' 没有绑定QQ")
-                    self.debug_log(f"[VoteSystem Debug] {player_name} 未绑定QQ，无投票资格")
+                    self.debug_log(
+                        f"[VoteSystem Debug] 玩家 '{player_name}' 没有绑定QQ"
+                    )
+                    self.debug_log(
+                        f"[VoteSystem Debug] {player_name} 未绑定QQ，无投票资格"
+                    )
 
             self.debug_log(f"[VoteSystem Debug] 有投票资格的人数: {len(eligible)}")
 
@@ -1461,13 +1576,19 @@ class VoteSystem(BasicSystem):
 
         if player:
             qq_ids = player.accounts.get(qq_source, [])
-            self.debug_log(f"[VoteSystem Debug] 玩家 '{sender_name}' 绑定账号数: {len(qq_ids)}")
+            self.debug_log(
+                f"[VoteSystem Debug] 玩家 '{sender_name}' 绑定账号数: {len(qq_ids)}"
+            )
             return [str(qq_id) for qq_id in qq_ids] if qq_ids else []
         else:
-            self.debug_log(f"[VoteSystem Debug] 在PlayerManager中找不到玩家 '{sender_name}'")
+            self.debug_log(
+                f"[VoteSystem Debug] 在PlayerManager中找不到玩家 '{sender_name}'"
+            )
             return []
 
-    async def _get_voter_id_from_broadcast(self, broadcast_info: BroadcastInfo) -> Optional[str]:
+    async def _get_voter_id_from_broadcast(
+        self, broadcast_info: BroadcastInfo
+    ) -> Optional[str]:
         """从BroadcastInfo获取唯一的投票者ID（QQ号）
 
         根据消息来源判断：
@@ -1491,16 +1612,22 @@ class VoteSystem(BasicSystem):
         message_source = broadcast_info.source.origin
         sender_id = str(broadcast_info.sender_id)
 
-        self.debug_log(f"[VoteSystem Debug] 消息来源: {message_source}, QQ source配置: {qq_source}")
+        self.debug_log(
+            f"[VoteSystem Debug] 消息来源: {message_source}, QQ source配置: {qq_source}"
+        )
 
         # 判断消息是否来自QQ connector
         if message_source == qq_source:
             # 来自QQ connector，sender_id就是QQ号
-            self.debug_log(f"[VoteSystem Debug] ✓ 消息来自QQ connector，直接使用sender_id")
+            self.debug_log(
+                f"[VoteSystem Debug] ✓ 消息来自QQ connector，直接使用sender_id"
+            )
             return sender_id
 
         # 来自其他connector（MC等），sender_id是玩家名，需要查询绑定的QQ号
-        self.debug_log(f"[VoteSystem Debug] ✗ 消息不是来自QQ connector，识别为玩家名: {sender_id}")
+        self.debug_log(
+            f"[VoteSystem Debug] ✗ 消息不是来自QQ connector，识别为玩家名: {sender_id}"
+        )
         voter_ids = await self._get_voter_ids(sender_id)
         if voter_ids:
             voter_id = voter_ids[0]  # 使用第一个绑定的QQ号
@@ -1522,11 +1649,15 @@ class VoteSystem(BasicSystem):
 
         # 使用online_player_api
         try:
-            self.debug_log("[VoteSystem Debug] 尝试使用 online_player_api 插件获取玩家列表...")
+            self.debug_log(
+                "[VoteSystem Debug] 尝试使用 online_player_api 插件获取玩家列表..."
+            )
             player_api = self.server.get_plugin_instance("online_player_api")
             if player_api:
                 players = player_api.get_player_list()
-                self.debug_log(f"[VoteSystem Debug] online_player_api 返回的玩家: {players}")
+                self.debug_log(
+                    f"[VoteSystem Debug] online_player_api 返回的玩家: {players}"
+                )
                 return players
             else:
                 self.debug_log("[VoteSystem Debug] online_player_api 插件不存在")
@@ -1549,23 +1680,35 @@ class VoteSystem(BasicSystem):
             self.logger.info(f"[VoteSystem] 执行关闭服务器")
 
             # 当服务器中有其他不存在投票资格的玩家或存在其他投票议程时，赋予额外的准备时间
-            extra_countdown_time = self.config.get_keys(["system", "vote", "shutdown", "extra_countdown"], 0)
+            extra_countdown_time = self.config.get_keys(
+                ["system", "vote", "shutdown", "extra_countdown"], 0
+            )
 
-            if len(self._get_online_players()) - len(await self._get_eligible_voters()) > 0 \
-                    or len(self.vote_manager.get_all_pending_votes()) - 1 > 0:
+            if (
+                len(self._get_online_players()) - len(await self._get_eligible_voters())
+                > 0
+                or len(self.vote_manager.get_all_pending_votes()) - 1 > 0
+            ):
                 extra_countdown = extra_countdown_time
             else:
                 extra_countdown = 0
 
             # 计算关服最终实际的倒计时时间
-            countdown_total_time = self.config.get_keys(["system", "vote", "shutdown", "countdown"],
-                                                        10) + extra_countdown
+            countdown_total_time = (
+                self.config.get_keys(["system", "vote", "shutdown", "countdown"], 10)
+                + extra_countdown
+            )
 
             # 发送关闭通知
-            msg = self.get_tr("server_shutting_down",
-                              countdown=countdown_total_time,
-                              extra_countdown_info=self.get_tr(
-                                  "extra_countdown_info") if extra_countdown_time > 0 else "")
+            msg = self.get_tr(
+                "server_shutting_down",
+                countdown=countdown_total_time,
+                extra_countdown_info=(
+                    self.get_tr("extra_countdown_info")
+                    if extra_countdown_time > 0
+                    else ""
+                ),
+            )
             await self._broadcast_to_all(msg)
 
             # 等待倒计时结束
@@ -1612,19 +1755,20 @@ class VoteSystem(BasicSystem):
                 server=self.server,
                 logger=self.logger,
                 event_sub_type="group",
-                target={}
+                target={},
             )
 
             if self.system_manager and self.system_manager.connector_manager:
                 await self.system_manager.connector_manager.broadcast_processed_info(
-                    processed_info,
-                    exclude=[bridge_source_name]
+                    processed_info, exclude=[bridge_source_name]
                 )
 
         except Exception as e:
             self.logger.error(f"[VoteSystem] 广播消息失败: {e}")
 
-    def extract_keyword_example(self, keywords: Optional[List[str]] = None, count: int = 2) -> str:
+    def extract_keyword_example(
+        self, keywords: Optional[List[str]] = None, count: int = 2
+    ) -> str:
         """提取关键词列表中的前若干项，用"或"连接后作为帮助消息的示例文本。
 
         Parameters
@@ -1641,4 +1785,8 @@ class VoteSystem(BasicSystem):
         """
         if not keywords:
             return ""
-        return f" {self.get_tr('or')} ".join(keywords[:count]) if len(keywords) > 1 else keywords[0]
+        return (
+            f" {self.get_tr('or')} ".join(keywords[:count])
+            if len(keywords) > 1
+            else keywords[0]
+        )

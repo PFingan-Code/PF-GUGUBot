@@ -5,8 +5,6 @@ from pathlib import Path
 from mcdreforged.api.types import Info, PluginServerInterface
 
 from gugubot.config import BotConfig
-
-# from gugubot.logic.bot_core import GUGUBotCore
 from gugubot.connector import (
     BridgeConnector,
     ConnectorManager,
@@ -20,10 +18,8 @@ from gugubot.logic.plugins import (
     InactiveCheckSystem,
     UnboundCheckSystem,
 )
-from gugubot.logic.plugins.mg_event import (
-    create_on_mc_achievement,
-    create_on_mc_death,
-)
+from gugubot.logic.plugins import broadcast_server_start, broadcast_server_stop
+from gugubot.logic.plugins.mg_event import create_on_mc_achievement, create_on_mc_death
 from gugubot.logic.plugins.player_notice import (
     create_on_player_join,
     create_on_player_left,
@@ -41,6 +37,7 @@ from gugubot.logic.system import (
     StyleSystem,
     SystemManager,
     TodoSystem,
+    VoteSystem,
     WhitelistSystem,
 )
 from gugubot.utils import (
@@ -250,7 +247,7 @@ async def on_unload(_: PluginServerInterface) -> None:
 
 # +---------------------------------------------------------------------+
 # 服务器启动和停止通知
-from gugubot.logic.plugins import broadcast_server_start, broadcast_server_stop
+
 
 
 async def on_server_startup(server: PluginServerInterface) -> None:
