@@ -19,7 +19,7 @@ class BoundSystem(BasicSystem):
     """
 
     def __init__(
-            self, server: PluginServerInterface, config: Optional[BotConfig] = None
+        self, server: PluginServerInterface, config: Optional[BotConfig] = None
     ) -> None:
         """初始化绑定系统。"""
         super().__init__("bound", enable=False, config=config)
@@ -55,8 +55,8 @@ class BoundSystem(BasicSystem):
 
         # 处理退群事件
         if (
-                broadcast_info.event_type == "notice"
-                and broadcast_info.event_sub_type == "group_decrease"
+            broadcast_info.event_type == "notice"
+            and broadcast_info.event_sub_type == "group_decrease"
         ):
             if broadcast_info.source.is_from("QQ"):
                 return await self._handle_quit_member(broadcast_info)
@@ -94,7 +94,7 @@ class BoundSystem(BasicSystem):
         """
         if not text.startswith(cmd):
             return False
-        remaining = text[len(cmd):]
+        remaining = text[len(cmd) :]
         return not remaining or remaining[0] == " "
 
     async def _handle_command(self, broadcast_info: BroadcastInfo) -> bool:
@@ -184,15 +184,21 @@ class BoundSystem(BasicSystem):
         last_text = last_text_message.get("data", {}).get("text", "")
         for i in [command_prefix, system_name]:
             last_text = last_text.replace(i, "", 1).strip()
-        parts = last_text.split(maxsplit=1)
-        if parts:
-            player_name = parts[0]
 
+        bedrock_modifiers = {"bedrock", "基岩", "be"}
+        offline_modifiers = {"offline", "离线", "off"}
+        online_modifiers = {"online", "在线", "on"}
+        type_modifiers = bedrock_modifiers | offline_modifiers | online_modifiers
         is_bedrock = is_offline = is_online = False
-        if len(parts) > 1:
-            is_bedrock = parts[1].lower() in ["bedrock", "基岩", "be"]
-            is_offline = parts[1].lower() in ["offline", "离线", "off"]
-            is_online = parts[1].lower() in ["online", "在线", "on"]
+        parts = last_text.rsplit(maxsplit=1)
+        if len(parts) > 1 and parts[-1].lower() in type_modifiers:
+            player_name = parts[0].strip()
+            modifier = parts[-1].lower()
+            is_bedrock = modifier in bedrock_modifiers
+            is_offline = modifier in offline_modifiers
+            is_online = modifier in online_modifiers
+        elif last_text.strip():
+            player_name = last_text.strip()
 
         if not player_name:
             await self.reply(
@@ -261,10 +267,10 @@ class BoundSystem(BasicSystem):
 
         # 到达所有绑定上限
         if (
-                player
-                and exceeded_platform_bound
-                and exceeded_bedrock_bound
-                and exceeded_java_bound
+            player
+            and exceeded_platform_bound
+            and exceeded_bedrock_bound
+            and exceeded_java_bound
         ):
             await self.reply(
                 broadcast_info, [MessageBuilder.text(self.get_tr("max_bound_reached"))]
@@ -272,7 +278,7 @@ class BoundSystem(BasicSystem):
             return True
 
         elif (not is_bedrock and exceeded_platform_bound and exceeded_java_bound) or (
-                is_bedrock and exceeded_platform_bound and exceeded_bedrock_bound
+            is_bedrock and exceeded_platform_bound and exceeded_bedrock_bound
         ):
             await self.reply(
                 broadcast_info, [MessageBuilder.text(self.get_tr("max_bound_reached"))]
@@ -301,14 +307,14 @@ class BoundSystem(BasicSystem):
         return True
 
     async def _bind_player(
-            self,
-            broadcast_info: BroadcastInfo,
-            player_name: str,
-            platform: str,
-            is_bedrock: bool = False,
-            is_offline: bool = False,
-            is_online: bool = False,
-            target_id: str = None,
+        self,
+        broadcast_info: BroadcastInfo,
+        player_name: str,
+        platform: str,
+        is_bedrock: bool = False,
+        is_offline: bool = False,
+        is_online: bool = False,
+        target_id: str = None,
     ) -> bool:
         """执行玩家绑定"""
         try:
@@ -316,18 +322,18 @@ class BoundSystem(BasicSystem):
 
             # 检查玩家名是否已被其他用户绑定
             if self.player_manager.is_name_bound_by_other_user(
-                    player_name, target_id, platform
+                player_name, target_id, platform
             ):
                 return False
 
             def _bound_whitelist(
-                    player_name: str, is_offline: bool, is_online: bool, is_bedrock: bool
+                player_name: str, is_offline: bool, is_online: bool, is_bedrock: bool
             ):
                 if (
-                        self.config.get("system", {})
-                                .get("bound", {})
-                                .get("whitelist_add_with_bound", False)
-                        and self.whitelist
+                    self.config.get("system", {})
+                    .get("bound", {})
+                    .get("whitelist_add_with_bound", False)
+                    and self.whitelist
                 ):
                     return self.whitelist.add_player(  # 返回白名单添加状态
                         player_name,
@@ -338,14 +344,14 @@ class BoundSystem(BasicSystem):
                 return True  # 如未开启绑定时添加白名单，返回True
 
             async def _set_group_card_if_qq(
-                    player_name: str,
-                    platform: str,
-                    broadcast_info: BroadcastInfo,
-                    target_id: str,
+                player_name: str,
+                platform: str,
+                broadcast_info: BroadcastInfo,
+                target_id: str,
             ):
                 """如果是QQ来源，则设置群名片"""
                 if platform == "QQ" and self.config.get_keys(
-                        ["connector", "QQ", "others", "change_group_card"], True
+                    ["connector", "QQ", "others", "change_group_card"], True
                 ):
                     await self.system_manager.connector_manager.get_connector(
                         "QQ"
@@ -364,11 +370,13 @@ class BoundSystem(BasicSystem):
                 bedrock_names_str = [str(name) for name in existing_player.bedrock_name]
                 java_names_str = [str(name) for name in existing_player.java_name]
                 if (is_bedrock and player_name not in bedrock_names_str) or (
-                        not is_bedrock and player_name not in java_names_str
+                    not is_bedrock and player_name not in java_names_str
                 ):
                     existing_player.add_name(player_name, is_bedrock)
                     self.player_manager.save()
-                    success = _bound_whitelist(player_name, is_offline, is_online, is_bedrock)
+                    success = _bound_whitelist(
+                        player_name, is_offline, is_online, is_bedrock
+                    )
                     await _set_group_card_if_qq(
                         player_name, platform, broadcast_info, target_id
                     )
@@ -377,7 +385,9 @@ class BoundSystem(BasicSystem):
                 elif player_name not in existing_player.accounts.get(platform, []):
                     existing_player.add_account(platform, target_id)
                     self.player_manager.save()
-                    success = _bound_whitelist(player_name, is_offline, is_online, is_bedrock)
+                    success = _bound_whitelist(
+                        player_name, is_offline, is_online, is_bedrock
+                    )
                     await _set_group_card_if_qq(
                         player_name, platform, broadcast_info, target_id
                     )
@@ -421,13 +431,15 @@ class BoundSystem(BasicSystem):
             if command.lower() in ["bedrock", "基岩", "be"]:
                 return await self._unbind_bedrock_only(broadcast_info)
 
-            # 解析玩家名和基岩版参数
-            parts = command.split(maxsplit=1)
-            player_name = parts[0]
-            is_bedrock = False
-
-            if len(parts) > 1:
-                is_bedrock = parts[1].lower() in ["bedrock", "基岩", "be"]
+            # 解析玩家名和基岩版参数，从右侧拆分以支持带空格的玩家名
+            bedrock_modifiers = {"bedrock", "基岩", "be"}
+            parts = command.rsplit(maxsplit=1)
+            if len(parts) > 1 and parts[-1].lower() in bedrock_modifiers:
+                player_name = parts[0].strip()
+                is_bedrock = True
+            else:
+                player_name = command.strip()
+                is_bedrock = False
 
             # 解绑指定玩家
             return await self._unbind_specific_player(
@@ -493,7 +505,7 @@ class BoundSystem(BasicSystem):
         return True
 
     async def _unbind_specific_player(
-            self, broadcast_info: BroadcastInfo, player_name: str, is_bedrock: bool = False
+        self, broadcast_info: BroadcastInfo, player_name: str, is_bedrock: bool = False
     ) -> bool:
         """解绑指定玩家"""
         player = self.player_manager.get_player(player_name)
@@ -506,7 +518,7 @@ class BoundSystem(BasicSystem):
         is_admin = broadcast_info.is_admin
         # 检查是否是绑定玩家
         if not is_admin and broadcast_info.sender_id not in player.accounts.get(
-                broadcast_info.source.origin, []
+            broadcast_info.source.origin, []
         ):
             await self.reply(
                 broadcast_info, [MessageBuilder.text(self.get_tr("no_bindings"))]
@@ -562,10 +574,10 @@ class BoundSystem(BasicSystem):
             要删除的玩家名，可以是单个字符串或字符串列表
         """
         if (
-                not self.config.get("system", {})
-                        .get("bound", {})
-                        .get("whitelist_remove_with_leave", False)
-                or not self.whitelist
+            not self.config.get("system", {})
+            .get("bound", {})
+            .get("whitelist_remove_with_leave", False)
+            or not self.whitelist
         ):
             return
 
@@ -629,7 +641,7 @@ class BoundSystem(BasicSystem):
         return member_id_set
 
     async def _send_quit_notification_to_admin_groups(
-            self, user_id: str, group_id: str, player: Optional[Player] = None
+        self, user_id: str, group_id: str, player: Optional[Player] = None
     ) -> None:
         """向管理群发送退群通知
 
@@ -859,9 +871,7 @@ class BoundSystem(BasicSystem):
 
             reply_lines.append(line)
 
-        await self.reply(
-            broadcast_info, [MessageBuilder.text("\n".join(reply_lines))]
-        )
+        await self.reply(broadcast_info, [MessageBuilder.text("\n".join(reply_lines))])
         return True
 
     async def _handle_help(self, broadcast_info: BroadcastInfo) -> bool:
@@ -963,7 +973,7 @@ class BoundSystem(BasicSystem):
         return True
 
     async def _handle_remove_unbound_whitelist(
-            self, broadcast_info: BroadcastInfo
+        self, broadcast_info: BroadcastInfo
     ) -> bool:
         """处理移除未绑定白名单命令
 

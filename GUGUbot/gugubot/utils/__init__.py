@@ -5,3 +5,4 @@ from gugubot.utils.player_manager import PlayerManager
 from gugubot.utils.rcon_manager import RconManager
 from gugubot.utils.style_manager import StyleManager
 from gugubot.utils.update_checker import check_plugin_version
+from gugubot.utils.vote_manager import VoteManager

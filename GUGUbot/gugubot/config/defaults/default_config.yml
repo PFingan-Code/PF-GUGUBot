@@ -98,6 +98,7 @@ connector:
     enable_send: true # 是否发送 :: 广播时是否向此 connector 发送（在 echo 等逻辑处即不投递）
 
     is_main_server: true     # 是否为主服务器 :: 发送消息到其他服务器
+    show_in_game: true     # 游戏内显示其他服务器消息 :: 关闭后来自其他服务器的消息不会在MC游戏内聊天中显示，但仍会转发到QQ等其他平台
 
     connection: # 桥接服务器连接设置
       host: 127.0.0.1 # 主机地址
@@ -149,6 +150,8 @@ system:
     enable: true
     mc_command: "mc"    # QQ 端命令：{command_prefix}{mc_command} 消息
     qq_command: "!!qq"  # MC 端命令：{qq_command} 消息
+    qq_forward_group_ids: # !!qq 转发目标群号 :: 留空则使用 QQ connector 的 forward_group_ids/group_ids
+      -
 
   execute: # 命令执行系统
     enable: false
@@ -204,3 +207,47 @@ system:
       admin_private: true   # 私聊管理员
       admin_groups: true   # 发送到管理群
       origin_group: false   # 发送到原群
+
+  vote:
+    enable: false   # 是否启用投票系统
+
+    # 全局投票配置
+    keywords: # 全局投票关键词（适用于所有投票类型）
+      yes: # 投赞成票的关键词（精确匹配）
+        - "111"
+        - "同意"
+        - "赞成"
+        - "yes"
+      no: # 投反对票的关键词（精确匹配）
+        - "222"
+        - "反对"
+        - "拒绝"
+        - "no"
+      delete: # 删除投票的关键词（仅管理员可用，用于删除整个投票，精确匹配）
+        - "删除投票"
+        - "delete_vote"
+      abstain: # 弃票的关键词（所有用户可用，用于撤回自己的投票）
+        - "弃票"
+        - "撤回"
+        - "取消投票"
+        - "撤回"
+        - "abstain"
+        - "withdraw"
+
+
+    # 关闭服务器投票配置
+    shutdown:
+      enable: false   # 是否启用关服投票类型
+      required_percentage: 1.0   # 通过所需的同意百分比（0.0-1.0，1.0表示100%）
+      timeout: 300   # 投票超时时间（秒，默认300秒即5分钟）
+      countdown: 10   # 关闭服务器倒计时（秒，默认10秒）
+      extra_countdown: 0   # 额外倒计时（秒，默认0秒，当服务器中有其他不具有投票资格的玩家或存在其他投票议程时，所赋予准备的额外时间）
+      keywords: # 关闭服务器投票的触发关键词
+        start: # 开始投票的关键词（发起人自动投赞成票）（精确匹配）
+          - "关服"
+          - "关闭服务器"
+          - "shutdown"
+        consult: # 征求模式关键词（发起人不自动投票）（模糊匹配）
+          - "坏了坏了"
+          - "要不要关服"
+

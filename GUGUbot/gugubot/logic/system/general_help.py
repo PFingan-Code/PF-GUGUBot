@@ -100,6 +100,7 @@ class GeneralHelpSystem(BasicSystem):
         todo_name = self.server.tr("gugubot.system.todo.name")
         unbound_check_name = self.server.tr("gugubot.system.unbound_check.name")
         inactive_check_name = self.server.tr("gugubot.system.inactive_check.name")
+        vote_name = self.server.tr("gugubot.system.vote.name")
 
         # 根据是否是管理员显示不同的帮助信息
         if is_admin:
@@ -122,6 +123,7 @@ class GeneralHelpSystem(BasicSystem):
                 execute_mcdr=execute_mcdr_cmd,
                 style=style_name,
                 todo=todo_name,
+                vote=vote_name,
                 unbound_check=unbound_check_name,
                 inactive_check=inactive_check_name,
             )
@@ -137,6 +139,7 @@ class GeneralHelpSystem(BasicSystem):
                 bound=bound_name,
                 style=style_name,
                 todo=todo_name,
+                vote=vote_name,
             )
 
         await self.reply(broadcast_info, [MessageBuilder.text(help_msg)])

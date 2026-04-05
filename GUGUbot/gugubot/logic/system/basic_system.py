@@ -24,6 +24,8 @@ class BasicSystem:
         日志记录器实例
     """
 
+    GROUP_ADMIN_BYPASS_SYSTEMS = {"bound"}
+
     def __init__(self, name: str, enable: bool = True, config: Optional[BotConfig] = None) -> None:
         """初始化基础系统。
 
@@ -103,7 +105,7 @@ class BasicSystem:
             return False
 
         group_admin = self.config.get_keys(["GUGUBot", "group_admin"], False)
-        if group_admin and not broadcast_info.is_admin:
+        if group_admin and not broadcast_info.is_admin and self.name not in self.GROUP_ADMIN_BYPASS_SYSTEMS:
             return False
 
         return True

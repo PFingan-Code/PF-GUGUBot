@@ -133,7 +133,7 @@ class WhitelistSystem(BasicSystem):
             whitelist = self._api.get_whitelist_names()
 
             if force_bedrock:
-                self._api.add_floodgate_player(player_name, "")
+                self._api.add_floodgate_player(player_name, ".")
                 return True
 
             if player_name not in whitelist:
