@@ -582,11 +582,12 @@ style:
 
 ### 系统要求
 
-*开启 RCON 连接*
+Gugubot 有两种请求玩家列表的办法：Rcon/Query, 选其中一种即可：
 
+#### **开启 RCON 连接(支持 team 的前后缀)**
 开启步骤如下:
 1. 修改 `服务器根目录/config.yml`
-  - `rcon` - `enable` -> `false`
+  - `rcon` - `enable` -> `true`
   - 记录 `rcon` - `password` 和 `rcon` - `port`
 2. 修改 `服务器根目录/server/server.properties`
   - `enable-rcon` -> `true`
@@ -594,6 +595,14 @@ style:
   - `rcon.port` -> 记录的 `port`
 
 > RCON 的端口不要跟游戏端口冲突
+
+#### **开启 Query 连接(不支持 team 的前后缀)**
+开启步骤如下:
+1. 修改 `服务器根目录/server/server.properties`
+  - `enable-query` -> `true`
+2. 修改 `服务器Config目录/GUGUbot/config`
+  - `system` - `list` - `use_query_protocol` -> `true`
+
 
 ---
 
