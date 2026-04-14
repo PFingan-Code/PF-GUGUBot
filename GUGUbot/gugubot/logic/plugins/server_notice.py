@@ -3,13 +3,23 @@
 该模块提供服务器启动和停止时的广播通知功能。
 """
 
-from typing import Optional
+from typing import Dict, List, Optional
 
 from mcdreforged.api.types import PluginServerInterface
 
 from gugubot.builder import MessageBuilder
 from gugubot.config import BotConfig
 from gugubot.utils.types import ProcessedInfo
+
+
+def _build_notice_target(group_ids: List) -> Optional[Dict[str, str]]:
+    groups = [g for g in (group_ids or []) if g]
+    if not groups:
+        return None
+    target = {str(g): "group" for g in groups}
+    if len(target) == 1:
+        target["_"] = "group"  # 防止桥接连接器单目标过滤
+    return target
 
 
 async def broadcast_server_start(
@@ -55,6 +65,10 @@ async def broadcast_server_start(
     if message is None:
         message = server.tr("gugubot.notice.server_start")
 
+    notice_forward_groups = config.get_keys(
+        ["connector", "QQ", "permissions", "notice_forward_groups"], []
+    )
+
     try:
         # 构建消息
         processed_info = ProcessedInfo(
@@ -66,6 +80,7 @@ async def broadcast_server_start(
             server=server,
             logger=server.logger,
             event_sub_type="group",
+            target=_build_notice_target(notice_forward_groups),
         )
 
         # 广播消息（排除Minecraft等平台）
@@ -122,6 +137,10 @@ async def broadcast_server_stop(
     if message is None:
         message = server.tr("gugubot.notice.server_stop")
 
+    notice_forward_groups = config.get_keys(
+        ["connector", "QQ", "permissions", "notice_forward_groups"], []
+    )
+
     try:
         # 构建消息
         processed_info = ProcessedInfo(
@@ -133,6 +152,7 @@ async def broadcast_server_stop(
             server=server,
             logger=server.logger,
             event_sub_type="group",
+            target=_build_notice_target(notice_forward_groups),
         )
 
         # 广播消息（排除Minecraft等平台）

@@ -5,7 +5,7 @@
 
 import re
 import traceback
-from typing import Callable
+from typing import Callable, Dict, List, Optional
 
 from mcdreforged.api.types import Info, PluginServerInterface
 
@@ -13,6 +13,16 @@ from gugubot.builder import MessageBuilder
 from gugubot.config import BotConfig
 from gugubot.connector import ConnectorManager
 from gugubot.utils.types import ProcessedInfo
+
+
+def _build_notice_target(group_ids: List) -> Optional[Dict[str, str]]:
+    groups = [g for g in (group_ids or []) if g]
+    if not groups:
+        return None
+    target = {str(g): "group" for g in groups}
+    if len(target) == 1:
+        target["_"] = "group"  # 防止桥接连接器单目标过滤
+    return target
 
 
 def create_on_player_join(
@@ -23,6 +33,9 @@ def create_on_player_join(
         ["connector", "minecraft", "source_name"], "Minecraft"
     )
     exclude_sources = [minecraft_source_name]
+    notice_target = _build_notice_target(
+        config.get_keys(["connector", "QQ", "permissions", "notice_forward_groups"], [])
+    )
 
     async def on_player_join(server: PluginServerInterface, info: Info) -> None:
         # 从配置中获取玩家加入的正则表达式模式
@@ -65,6 +78,7 @@ def create_on_player_join(
                 server=server,
                 logger=server.logger,
                 event_sub_type="group",
+                target=notice_target,
             )
 
             # 广播消息（排除Minecraft等平台）
@@ -95,6 +109,9 @@ def create_on_player_left(
         ["connector", "minecraft", "source_name"], "Minecraft"
     )
     exclude_sources = [minecraft_source_name]
+    notice_target = _build_notice_target(
+        config.get_keys(["connector", "QQ", "permissions", "notice_forward_groups"], [])
+    )
 
     async def on_player_left(server: PluginServerInterface, info: Info) -> None:
         # 从配置中获取玩家离开的正则表达式模式
@@ -137,6 +154,7 @@ def create_on_player_left(
                 server=server,
                 logger=server.logger,
                 event_sub_type="group",
+                target=notice_target,
             )
 
             # 广播消息（排除Minecraft等平台）
