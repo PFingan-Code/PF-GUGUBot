@@ -277,6 +277,7 @@ class PlayerListSystem(BasicSystem):
                     ["system", "list", "comma_separator"], ","
                 )
                 return self.parse_player_list(result, colon_separator, comma_separator)
+            self.logger.error("RCON/Query 未连接，无法获取玩家列表")
         except Exception as e:
             self.logger.warning(f"获取本地玩家列表失败: {e}")
         return []
