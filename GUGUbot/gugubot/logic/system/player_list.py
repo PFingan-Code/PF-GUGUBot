@@ -62,7 +62,14 @@ class PlayerListSystem(BasicSystem):
     ) -> Tuple[List[str], List[str]]:
         """将玩家列表分离为真实玩家和假人"""
         # 有人绑定 -> 识别假人
-        ip_logger = self.server.get_plugin_instance("player_ip_logger")
+        disable_ip_logger = self.config.get_keys(
+            ["system", "list", "disable_player_ip_logger"], False
+        )
+        ip_logger = (
+            None
+            if disable_ip_logger
+            else self.server.get_plugin_instance("player_ip_logger")
+        )
 
         real_players = []
         bots = []
