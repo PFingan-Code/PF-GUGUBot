@@ -40,6 +40,9 @@ connector:
       forward_group_ids: # 转发目标群号 :: MC消息转发到这些群（留空则使用group_ids）
         -
 
+      notice_forward_groups: # 通知专用转发群号 :: 服务器开关机、玩家进出、成就/死亡通知转发到这些群（留空则使用forward_group_ids）
+        -
+
       friend_is_admin: false       # 好友即是管理 :: 开放管理权限给机器人好友
       custom_group_name: # 自定义游戏内显示群名 :: （可选）不设置默认转发[群名称]
         "726741344": 定制的显示群名         # 如无需自定义，无视这行
@@ -175,6 +178,7 @@ system:
     use_bot_list: false   # 使用 /bot list 获取假人列表 :: leaves/lophine 端需要开启此选项
     bot_list_pattern: "\\):\\s*(.+)"   # /bot list 每行的正则匹配模式 :: 第一个捕获组为逗号分隔的假人名列表，不匹配的行会被跳过
     use_query_protocol: false   # 使用 Query 协议查询玩家列表 :: 绕过 RCON 1024 字节限制，自动从 server.properties 读取端口并且 enable-query=true
+    disable_player_ip_logger: false   # 禁用 player_ip_logger 插件辅助识别假人 :: 开启后将跳过 player_ip_logger 的玩家判断
 
   name: # 机器人昵称
     enable: false
