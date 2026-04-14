@@ -593,6 +593,10 @@ Gugubot 有两种请求玩家列表的办法：Rcon/Query, 选其中一种即可
   - `enable-rcon` -> `true`
   - `rcon.password` -> 记录的 `password`
   - `rcon.port` -> 记录的 `port`
+3. (可选) 禁用 `player_ip_logger`
+  - 该插件用于辅助假人识别，如果要使用 `team` 功能请禁用
+  - 修改 `服务器Config目录/GUGUbot/config` 
+    - `system` - `list` - `disable_player_ip_logger` -> `true`
 
 > RCON 的端口不要跟游戏端口冲突
 
@@ -602,7 +606,6 @@ Gugubot 有两种请求玩家列表的办法：Rcon/Query, 选其中一种即可
   - `enable-query` -> `true`
 2. 修改 `服务器Config目录/GUGUbot/config`
   - `system` - `list` - `use_query_protocol` -> `true`
-
 
 ---
 
