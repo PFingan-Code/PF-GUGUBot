@@ -139,6 +139,8 @@ system:
 
     player_name_pattern: ""   # 玩家名正则表达式 :: 限制绑定的玩家名格式，为空则不限制
     # 示例: "^[a-zA-Z0-9_]{3,16}$" (3-16位字母数字下划线)
+    bedrock_player_name_pattern: ""   # 基岩版玩家名正则表达式 :: 优先于 player_name_pattern，为空则回退到 player_name_pattern
+    # 示例: "^[a-zA-Z0-9_ ]{3,16}$" (基岩版允许空格)
 
   bound_notice: # 绑定提示
     enable: false
