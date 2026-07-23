@@ -7,7 +7,7 @@
 ### 安装依赖
 
 ```bash
-pip install -r requirements-docs.txt
+pip install -e .[docs]
 ```
 
 ### 启动本地服务器
