@@ -54,7 +54,7 @@ jobs:
       - name: 安装依赖
         run: |
           pip install --upgrade pip
-          pip install -r requirements-docs.txt
+          pip install -e .[docs]
       
       - name: 构建文档
         run: mkdocs build
