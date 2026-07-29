@@ -170,8 +170,10 @@ class BoundSystem(BasicSystem):
         # 检查是否有@消息段，如果有就更新要绑定的平台账户
         for message_segment in broadcast_info.message:
             if message_segment.get("type") == "at":
-                target_id = message_segment.get("data", {}).get(
-                    "qq", broadcast_info.sender_id
+                target_id = str(
+                    message_segment.get("data", {}).get(
+                        "qq", broadcast_info.sender_id
+                    )
                 )
                 break
 
