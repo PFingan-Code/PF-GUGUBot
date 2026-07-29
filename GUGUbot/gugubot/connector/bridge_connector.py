@@ -213,8 +213,12 @@ class BridgeConnector(BasicConnector):
         try:
             message_data = json.loads(message) if isinstance(message, str) else message
 
+            # !!qq 等跨平台强制广播命令仅用于单独发送到 QQ，不应原样转发给其它子服务器
+            # （否则其它子服的游戏里会看到带有命令前缀的原始消息）
+            skip_relay = self._is_qq_broadcast_command(message_data)
+
             # Relay to other connected clients
-            if self.ws_server and self.ws_server.get_client_count() > 1:
+            if not skip_relay and self.ws_server and self.ws_server.get_client_count() > 1:
                 message_data["bridge_source"] = client.get("address", ["unknown", 0])[0]
                 sender_id = message_data.get("sender_id", None)
                 message_data["is_admin"] = asyncio.run(self._is_admin(sender_id))
@@ -227,6 +231,33 @@ class BridgeConnector(BasicConnector):
 
         except Exception as e:
             self.logger.error(f"{self.log_prefix} 消息处理失败: {e}")
+
+    def _is_qq_broadcast_command(self, message_data: Dict) -> bool:
+        """判断桥接消息是否是子服发来的 !!qq 跨平台广播命令。
+
+        Parameters
+        ----------
+        message_data : Dict
+            桥接消息的原始数据。
+
+        Returns
+        -------
+        bool
+            消息第一个文本段是否以配置的 qq_command 前缀开头。
+        """
+        if not self.config.get_keys(["system", "cross_broadcast", "enable"], True):
+            return False
+
+        qq_cmd = self.config.get_keys(
+            ["system", "cross_broadcast", "qq_command"], "!!qq"
+        )
+
+        for seg in message_data.get("processed_message", []) or []:
+            if isinstance(seg, dict) and seg.get("type") == "text":
+                text = (seg.get("data") or {}).get("text", "").strip()
+                return text.startswith(qq_cmd)
+
+        return False
 
     def _handle_client_message(self, _: Any, message: str) -> None:
         """Process a message received on the client side."""

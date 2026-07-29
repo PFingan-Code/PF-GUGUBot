@@ -2,7 +2,7 @@
 """跨平台强制广播插件。
 
 在 QQ 端发送 #mc <消息> 可突破 enable_send 限制，将消息仅广播到 MC；
-在 MC 端发送 !!qq <消息> 可将消息仅广播到 QQ。
+在 MC 端发送 !!qq <消息> 可将消息仅广播到 QQ（主服和经 Bridge 连接的子服均可使用）。
 支持回复图片消息时使用 #mc 将被回复的图片转发到 MC。
 """
 
@@ -25,7 +25,7 @@ class CrossBroadcastSystem(BasicSystem):
 
     - QQ 端: #mc <消息> -> 仅发送到 MC（不受 QQ enable_send 限制）
     - QQ 端: 回复图片消息 + #mc -> 将被回复的图片转发到 MC
-    - MC 端: !!qq <消息> -> 仅发送到 QQ
+    - MC 端: !!qq <消息> -> 仅发送到 QQ（主服本地消息，或经 Bridge 转发到主服的子服消息）
     """
 
     def __init__(self, config=None) -> None:
@@ -48,6 +48,9 @@ class CrossBroadcastSystem(BasicSystem):
 
         qq_source = self.config.get_keys(["connector", "QQ", "source_name"], "QQ")
         mc_source = self.config.get_keys(["connector", "minecraft", "source_name"], "Minecraft")
+        bridge_source = self.config.get_keys(
+            ["connector", "minecraft_bridge", "source_name"], "Bridge"
+        )
         command_prefix = self.config.get("GUGUBot", {}).get("command_prefix", "#")
         mc_cmd = self.config.get_keys(["system", "cross_broadcast", "mc_command"], "mc")
 
@@ -61,8 +64,10 @@ class CrossBroadcastSystem(BasicSystem):
             return await self._broadcast_to(broadcast_info, remaining, mc_source)
 
         # MC 端: !!qq <消息> -> 仅广播到 QQ
+        # source_name == mc_source：本机（主服）玩家直接发送
+        # source_name == bridge_source：子服玩家发送，经 Bridge 转发到主服后在此被识别处理
         qq_cmd = self.config.get_keys(["system", "cross_broadcast", "qq_command"], "!!qq")
-        if source_name == mc_source and text.startswith(qq_cmd):
+        if source_name in (mc_source, bridge_source) and text.startswith(qq_cmd):
             remaining = self._strip_command(broadcast_info.message, qq_cmd)
             target = self._build_qq_forward_target()
             return await self._broadcast_to(broadcast_info, remaining, qq_source, target=target)
