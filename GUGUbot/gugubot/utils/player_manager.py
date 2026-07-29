@@ -31,6 +31,7 @@ class Player:
 
     def add_account(self, platform: str, account_id: str) -> None:
         """添加关联账号"""
+        account_id = str(account_id)
         if platform not in self.accounts:
             self.accounts[platform] = []
         if account_id not in self.accounts[platform]:
@@ -163,7 +164,7 @@ class PlayerManager(BasicConfig):
             for platform_name, account_ids in player.accounts.items():
                 if platform and platform_name != platform:
                     continue
-                if identifier in account_ids:
+                if identifier in account_ids or str(identifier) in [str(a) for a in account_ids]:
                     return player
 
         return None

@@ -64,6 +64,11 @@ class BoundNoticeSystem(BasicSystem):
         if broadcast_info.is_admin:
             return False
 
+        # 只处理 QQ 来源的消息，避免对 Minecraft 等来源广播未绑定提示
+        qq_source = self.config.get_keys(["connector", "QQ", "source_name"], "QQ")
+        if broadcast_info.source.origin != qq_source:
+            return False
+
         # 排除管理群消息
         if broadcast_info.source_id:
             admin_group_ids = self.config.get_keys(
