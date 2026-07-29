@@ -263,6 +263,7 @@ const META = {
   'system.bound.whitelist_add_with_bound':    { label: '绑定时自动添加白名单' },
   'system.bound.whitelist_remove_with_leave': { label: '退群时移除白名单' },
   'system.bound.player_name_pattern':         { label: '玩家名正则限制', desc: '留空不限制。示例：^[a-zA-Z0-9_]{3,16}$' },
+  'system.bound.bedrock_player_name_pattern': { label: '基岩版玩家名正则限制', desc: '留空则回退到玩家名正则限制。示例：^[a-zA-Z0-9_ ]{3,16}$（基岩版允许空格）' },
   'system.bound_notice.enable':      { label: '启用' },
   'system.bound_notice.exclude_ids': { label: '排除用户 QQ 号', type: 'array-number', desc: '这些用户不会被任何系统处理（如 Q 群管家）' },
   'system.echo.enable': { label: '启用', desc: '在各连接器之间互相转发消息' },
@@ -376,7 +377,7 @@ function mkField(pathArr, value) {
     const arr = Array.isArray(value) ? value.filter(v => v != null) : [];
     const ta = document.createElement('textarea');
     ta.id = id; ta.rows = 3; ta.spellcheck = false;
-    ta.placeholder = '每行一条，空行忽略';
+    ta.placeholder = type === 'array-number' ? '每行或逗号/空格分隔，空行忽略' : '每行一条，空行忽略';
     ta.value = arr.join('\n');
     ta.dataset.path = pathStr;
     ta.dataset.type = type;
@@ -565,7 +566,7 @@ async function saveConfig() {
           value = isNaN(n) ? 0 : n; break;
         }
         case 'array-number':
-          value = el.value.split('\n').map(s => s.trim()).filter(Boolean).map(s => {
+          value = el.value.split(/[\n,\s]+/).map(s => s.trim()).filter(Boolean).map(s => {
             const n = Number(s); return isNaN(n) ? s : n;
           }); break;
         case 'array':
