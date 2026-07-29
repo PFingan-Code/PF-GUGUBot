@@ -1421,7 +1421,7 @@ class VoteSystem(BasicSystem):
             self.logger.debug(f"[VoteSystem] 投票 {vote_id} 监控任务被取消")
         finally:
             # 无论如何都清理任务引用
-            await self._monitor_tasks.pop(vote_id, None)
+            self._monitor_tasks.pop(vote_id, None)
 
     async def _handle_vote_result(self, vote: Vote, result: VoteStatus) -> None:
         """处理投票结果
