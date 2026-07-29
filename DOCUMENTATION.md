@@ -11,7 +11,7 @@
 ### 1. 安装依赖
 
 ```bash
-pip install -r requirements-docs.txt
+pip install -e .[docs]
 ```
 
 ### 2. 启动本地服务器
@@ -43,7 +43,7 @@ docs/
 ## 🔧 文档配置
 
 - **mkdocs.yml** - MkDocs 配置文件，包含主题、插件、导航等设置
-- **requirements-docs.txt** - 文档构建所需的 Python 依赖
+- **pyproject.toml docs可选依赖组** - 文档构建所需的 Python 依赖
 - **.github/workflows/docs.yml** - GitHub Actions 自动部署配置
 
 ## 🤖 自动部署
@@ -175,7 +175,7 @@ theme:
 
 **解决**：
 1. 检查 Python 版本 ≥ 3.8
-2. 重新安装依赖：`pip install -r requirements-docs.txt`
+2. 重新安装依赖：`pip install -e .[docs]`
 3. 检查 `mkdocs.yml` 语法是否正确
 
 ### 图片不显示
