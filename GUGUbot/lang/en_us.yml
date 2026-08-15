@@ -33,8 +33,8 @@ gugubot:
         general_help:
             name: "help"
             help_command: "help"
-            help_msg: "GUGUBot Help Information\n\nQuick Commands:\n• {command_prefix}{player_list} -> Show online player list\n• {command_prefix}{key_word_add} <keyword> -> Add keyword\n• {command_prefix}{key_word_remove} <keyword> -> Remove keyword\n• {command_prefix}{key_word_list} -> Show keyword list\n\nAvailable Systems:\n• {command_prefix}{key_words} - Keyword reply system\n• {command_prefix}{bound} - Player binding system\n• {command_prefix}{vote} - Vote system\n• {command_prefix}{style} - Style switching system\n• {command_prefix}{todo} - Todo system\n\nUse {command_prefix}<system_name> to view help for specific system"
-            admin_help_msg: "GUGUBot Admin Help Information\n\nQuick Commands:\n• {command_prefix}{player_list} -> Show online player list\n• {command_prefix}{key_word_add} <keyword> -> Add keyword\n• {command_prefix}{key_word_remove} <keyword> -> Remove keyword\n• {command_prefix}{key_word_list} -> Show keyword list\n\nAvailable Systems:\n• {command_prefix}{key_words} - Keyword reply system\n• {command_prefix}{ban_words} - Ban word management system\n• {command_prefix}{bound} - Player binding system\n• {command_prefix}{bound_notice} - Bind notice system\n• {command_prefix}{whitelist} - Whitelist management system\n• {command_prefix}{active_whitelist} - Active whitelist system\n• {command_prefix}{startup_command} - Startup command system\n• {command_prefix}{execute} - Command execution system\n• {command_prefix}{vote} - Vote system\n• {command_prefix}{style} - Style switching system\n• {command_prefix}{todo} - Todo system\n• {command_prefix}{unbound_check} - Unbound check system\n• {command_prefix}{inactive_check} - Inactive check system\n\nUse {command_prefix}<system_name> to view help for specific system"
+            help_msg: "GUGUBot Help Information\n\nQuick Commands:\n• {command_prefix}{player_list} -> Show online player list\n• {command_prefix}{tps} -> Query server TPS / MSPT\n• {command_prefix}{key_word_add} <keyword> -> Add keyword\n• {command_prefix}{key_word_remove} <keyword> -> Remove keyword\n• {command_prefix}{key_word_list} -> Show keyword list\n\nAvailable Systems:\n• {command_prefix}{key_words} - Keyword reply system\n• {command_prefix}{bound} - Player binding system\n• {command_prefix}{vote} - Vote system\n• {command_prefix}{style} - Style switching system\n• {command_prefix}{todo} - Todo system\n\nUse {command_prefix}<system_name> to view help for specific system"
+            admin_help_msg: "GUGUBot Admin Help Information\n\nQuick Commands:\n• {command_prefix}{player_list} -> Show online player list\n• {command_prefix}{tps} -> Query server TPS / MSPT\n• {command_prefix}{key_word_add} <keyword> -> Add keyword\n• {command_prefix}{key_word_remove} <keyword> -> Remove keyword\n• {command_prefix}{key_word_list} -> Show keyword list\n\nAvailable Systems:\n• {command_prefix}{key_words} - Keyword reply system\n• {command_prefix}{ban_words} - Ban word management system\n• {command_prefix}{bound} - Player binding system\n• {command_prefix}{bound_notice} - Bind notice system\n• {command_prefix}{whitelist} - Whitelist management system\n• {command_prefix}{active_whitelist} - Active whitelist system\n• {command_prefix}{startup_command} - Startup command system\n• {command_prefix}{execute} - Command execution system\n• {command_prefix}{vote} - Vote system\n• {command_prefix}{style} - Style switching system\n• {command_prefix}{todo} - Todo system\n• {command_prefix}{unbound_check} - Unbound check system\n• {command_prefix}{inactive_check} - Inactive check system\n\nUse {command_prefix}<system_name> to view help for specific system"
 
         echo:
             name: "echo"
@@ -296,6 +296,26 @@ gugubot:
             merged_players_content: "Total online: {total_count} players ({server_count} servers)\n\n{details}"
             merged_bots_content: "Total online: {total_count} bots ({server_count} servers)\n\n{details}"
             merged_server_content: "Server status (Players: {player_count}, Bots: {bot_count}, {server_count} servers)\n\n{details}"
+
+        tps:
+            name: "tps"
+            tps: "tps"
+            title: "Server performance"
+            help_msg: "TPS / MSPT query:\n{command_prefix}{tps} / {command_prefix}mspt / {command_prefix}tick -> Query realtime TPS and MSPT\n{command_prefix}{name} {enable} -> Enable system\n{command_prefix}{name} {disable} -> Disable system\n\nRequires Java 1.20.3+ vanilla /tick command and RCON."
+            query_failed: "Failed to query TPS: {error}"
+            rcon_not_running: "Cannot query TPS: RCON is not connected or not supported."
+            parse_failed: "Failed to parse /tick query output. Confirm the server is Java 1.20.3+ vanilla (or supports this command) and RCON is available."
+            server_content: "[{server_name}] {title}\nStatus: {status}\nTPS: {tps} / {target}\nMSPT: {mspt}ms (target {target_mspt}ms)\n{ticktime}"
+            ticktime_content: "TickTime: P50 {p50}ms | P95 {p95}ms | P99 {p99}ms"
+            ticktime_unavailable: "TickTime: percentiles unavailable"
+            merged_content: "Server performance ({server_count} servers)\n\n{details}"
+            server_query_failed: "[{server_name}] query failed"
+            status_running: "Running"
+            status_lagging: "Cannot keep up"
+            status_frozen: "Frozen"
+            status_sprinting: "Sprinting"
+            status_unknown: "Unknown"
+            status_error: "Query failed"
 
         unbound_check:
             name: "unbound_check"

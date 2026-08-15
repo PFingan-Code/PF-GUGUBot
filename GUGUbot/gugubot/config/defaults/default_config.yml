@@ -182,6 +182,11 @@ system:
     use_query_protocol: false   # 使用 Query 协议查询玩家列表 :: 绕过 RCON 1024 字节限制，自动从 server.properties 读取端口并且 enable-query=true
     disable_player_ip_logger: false   # 禁用 player_ip_logger 插件辅助识别假人 :: 开启后将跳过 player_ip_logger 的玩家判断
 
+  tps: # 服务器 TPS / MSPT 查询
+    enable: true
+    merge_bridge_results: true   # 合并多服务器结果 :: 将所有服务器的 TPS 合并成一条消息发送
+    bridge_timeout: 3   # 等待其他服务器响应的超时时间（秒）
+
   name: # 机器人昵称
     enable: false
 

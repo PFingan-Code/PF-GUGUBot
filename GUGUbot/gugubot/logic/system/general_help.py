@@ -81,6 +81,7 @@ class GeneralHelpSystem(BasicSystem):
 
         # 获取快捷指令的翻译名称
         player_list_cmd = self.server.tr("gugubot.system.list.list")
+        tps_cmd = self.server.tr("gugubot.system.tps.tps")
         key_word_add_cmd = self.server.tr("gugubot.system.key_words.add")
         key_word_remove_cmd = self.server.tr("gugubot.system.key_words.remove")
         key_word_list_cmd = self.server.tr("gugubot.system.key_words.list")
@@ -108,6 +109,7 @@ class GeneralHelpSystem(BasicSystem):
                 "admin_help_msg",
                 command_prefix=command_prefix,
                 player_list=player_list_cmd,
+                tps=tps_cmd,
                 key_word_add=key_word_add_cmd,
                 key_word_remove=key_word_remove_cmd,
                 key_word_list=key_word_list_cmd,
@@ -132,6 +134,7 @@ class GeneralHelpSystem(BasicSystem):
                 "help_msg",
                 command_prefix=command_prefix,
                 player_list=player_list_cmd,
+                tps=tps_cmd,
                 key_word_add=key_word_add_cmd,
                 key_word_remove=key_word_remove_cmd,
                 key_word_list=key_word_list_cmd,

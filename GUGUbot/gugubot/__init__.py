@@ -37,6 +37,7 @@ from gugubot.logic.system import (
     StyleSystem,
     SystemManager,
     TodoSystem,
+    TpsSystem,
     VoteSystem,
     WhitelistSystem,
 )
@@ -125,6 +126,10 @@ async def on_load(server: PluginServerInterface, _) -> None:
     # PlayerList 系统 (需要在所有服务器上运行)
     player_list_system = PlayerListSystem(server, config=gugubot_config)
     systems.insert(1, player_list_system)
+
+    # TPS / MSPT 查询 (需要在所有服务器上运行，以便 Bridge 汇总)
+    tps_system = TpsSystem(server, config=gugubot_config)
+    systems.insert(2, tps_system)
 
     if is_main_server:
         general_help_system = GeneralHelpSystem(server, config=gugubot_config)
