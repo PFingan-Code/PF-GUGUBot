@@ -12,6 +12,7 @@ gugubot:
         server_stop: "服务器已停止"
         player_join: "玩家 {player} 加入了服务器"
         player_left: "玩家 {player} 离开了服务器"
+        player_left_delayed: "玩家 {player} 已离开服务器 {duration}"
         player_notice_error: "玩家通知失败: {error}"
     
     connector:

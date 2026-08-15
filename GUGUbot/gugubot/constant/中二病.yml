@@ -16,6 +16,7 @@ gugubot:
     server_stop: "黑暗重新降临...这个世界将陷入永恒的沉睡..."
     player_join: "勇者 {player} 踏入了黑暗的领域！命运的齿轮开始转动！"
     player_left: "{player} 逃离了黑暗...哼，懦夫终将迷失在无尽的虚空之中！"
+    player_left_delayed: "{player} 逃离黑暗已经 {duration}...哼，懦夫终将迷失在无尽的虚空之中！"
     player_notice_error: "时空通讯失败了: {error}...看来因果律受到了干扰！"
 
   # 连接器相关翻译

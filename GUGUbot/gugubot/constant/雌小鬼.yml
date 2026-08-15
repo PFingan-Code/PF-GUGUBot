@@ -16,6 +16,7 @@ gugubot:
     server_stop: "服务器关了~杂鱼大叔该睡觉了！"
     player_join: "{player} 来了~是来看本小姐的吗？"
     player_left: "{player} 走了...杂鱼！杂鱼！"
+    player_left_delayed: "{player} 走了 {duration}...杂鱼！杂鱼！"
     player_notice_error: "通知失败了: {error}...杂鱼服务器真没用！"
 
   # 连接器相关翻译
