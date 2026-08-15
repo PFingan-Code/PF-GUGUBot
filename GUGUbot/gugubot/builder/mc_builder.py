@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """Message Builder for Minecraft(via MCDR - RText)"""
 
+import base64
+import json
 import re
 from typing import Dict, List, Optional, Union
 
@@ -110,12 +112,43 @@ class McMessageBuilder(BasicBuilder):
             return RText("[推荐群]" if data.get("type") == "group" else "[推荐好友]")
 
         def _process_json(data: Dict[str, str]) -> RText:
-            """Process JSON"""
-            url_link = data.get("meta", {}).get("detail_1", {}).get("desc", "")
-            group_notice = data.get("prompt", "")
-            return RText(
-                f"[链接:{url_link}]" if url_link else f"[群公告:{group_notice}]"
-            )
+            """Process JSON
+
+            QQ 的 json 卡片消息（小程序/链接/视频分享/群公告转发等）实际内容
+            是一个 JSON 字符串，存放在 data["data"] 里，需要先解析才能拿到
+            app/meta/prompt 等字段。
+            """
+            try:
+                card = json.loads(data.get("data", "") or "{}")
+            except (TypeError, ValueError):
+                card = {}
+
+            # 真正的群公告转发卡片，公告正文是 base64 编码存放在 meta.mannounce.text 中
+            if card.get("app") == "com.tencent.mannounce":
+                mannounce = card.get("meta", {}).get("mannounce", {})
+                try:
+                    text = base64.b64decode(mannounce.get("text", "")).decode("utf-8")
+                except (ValueError, TypeError):
+                    text = ""
+                return RText(f"[群公告:{text}]" if text else "[群公告]")
+
+            # 小程序/链接/视频等分享卡片
+            detail = card.get("meta", {}).get("detail_1", {})
+            title = detail.get("desc") or detail.get("title") or ""
+            link = detail.get("qqdocurl") or detail.get("url") or ""
+            if link and not link.startswith(("http://", "https://")):
+                link = f"https://{link}"
+
+            if title:
+                result = RText(f"[分享:{title}]", color=RColor.gold)
+                if link:
+                    result = result.set_hover_text(link).set_click_event(
+                        action=RAction.open_url, value=link
+                    )
+                return result
+
+            prompt = card.get("prompt", "")
+            return RText(prompt) if prompt else RText("[链接分享]")
 
         process_functions = {
             "at": _process_at,
