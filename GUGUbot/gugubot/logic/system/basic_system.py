@@ -24,7 +24,7 @@ class BasicSystem:
         日志记录器实例
     """
 
-    GROUP_ADMIN_BYPASS_SYSTEMS = {"bound"}
+    GROUP_ADMIN_BYPASS_SYSTEMS = {"bound", "plugin_commands"}
 
     def __init__(self, name: str, enable: bool = True, config: Optional[BotConfig] = None) -> None:
         """初始化基础系统。
@@ -180,6 +180,100 @@ class BasicSystem:
             respond,
             include=[receiver_source]
         )
+
+    async def reply_to_source(
+        self, broadcast_info: BroadcastInfo, message: List[dict]
+    ) -> None:
+        """只回复到原始消息来源，不经 Bridge 转发到其他服务器。"""
+        reply_target = broadcast_info.source.current
+        target_source = (
+            broadcast_info.source_id
+            if broadcast_info.source.origin and str(broadcast_info.source_id).isdigit()
+            else reply_target
+        )
+        respond = ProcessedInfo(
+            processed_message=message,
+            _source=broadcast_info.source,
+            source_id=broadcast_info.source_id,
+            sender=self.system_manager.server.tr("gugubot.bot_name"),
+            sender_id=None,
+            raw=broadcast_info.raw,
+            server=broadcast_info.server,
+            logger=broadcast_info.logger,
+            event_sub_type=broadcast_info.event_sub_type,
+            target={target_source: broadcast_info.event_sub_type},
+        )
+        await self.system_manager.connector_manager.broadcast_processed_info(
+            respond, include=[reply_target]
+        )
+
+    def get_bridge_source_name(self) -> str:
+        return self.config.get_keys(
+            ["connector", "minecraft_bridge", "source_name"], "Bridge"
+        )
+
+    def is_bridge_enabled(self) -> bool:
+        return bool(
+            self.config.get_keys(["connector", "minecraft_bridge", "enable"], False)
+        )
+
+    def is_main_server(self) -> bool:
+        return bool(
+            self.config.get_keys(
+                ["connector", "minecraft_bridge", "is_main_server"], True
+            )
+        )
+
+    def get_server_name(self) -> str:
+        """当前服务器的显示名称。
+
+        主服用 ``connector.minecraft.source_name``，
+        子服用 ``connector.minecraft_bridge.source_name``。
+        """
+        if self.is_main_server():
+            return self.config.get_keys(
+                ["connector", "minecraft", "source_name"], "Minecraft"
+            )
+        return self.config.get_keys(
+            ["connector", "minecraft_bridge", "source_name"], "Server"
+        )
+
+    async def send_to_bridge(
+        self,
+        broadcast_info: BroadcastInfo,
+        text: str,
+        target: Optional[dict] = None,
+    ) -> bool:
+        """通过 Bridge 发送一条内部文本消息。
+
+        Returns
+        -------
+        bool
+            Bridge 未启用或连接器不存在时返回 False。
+        """
+        if not self.is_bridge_enabled():
+            return False
+
+        bridge_source = self.get_bridge_source_name()
+        if not self.system_manager.connector_manager.get_connector(bridge_source):
+            return False
+
+        processed_info = ProcessedInfo(
+            processed_message=[MessageBuilder.text(text)],
+            _source=broadcast_info.source,
+            source_id=broadcast_info.source_id,
+            sender=broadcast_info.sender,
+            sender_id=broadcast_info.sender_id,
+            raw=broadcast_info.raw,
+            server=broadcast_info.server,
+            logger=broadcast_info.logger,
+            event_sub_type=broadcast_info.event_sub_type,
+            target=target,
+        )
+        await self.system_manager.connector_manager.broadcast_processed_info(
+            processed_info, include=[bridge_source]
+        )
+        return True
 
     def get_tr(self, key: str, global_key: bool = False, **kwargs) -> str:
         server = self.system_manager.server

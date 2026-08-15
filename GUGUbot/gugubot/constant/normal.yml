@@ -54,8 +54,8 @@ gugubot:
     general_help:
       name: "帮助"
       help_command: "帮助"
-      help_msg: "GUGUBot 帮助信息\n\n快捷指令：\n• {command_prefix}{player_list} -> 显示在线玩家列表\n• {command_prefix}{key_word_add} <关键词> -> 添加关键词\n• {command_prefix}{key_word_remove} <关键词> -> 删除关键词\n• {command_prefix}{key_word_list} -> 显示关键词列表\n\n可用系统：\n• {command_prefix}{key_words} - 关键词回复系统\n• {command_prefix}{bound} - 玩家绑定系统\n• {command_prefix}{style} - 风格切换系统\n• {command_prefix}{todo} - 待办管理系统\n\n使用 {command_prefix}<系统名> 查看具体系统的帮助信息"
-      admin_help_msg: "GUGUBot 管理员帮助信息\n\n快捷指令：\n• {command_prefix}{player_list} -> 显示在线玩家列表\n• {command_prefix}{key_word_add} <关键词> -> 添加关键词\n• {command_prefix}{key_word_remove} <关键词> -> 删除关键词\n• {command_prefix}{key_word_list} -> 显示关键词列表\n\n可用系统：\n• {command_prefix}{key_words} - 关键词回复系统\n• {command_prefix}{ban_words} - 违禁词管理系统\n• {command_prefix}{bound} - 玩家绑定系统\n• {command_prefix}{bound_notice} - 绑定提醒系统\n• {command_prefix}{whitelist} - 白名单管理系统\n• {command_prefix}{active_whitelist} - 活跃白名单系统\n• {command_prefix}{startup_command} - 启动指令管理系统\n• {command_prefix}{execute} - 命令执行系统\n• {command_prefix}{style} - 风格切换系统\n• {command_prefix}{todo} - 待办管理系统\n• {command_prefix}{unbound_check} - 未绑定检查系统\n• {command_prefix}{inactive_check} - 不活跃检查系统\n\n使用 {command_prefix}<系统名> 查看具体系统的帮助信息"
+      help_msg: "GUGUBot 帮助信息\n\n快捷指令：\n• {command_prefix}{player_list} -> 显示在线玩家列表\n• {command_prefix}{tps} -> 查询服务器 TPS / MSPT\n• {command_prefix}{key_word_add} <关键词> -> 添加关键词\n• {command_prefix}{key_word_remove} <关键词> -> 删除关键词\n• {command_prefix}{key_word_list} -> 显示关键词列表\n\n可用系统：\n• {command_prefix}{key_words} - 关键词回复系统\n• {command_prefix}{bound} - 玩家绑定系统\n• {command_prefix}{style} - 风格切换系统\n• {command_prefix}{todo} - 待办管理系统\n\n使用 {command_prefix}<系统名> 查看具体系统的帮助信息"
+      admin_help_msg: "GUGUBot 管理员帮助信息\n\n快捷指令：\n• {command_prefix}{player_list} -> 显示在线玩家列表\n• {command_prefix}{tps} -> 查询服务器 TPS / MSPT\n• {command_prefix}{key_word_add} <关键词> -> 添加关键词\n• {command_prefix}{key_word_remove} <关键词> -> 删除关键词\n• {command_prefix}{key_word_list} -> 显示关键词列表\n\n可用系统：\n• {command_prefix}{key_words} - 关键词回复系统\n• {command_prefix}{ban_words} - 违禁词管理系统\n• {command_prefix}{bound} - 玩家绑定系统\n• {command_prefix}{bound_notice} - 绑定提醒系统\n• {command_prefix}{whitelist} - 白名单管理系统\n• {command_prefix}{active_whitelist} - 活跃白名单系统\n• {command_prefix}{startup_command} - 启动指令管理系统\n• {command_prefix}{execute} - 命令执行系统\n• {command_prefix}{style} - 风格切换系统\n• {command_prefix}{todo} - 待办管理系统\n• {command_prefix}{unbound_check} - 未绑定检查系统\n• {command_prefix}{inactive_check} - 不活跃检查系统\n\n使用 {command_prefix}<系统名> 查看具体系统的帮助信息"
 
     # 关键词系统 / Keyword system
     key_words:
@@ -342,6 +342,30 @@ gugubot:
       merged_bots_label: "  假人({count}个):\n{player_list}"
       merged_no_players: "  玩家(0人)"
       merged_no_bots: "  假人(0个)"
+
+    tps:
+      name: "性能"
+      tps: "tps"
+      title: "服务器性能"
+      help_msg: "TPS / MSPT 查询：\n{command_prefix}{tps} / {command_prefix}mspt / {command_prefix}tick / {command_prefix}卡顿 / {command_prefix}{name} -> 查询实时 TPS 与 MSPT\n{command_prefix}{name} {enable} -> 开启系统\n{command_prefix}{name} {disable} -> 关闭系统\n\n需要 Java 1.20.3+ 原版 /tick 命令，并已开启 RCON。"
+      query_failed: "查询 TPS 失败: {error}"
+      rcon_not_running: "无法查询 TPS：RCON 未连接或不支持。"
+      parse_failed: "无法解析 /tick query 输出。请确认服务器为 Java 1.20.3+ 原版（或支持该命令的服务端），且 RCON 可用。"
+      server_content: "【{server_name}】{title}\n状态: {status}\nTPS: {tps} / {target}\nMSPT: {mspt}ms（目标 {target_mspt}ms）\n{ticktime}"
+      ticktime_content: "TickTime: P50 {p50}ms | P95 {p95}ms | P99 {p99}ms"
+      ticktime_unavailable: "TickTime: 暂无百分位数据"
+      merged_content: "服务器性能 ({server_count} 个服务器)\n\n{details}"
+      server_query_failed: "【{server_name}】查询失败"
+      status_running: "运行中"
+      status_lagging: "跟不上目标刻速"
+      status_frozen: "已冻结"
+      status_sprinting: "冲刺中"
+      status_unknown: "未知"
+      status_error: "查询失败"
+
+    plugin_commands:
+      name: "插件命令"
+      no_permission: "权限不足"
 
     # 未绑定检查系统 / Unbound check system
     unbound_check:

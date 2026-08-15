@@ -371,6 +371,22 @@ system:
 
 ---
 
+### TPS / MSPT 查询
+
+```yaml
+system:
+  tps:
+    enable: true            # 是否启用
+    merge_bridge_results: true   # 合并多服务器结果
+    bridge_timeout: 3       # 等待其他服务器响应的超时时间（秒）
+```
+
+启用后可使用 `#tps`、`#mspt`、`#tick`、`#卡顿` 或 `#性能` 查询实时 TPS 与 MSPT。
+
+数据来自原版 Java 1.20.3+ 的 `/tick query`（getTickTime 样本的平均值与 P50/P95/P99）。需要开启 RCON。
+
+---
+
 ### 机器人昵称
 
 ```yaml

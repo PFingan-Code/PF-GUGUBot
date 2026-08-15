@@ -4,6 +4,7 @@ from pathlib import Path
 
 from mcdreforged.api.types import Info, PluginServerInterface
 
+from gugubot.api import GUGUBotAPI, REGISTER_EVENT
 from gugubot.config import BotConfig
 from gugubot.connector import (
     BridgeConnector,
@@ -33,10 +34,12 @@ from gugubot.logic.system import (
     GeneralHelpSystem,
     KeyWordSystem,
     PlayerListSystem,
+    PluginCommandSystem,
     StartupCommandSystem,
     StyleSystem,
     SystemManager,
     TodoSystem,
+    TpsSystem,
     VoteSystem,
     WhitelistSystem,
 )
@@ -51,6 +54,7 @@ from gugubot.webui_register import register_gugubot_webui_page
 connector_manager: ConnectorManager = None
 mc_connector: MCConnector = None
 gugubot_config: BotConfig = None
+api: GUGUBotAPI = None
 startup_command_system: StartupCommandSystem = None
 style_manager: StyleManager = None
 unbound_check_system: UnboundCheckSystem = None
@@ -63,6 +67,7 @@ async def on_load(server: PluginServerInterface, _) -> None:
     global connector_manager
     global mc_connector
     global gugubot_config
+    global api
     global startup_command_system
     global style_manager
     global unbound_check_system
@@ -126,6 +131,10 @@ async def on_load(server: PluginServerInterface, _) -> None:
     player_list_system = PlayerListSystem(server, config=gugubot_config)
     systems.insert(1, player_list_system)
 
+    # TPS / MSPT 查询 (需要在所有服务器上运行，以便 Bridge 汇总)
+    tps_system = TpsSystem(server, config=gugubot_config)
+    systems.insert(2, tps_system)
+
     if is_main_server:
         general_help_system = GeneralHelpSystem(server, config=gugubot_config)
         ban_word_system = BanWordSystem(server, config=gugubot_config)
@@ -177,6 +186,10 @@ async def on_load(server: PluginServerInterface, _) -> None:
     cross_broadcast_system = CrossBroadcastSystem(config=gugubot_config)
     systems.insert(len(systems) - 1, cross_broadcast_system)
 
+    api = GUGUBotAPI(server, gugubot_config)
+    plugin_command_system = PluginCommandSystem(server, api, config=gugubot_config)
+    systems.insert(len(systems) - 1, plugin_command_system)
+
     for system in systems:
         system_manager.register_system(system)
 
@@ -213,6 +226,8 @@ async def on_load(server: PluginServerInterface, _) -> None:
         "PlayerDeathEvent", create_on_mc_death(gugubot_config, connector_manager)
     )
 
+    server.dispatch_event(REGISTER_EVENT, (api,))
+
 
 # +---------------------------------------------------------------------+
 # # 防止初始化报错
@@ -234,6 +249,10 @@ async def on_user_info(server: PluginServerInterface, info: Info) -> None:
 
 # 卸载
 async def on_unload(_: PluginServerInterface) -> None:
+    global api
+    if api is not None:
+        api.clear()
+        api = None
     try:
         # 停止未绑定检查定时任务
         if unbound_check_system:

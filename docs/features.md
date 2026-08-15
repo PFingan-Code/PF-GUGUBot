@@ -609,6 +609,49 @@ Gugubot 有两种请求玩家列表的办法：Rcon/Query, 选其中一种即可
 
 ---
 
+## TPS / MSPT 查询
+
+通过原版 Java 1.20.3+ 的 `/tick query` 读取服务器 tick time 样本（getTickTime），查询实时 TPS、MSPT 与百分位延迟。
+
+### 查询性能
+
+```
+#tps
+#mspt
+#tick
+#卡顿
+#性能
+```
+
+回复示例：
+
+```
+【Minecraft】服务器性能
+状态: 运行中
+TPS: 20.00 / 20.0
+MSPT: 12.34ms（目标 50.00ms）
+TickTime: P50 11.2ms | P95 18.5ms | P99 25.1ms
+```
+
+- **TPS**：由平均 MSPT 换算，`min(目标TPS, 1000 / MSPT)`
+- **MSPT**：最近 tick 样本的平均每刻耗时
+- **TickTime**：getTickTime 样本的 P50 / P95 / P99
+
+MSPT 达到或超过目标刻时间（默认 50ms）时，状态会显示为跟不上目标刻速。
+
+### 多服查询
+
+如果启用了多服互联且 `merge_bridge_results: true`，会同时查询所有服务器并合并回复。
+
+### 系统要求
+
+1. Java Edition **1.20.3+**（需要原版 `/tick` 命令；Paper / Leaf 等无此命令）
+2. 开启 RCON（`/tick` 需要权限等级 3，RCON 一般为 4）
+
+开启 RCON 步骤与[玩家列表查询](#玩家列表查询)相同。
+
+---
+
 ## 启动指令
 
 ### 添加启动指令
@@ -873,6 +916,7 @@ GUGUBot:
 | 命令 | 说明 | 权限 |
 |------|------|------|
 | `#玩家` / `#在线` | 查询在线玩家 | 所有人 |
+| `#tps` / `#mspt` / `#tick` / `#卡顿` | 查询 TPS / MSPT | 所有人 |
 
 ---
 
@@ -907,6 +951,6 @@ ignore_mc_command_patterns:
 ## 下一步
 
 - [配置说明](configuration.md) - 了解详细配置选项
-- [API 文档](api.md) - 开发自定义功能
+- [API 文档](api.md) - 独立插件如何注册命令
 - [疑难解答](troubleshooting.md) - 解决使用问题
 
