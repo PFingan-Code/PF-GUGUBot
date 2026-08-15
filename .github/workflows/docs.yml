@@ -9,8 +9,8 @@ on:
       - 'docs/**'
       - 'mkdocs.yml'
       - '.github/workflows/docs.yml'
-      - 'requirements-docs.txt'
-  
+      - 'pyproject.toml'
+
   # 允许手动触发
   workflow_dispatch:
 
@@ -31,42 +31,42 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-    
+
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
         with:
           fetch-depth: 0  # 获取完整历史用于 git-revision-date-localized
-      
+
       - name: 设置 Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.x'
-      
+
       - name: 缓存依赖
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('requirements-docs.txt') }}
+          key: ${{ runner.os }}-pip-${{ hashFiles('pyproject.toml') }}
           restore-keys: |
             ${{ runner.os }}-pip-
-      
+
       - name: 安装依赖
         run: |
           pip install --upgrade pip
-          pip install -r requirements-docs.txt
-      
+          pip install '.[docs]'
+
       - name: 构建文档
         run: mkdocs build
-      
+
       - name: 设置 Pages
         uses: actions/configure-pages@v5
-      
+
       - name: 上传构建产物
         uses: actions/upload-pages-artifact@v3
         with:
           path: ./site
-      
+
       - name: 部署到 GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

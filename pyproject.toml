@@ -1,19 +1,24 @@
 [project]
 name = "pf-gugubot"
-version = "2.2.2"
+version = "2.2.3"
 description = "GUGUbot is a MCDR plugin provide connection between MC and QQ"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "mcdreforged>=2.14.7",
-    "mkdocs>=1.6.1",
-    "mkdocs-git-revision-date-localized-plugin>=1.5.0",
-    "mkdocs-material>=9.7.0",
-    "pymdown-extensions>=10.17.2",
     "requests>=2.32.3",
     "ruamel-yaml>=0.18.10",
     "websocket>=0.2.1",
 ]
 
-[dependency-groups]
-dev = []
+[project.optional-dependencies]
+docs = [
+    # MkDocs 文档生成器
+    "mkdocs>=1.5.3",
+    # Material 主题
+    "mkdocs-material>=9.5.0",
+    # 插件
+    "mkdocs-git-revision-date-localized-plugin>=1.2.0",
+    # Markdown 扩展
+    "pymdown-extensions>=10.7",
+]
