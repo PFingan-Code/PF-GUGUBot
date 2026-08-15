@@ -140,6 +140,7 @@ connector:
     player_left_notice: true  # 玩家离开通知
     bot_join_notice: true     # 机器人加入通知
     bot_left_notice: true     # 机器人离开通知
+    player_notice_cooldown: 0 # 进出通知冷却（秒）
     
     # 服务器状态通知
     server_start_notice: true # 服务器启动通知
@@ -180,6 +181,7 @@ connector:
 | `player_left_notice` | 是否在 QQ 通知玩家离开 |
 | `bot_join_notice` | 是否通知机器人加入（假人） |
 | `bot_left_notice` | 是否通知机器人离开 |
+| `player_notice_cooldown` | 进出通知冷却（秒）。`0` 为立即通知；大于 `0` 时首次加入仍立即通知，离开后延迟该秒数再发送「已离开 duration」，期间重进则不发加入通知 |
 | `server_start_notice` | 是否通知服务器启动 |
 | `server_stop_notice` | 是否通知服务器停止 |
 

@@ -16,6 +16,7 @@ gugubot:
     server_stop: "服务器关闭了，今天就到这里吧~"
     player_join: "呵呵，{player} 来了呢，姐姐一直在等你哦~"
     player_left: "{player} 离开了...真是不懂得珍惜姐姐的关照呢。"
+    player_left_delayed: "{player} 已经离开 {duration} 了...真是不懂得珍惜姐姐的关照呢。"
     player_notice_error: "通知失败了: {error}...姐姐也很无奈呢。"
 
   # 连接器相关翻译

@@ -17,6 +17,7 @@ gugubot:
     server_stop: "服务器关闭了...嘻嘻，你们都要离开我了吗？"
     player_join: "{player} 来了...嘻嘻嘻，又有新的玩具了呢~"
     player_left: "{player} 离开了...你敢抛弃我？我会让你后悔的！"
+    player_left_delayed: "{player} 已经离开 {duration} 了...你敢抛弃我？我会让你后悔的！"
     player_notice_error: "通知失败了: {error}...嘻嘻，连这种事都做不好吗？"
 
   # 连接器相关翻译

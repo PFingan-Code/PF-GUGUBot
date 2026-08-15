@@ -16,6 +16,7 @@ gugubot:
     server_stop: "服务器关闭了...唔唔，好紧张..."
     player_join: "{player} 来了...唔，我、我该说什么好呢..."
     player_left: "{player} 走了...唔，是我做错什么了吗..."
+    player_left_delayed: "{player} 走了 {duration} 了...唔，是我做错什么了吗..."
     player_notice_error: "通知失败了: {error}...唔，怎么办..."
 
   # 连接器相关翻译

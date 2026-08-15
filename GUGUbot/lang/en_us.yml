@@ -12,6 +12,7 @@ gugubot:
         server_stop: "Server stopped"
         player_join: "Player {player} joined the server"
         player_left: "Player {player} left the server"
+        player_left_delayed: "Player {player} has been gone for {duration}"
         player_notice_error: "Player notice failed: {error}"
     
     connector:

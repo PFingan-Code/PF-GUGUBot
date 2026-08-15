@@ -22,6 +22,7 @@ from gugubot.logic.plugins import (
 from gugubot.logic.plugins import broadcast_server_start, broadcast_server_stop
 from gugubot.logic.plugins.mg_event import create_on_mc_achievement, create_on_mc_death
 from gugubot.logic.plugins.player_notice import (
+    cancel_all_pending_notices,
     create_on_player_join,
     create_on_player_left,
 )
@@ -250,6 +251,7 @@ async def on_user_info(server: PluginServerInterface, info: Info) -> None:
 # 卸载
 async def on_unload(_: PluginServerInterface) -> None:
     global api
+    cancel_all_pending_notices()
     if api is not None:
         api.clear()
         api = None
