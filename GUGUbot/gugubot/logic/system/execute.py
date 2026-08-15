@@ -14,7 +14,7 @@ from gugubot.builder import MessageBuilder
 from gugubot.config import BotConfig
 from gugubot.logic.system.basic_system import BasicSystem
 from gugubot.utils.rcon_manager import RconManager
-from gugubot.utils.types import BroadcastInfo, ProcessedInfo
+from gugubot.utils.types import BroadcastInfo
 
 
 class ExecuteSystem(BasicSystem):
@@ -323,51 +323,26 @@ class ExecuteSystem(BasicSystem):
                 )
                 return True
 
-            # 获取 bridge 连接器
-            bridge_source = self.config.get_keys(
-                ["connector", "minecraft_bridge", "source_name"],
-                "Bridge"
-            )
-            bridge_connector = self.system_manager.connector_manager.get_connector(bridge_source)
+            command_prefix = self.config.get("GUGUBot", {}).get("command_prefix", "#")
+            execute_cmd = self.get_tr("execute")
+            mcdr_cmd = self.get_tr("mcdr")
+            if use_mcdr:
+                command_text = f"{command_prefix}{mcdr_cmd} {command}"
+            else:
+                command_text = f"{command_prefix}{execute_cmd} {command}"
 
-            if not bridge_connector:
+            sent = await self.send_to_bridge(
+                broadcast_info,
+                command_text,
+                target={target_server: broadcast_info.event_sub_type},
+            )
+            if not sent:
                 await self.reply(
                     broadcast_info,
                     [MessageBuilder.text(self.get_tr("bridge_not_found"))]
                 )
                 return True
 
-            # 构造要发送的命令消息
-            command_prefix = self.config.get("GUGUBot", {}).get("command_prefix", "#")
-            execute_cmd = self.get_tr("execute")
-            mcdr_cmd = self.get_tr("mcdr")
-
-            if use_mcdr:
-                command_text = f"{command_prefix}{mcdr_cmd} {command}"
-            else:
-                command_text = f"{command_prefix}{execute_cmd} {command}"
-
-            # 构造 ProcessedInfo，保持 source 为原始发送渠道
-            processed_info = ProcessedInfo(
-                processed_message=[MessageBuilder.text(command_text)],
-                _source=broadcast_info.source,  # 传递完整的 Source 对象
-                source_id=broadcast_info.source_id,
-                sender=broadcast_info.sender,
-                sender_id=broadcast_info.sender_id,
-                raw=broadcast_info.raw,
-                server=broadcast_info.server,
-                logger=broadcast_info.logger,
-                event_sub_type=broadcast_info.event_sub_type,
-                target={target_server: broadcast_info.event_sub_type}  # 指定目标服务器
-            )
-
-            # 通过 bridge 发送消息
-            await self.system_manager.connector_manager.broadcast_processed_info(
-                processed_info,
-                include=[bridge_source]
-            )
-
-            # 发送成功提示
             await self.reply(
                 broadcast_info,
                 [MessageBuilder.text(self.get_tr("bridge_execute_success", target=target_server))]
