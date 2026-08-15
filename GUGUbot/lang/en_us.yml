@@ -317,6 +317,10 @@ gugubot:
             status_unknown: "Unknown"
             status_error: "Query failed"
 
+        plugin_commands:
+            name: "plugin commands"
+            no_permission: "Permission denied"
+
         unbound_check:
             name: "unbound_check"
             check: "check"

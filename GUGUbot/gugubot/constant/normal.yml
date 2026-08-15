@@ -363,6 +363,10 @@ gugubot:
       status_unknown: "未知"
       status_error: "查询失败"
 
+    plugin_commands:
+      name: "插件命令"
+      no_permission: "权限不足"
+
     # 未绑定检查系统 / Unbound check system
     unbound_check:
       name: "未绑定检查"

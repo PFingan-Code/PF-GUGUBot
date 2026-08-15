@@ -951,6 +951,6 @@ ignore_mc_command_patterns:
 ## 下一步
 
 - [配置说明](configuration.md) - 了解详细配置选项
-- [API 文档](api.md) - 开发自定义功能
+- [API 文档](api.md) - 独立插件如何注册命令
 - [疑难解答](troubleshooting.md) - 解决使用问题
 

@@ -24,7 +24,7 @@ class BasicSystem:
         日志记录器实例
     """
 
-    GROUP_ADMIN_BYPASS_SYSTEMS = {"bound"}
+    GROUP_ADMIN_BYPASS_SYSTEMS = {"bound", "plugin_commands"}
 
     def __init__(self, name: str, enable: bool = True, config: Optional[BotConfig] = None) -> None:
         """初始化基础系统。

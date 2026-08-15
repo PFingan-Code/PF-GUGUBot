@@ -93,7 +93,7 @@ GUGUBot 是一个专为 MCDReforged 设计的 QQ 机器人插件，它能够：
 如果你已经熟悉 GUGUBot 的基本使用：
 
 - [**多服互联教程**](multi-server.md) - 配置多服务器互联
-- [**API 文档**](api.md) - 了解如何进行二次开发
+- [**API 文档**](api.md) - 独立插件如何注册 `#命令`、回复和 RCON
 - [**疑难解答**](troubleshooting.md) - 解决常见问题
 
 ---
