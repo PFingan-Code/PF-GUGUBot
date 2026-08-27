@@ -267,6 +267,11 @@ PF-GUGUBot/
 
 - [@XueK__](https://github.com/XueK66) - 核心开发与技术支持
 
+
+| 贡献者列表 |
+|---|
+| <a href="https://github.com/PFingan-Code/PF-GUGUBot/graphs/contributors"><img src="https://contrib.rocks/image?repo=PFingan-Code/PF-GUGUBot" /></a> |
+
 ### 文档贡献
 
 - [@Dreamwxz](https://github.com/Dreamwxz) - 第三方文档 [PF-plugins](https://docs.pfingan.com/PF-gugubot/)
