@@ -25,6 +25,7 @@ from gugubot.connector.basic_connector import BasicConnector
 from gugubot.connector.open_qq_bot.api_client import ApiClient, TokenManager
 from gugubot.connector.open_qq_bot.common import (
     ERR_PASSIVE_EXPIRED,
+    INTENTS,
     ApiError,
     DedupSet,
     QuotaManager,
@@ -34,7 +35,6 @@ from gugubot.connector.open_qq_bot.gateway import Gateway
 from gugubot.connector.open_qq_bot.parser import OpenQQBotParser
 from gugubot.utils.types import ProcessedInfo
 
-INTENTS_DEFAULT = (1 << 25) | (1 << 24)  # GROUP_AND_C2C_EVENT | GROUP_MEMBER_EVENT
 OPENID_RE = re.compile(r"^[0-9A-Fa-f]{32}$")
 
 MC_COLOR_CODE = re.compile(r"§[0-9a-fk-or]", re.IGNORECASE)
@@ -87,9 +87,7 @@ class OpenQQBotConnector(BasicConnector):
         self.sandbox = config.get_keys(
             ["connector", self.SECTION, "connection", "sandbox"], False
         )
-        self.intents = config.get_keys(
-            ["connector", self.SECTION, "connection", "intents"], INTENTS_DEFAULT
-        )
+        self.intents = INTENTS
         self.max_message_length = config.get_keys(
             ["connector", self.SECTION, "connection", "max_message_length"], 2000
         )

@@ -17,6 +17,8 @@ import time
 
 import websocket
 
+from gugubot.connector.open_qq_bot.common import INTENTS
+
 logger = logging.getLogger("gugubot.open_qq_bot")
 
 # WebSocket 关闭码处理（起步指南/websocket.md 错误码表）
@@ -43,11 +45,11 @@ class Gateway:
     on_ready : Callable[[dict], None], optional
         鉴权成功回调，入参为 READY 事件的 ``d.user``。
     intents : int
-        订阅的事件位掩码。
+        订阅的事件位掩码（默认取自 :data:`gugubot.connector.open_qq_bot.common.INTENTS`）。
     """
 
     def __init__(self, gateway_url_getter, token_getter, on_event,
-                 on_ready=None, intents: int = 0):
+                 on_ready=None, intents: int = INTENTS):
         self._get_url = gateway_url_getter
         self._get_token = token_getter
         self._on_event = on_event

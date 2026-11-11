@@ -21,6 +21,13 @@ logger = logging.getLogger("gugubot.open_qq_bot")
 PASSIVE_REPLY_MAX = 5
 PASSIVE_REPLY_TTL = 10 * 60  # 稍大于 5 分钟窗口，便于清理过期记录
 
+# 订阅事件位掩码（协议常量，固定写在代码里，不开放配置）：
+#   (1 << 25) GROUP_AND_C2C_EVENT   群聊 / 单聊消息
+#   (1 << 24) GROUP_MEMBER_EVENT    群成员加入 / 移除
+# 解析器只处理这两类事件：多加订阅位只会收到无法映射的事件，而网关对
+# 无权限的 intents 会直接拒绝鉴权（websocket.md 错误码表），故不交给用户配置。
+INTENTS = (1 << 25) | (1 << 24)
+
 # 官方错误码（group-messages-post.md 错误码表 + 实测补充）
 ERR_DUPLICATED = 40054005        # 消息被去重：相同 msg_id + msg_seq 重复发送
 ERR_PASSIVE_EXPIRED = {304103, 40034005, 40034128}  # 被动回复过期/超次

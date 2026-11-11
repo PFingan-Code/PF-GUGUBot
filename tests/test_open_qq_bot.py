@@ -159,7 +159,21 @@ class TestConfig(unittest.TestCase):
         section = data["connector"]["open-qq-bot"]
         self.assertIs(section["enable"], False)
         self.assertEqual(section["connection"]["app_id"], "")
+        self.assertNotIn("intents", section["connection"])  # 订阅位掩码固定在代码中
         self.assertIn("group_ids", section["permissions"])
+
+    def test_intents_fixed_in_code(self):
+        """配置里写了 intents 也不生效：位掩码由代码常量决定。"""
+        from gugubot.connector.open_qq_bot.common import INTENTS
+
+        self.assertEqual(INTENTS, (1 << 25) | (1 << 24))
+        config = default_config(
+            connection={"app_id": "a", "app_secret": "b",
+                        "sandbox": True, "intents": 1}
+        )
+        conn = build_connector(config)
+        self.assertEqual(conn.intents, INTENTS)
+        self.assertEqual(conn.gateway.intents, INTENTS)
 
     def test_lang_files_symmetric(self):
         for name in ("zh_cn.yml", "en_us.yml"):

@@ -67,7 +67,6 @@ connector:
       app_id: "" # 机器人 AppID（QQ 开放平台 q.qq.com）
       app_secret: "" # 机器人 AppSecret
       sandbox: false # 是否使用沙箱环境
-      intents: 50331648 # 订阅事件位掩码 :: 默认 群聊/单聊(1<<25) + 群成员(1<<24) 事件
       max_message_length: 2000 # 单片长度上限 :: 超出自动分片（官方 40054007 超限报错）
     rate_limit: # 主动消息配额 :: 官方限制 单群20条/分钟、1000条/天（被动回复不占配额；超限丢弃并告警）
       per_minute: 20
