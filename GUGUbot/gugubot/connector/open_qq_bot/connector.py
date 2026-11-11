@@ -38,6 +38,9 @@ OPENID_RE = re.compile(r"^[0-9A-Fa-f]{32}$")
 
 MC_COLOR_CODE = re.compile(r"§[0-9a-fk-or]", re.IGNORECASE)
 
+# 消息 content 中的 @ 标记（<@openid> / <@all>），调试命令匹配前剥离
+AT_TAG_RE = re.compile(r"<@[^>]*>")
+
 
 class OpenQQBotConnector(BasicConnector):
     """QQ 官方机器人连接器。
@@ -48,6 +51,9 @@ class OpenQQBotConnector(BasicConnector):
     """
 
     SECTION = "open-qq-bot"
+
+    # 连接器级调试命令（OpenID 查询，部署/排障用，在广播管线前拦截）
+    DEBUG_COMMANDS = ("/groupId", "/userId", "/botId")
 
     def __init__(self, server, config: Optional[BotConfig] = None):
         source_name = config.get_keys(
@@ -87,6 +93,9 @@ class OpenQQBotConnector(BasicConnector):
         except Exception:
             quota_path = None
         self.quota = QuotaManager(self.per_minute, self.per_day, quota_path)
+        # 机器人自身群聊 OpenID：READY 只返回数字 id（与 OpenID 不同源），
+        # 只能从被 @ 事件的 mentions(bot:true) 习得；供 /botId 查询使用
+        self.bot_openid = None
 
         self.tokens = TokenManager(self.app_id, self.app_secret)
         self.api = ApiClient(
@@ -160,6 +169,10 @@ class OpenQQBotConnector(BasicConnector):
         msg_id = d.get("id")
         if msg_id and self.dedup.seen(msg_id):
             return
+        # 记录机器人自身 OpenID；拦截 /groupId /userId /botId（不进广播管线）
+        self._learn_bot_openid(d)
+        if self._try_debug_command(t, d):
+            return
         if self.parser is None:
             return
         event = {"t": t, "d": d, "event_id": event_id}
@@ -169,9 +182,140 @@ class OpenQQBotConnector(BasicConnector):
         """on_message 的同步实现（不经过网关线程）。"""
         if not self.enable:
             return
+        d = raw.get("d") or {}
+        self._learn_bot_openid(d)
+        if self._try_debug_command(raw.get("t"), d):
+            return
         if self.parser is None:
             return
         self.server.schedule_task(self.parser.process_message(raw))
+
+    # ---- 连接器级调试命令 ----
+
+    def _learn_bot_openid(self, d: dict) -> None:
+        """从 mentions 的 bot:true 条目记录机器人自身 OpenID（首遇即固定）。
+
+        READY 事件返回的是数字 id，与群聊可用的 OpenID 不同源；
+        机器人的群聊 OpenID 只能从被 @ 事件的 mentions 中习得。
+        """
+        if self.bot_openid:
+            return
+        for user in d.get("mentions") or []:
+            if user.get("bot"):
+                oid = user.get("id") or user.get("member_openid") or ""
+                if oid:
+                    self.bot_openid = oid
+                    self.logger.info(
+                        f"{self.log_prefix} 记录机器人自身 OpenID={oid}（来自 mentions）"
+                    )
+                    return
+
+    def _try_debug_command(self, t: str, d: dict) -> bool:
+        """拦截 /groupId /userId /botId 查询命令并被动回复。
+
+        - 在广播管线之前拦截：不触发关键词/违禁词，也不会转发进 MC
+        - 带 msg_id 被动锚点回复，不占主动消息配额
+        - 不受 group_ids 白名单约束：向白名单添加新群前，需要先能在该群
+          查询 OpenID（OpenID 为不透明标识而非 QQ 号，泄露风险可忽略）
+
+        Returns
+        -------
+        bool
+            True 表示已作为调试命令处理，调用方不再分发该事件
+        """
+        if t not in OpenQQBotParser.MESSAGE_EVENTS:
+            return False
+        content = AT_TAG_RE.sub("", d.get("content") or "").strip()
+        if not content:
+            return False
+        command = content.split()[0]
+        if command not in self.DEBUG_COMMANDS:
+            return False
+
+        is_group = t != "C2C_MESSAGE_CREATE"
+        author = d.get("author") or {}
+        msg_id = d.get("id")
+        if is_group:
+            chat_id = d.get("group_openid", "")
+        else:
+            chat_id = author.get("user_openid") or author.get("id") or ""
+
+        if command == "/groupId":
+            if is_group:
+                self._debug_reply(
+                    chat_id,
+                    self.server.tr(
+                        "gugubot.connector.open-qq-bot.debug_group_id",
+                        group_id=d.get("group_openid", ""),
+                    ),
+                    msg_id, is_group,
+                )
+            else:
+                self._debug_reply(
+                    chat_id,
+                    self.server.tr("gugubot.connector.open-qq-bot.debug_group_id_c2c"),
+                    msg_id, is_group,
+                )
+            return True
+
+        if command == "/userId":
+            if is_group:
+                members = [
+                    (u.get("member_openid") or u.get("id") or "",
+                     u.get("username") or "")
+                    for u in d.get("mentions") or []
+                    if not u.get("bot")
+                ]
+                if not members:
+                    text = self.server.tr(
+                        "gugubot.connector.open-qq-bot.debug_user_id_usage"
+                    )
+                elif len(members) > 1:
+                    text = self.server.tr(
+                        "gugubot.connector.open-qq-bot.debug_user_id_multi"
+                    )
+                else:
+                    user_id, username = members[0]
+                    text = self.server.tr(
+                        "gugubot.connector.open-qq-bot.debug_user_id",
+                        username=username or user_id[:8],
+                        user_id=user_id,
+                    )
+                self._debug_reply(chat_id, text, msg_id, is_group)
+            else:
+                self._debug_reply(
+                    chat_id,
+                    self.server.tr(
+                        "gugubot.connector.open-qq-bot.debug_user_id_self",
+                        user_id=chat_id,
+                    ),
+                    msg_id, is_group,
+                )
+            return True
+
+        # /botId：自身 OpenID 尚未习得时提示先 @机器人
+        if self.bot_openid:
+            text = self.server.tr(
+                "gugubot.connector.open-qq-bot.debug_bot_id", bot_id=self.bot_openid
+            )
+        else:
+            text = self.server.tr(
+                "gugubot.connector.open-qq-bot.debug_bot_id_unknown"
+            )
+        self._debug_reply(chat_id, text, msg_id, is_group)
+        return True
+
+    def _debug_reply(self, chat_id: str, text: str, msg_id, is_group: bool) -> None:
+        """调试命令的被动回复；失败仅告警（被动窗口过期即放弃，不降级）。"""
+        if not chat_id:
+            return
+        try:
+            if is_group:
+                self.api.send_group_text(chat_id, text, msg_id=msg_id)
+            else:
+                self.api.send_c2c_text(chat_id, text, msg_id=msg_id)
+        except ApiError as e:
+            self.logger.warning(f"{self.log_prefix} 调试命令回复失败: {e}")
 
     # ---- 出站 ----
 

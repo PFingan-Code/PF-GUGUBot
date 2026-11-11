@@ -72,9 +72,9 @@ connector:
       per_minute: 20
       per_day: 1000
     permissions:
-      admin_ids: # 管理员 OpenID :: 另：群内角色为 admin/owner 的成员自动视为管理员（用 /userId 获取）
+      admin_ids: # 管理员 OpenID :: 另：群内角色为 admin/owner 的成员自动视为管理员（群内发 /userId @某人 获取）
         -
-      group_ids: # 群 OpenID 白名单 :: 要监听的群（留空=响应所有已接入群；需群主授权「接收全量消息」；用 /groupId 获取）
+      group_ids: # 群 OpenID 白名单 :: 要监听的群（留空=响应所有已接入群；需群主授权「接收全量消息」；群内发 /groupId 获取，调试命令不受白名单限制）
         -
       forward_group_ids: # 转发目标群 OpenID :: MC消息转发到这些群（留空则使用group_ids）
         -

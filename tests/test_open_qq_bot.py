@@ -74,7 +74,10 @@ class FakeServer:
     scheduled = []
 
     def tr(self, key, **kw):
-        return key
+        if not kw:
+            return key
+        # 测试桩：带参数时把 kwargs 附加在 key 后，便于用例断言回复内容
+        return key + "|" + ",".join(f"{k}={v}" for k, v in kw.items())
 
     def schedule_task(self, coro):
         FakeServer.scheduled.append(coro)
@@ -283,7 +286,7 @@ class TestEventEntry(unittest.TestCase):
         FakeServer.scheduled.clear()
 
     def test_dedup_and_bot_self_skip(self):
-        event = group_event()
+        event = group_event(content="hello")
         self.conn._on_gateway_event(event["t"], event["d"], None)
         self.conn._on_gateway_event(event["t"], event["d"], None)  # 重复推送
         self.conn._on_gateway_event(
@@ -298,7 +301,7 @@ class TestEventEntry(unittest.TestCase):
         self.assertEqual(FakeServer.scheduled, [])
 
     def test_on_message_direct_injection(self):
-        event = group_event()
+        event = group_event(content="hello")
         asyncio.run(self.conn.on_message(event))
         self.assertEqual(len(FakeServer.scheduled), 1)
 
@@ -489,6 +492,104 @@ class TestBoundOfficialQuit(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(handled)
         self.assertIn("Steve", players)  # 其他平台绑定保留
         self.assertEqual(players["Steve"].accounts.get("QQ", []), [])
+
+
+class TestDebugCommands(unittest.TestCase):
+    """/groupId /userId /botId 连接器级调试命令（广播管线前拦截）。"""
+
+    def setUp(self):
+        self.conn = build_connector()
+        self.api = FakeApi()
+        self.conn.api = self.api
+
+    def _d(self, content="/groupId", mentions=None, t="GROUP_MESSAGE_CREATE",
+           msg_id="MSGD", group=GROUP_OID):
+        return t, {
+            "id": msg_id,
+            "group_openid": group,
+            "author": {"member_openid": MEMBER_OID, "username": "一梦"},
+            "content": content,
+            "mentions": mentions or [],
+        }
+
+    def test_group_id(self):
+        t, d = self._d("/groupId")
+        self.assertTrue(self.conn._try_debug_command(t, d))
+        self.assertEqual(len(self.api.sent), 1)
+        kind, chat, text, msg_id = self.api.sent[0]
+        self.assertEqual((kind, chat, msg_id), ("text", GROUP_OID, "MSGD"))
+        self.assertIn(f"group_id={GROUP_OID}", text)
+
+    def test_group_id_with_at_prefix(self):
+        t, d = self._d(
+            f"<@{BOT_OID}> /groupId ",
+            mentions=[{"id": BOT_OID, "bot": True, "username": "林晚晴"}],
+        )
+        # 真实链路中 _on_gateway_event 先习得 OpenID 再尝试拦截
+        self.conn._learn_bot_openid(d)
+        self.assertTrue(self.conn._try_debug_command(t, d))
+        self.assertEqual(self.api.sent[0][1], GROUP_OID)
+        self.assertEqual(self.conn.bot_openid, BOT_OID)
+
+    def test_user_id_with_mention(self):
+        t, d = self._d(
+            "/userId @一梦",
+            mentions=[{"member_openid": USER_OID, "username": "一梦"}],
+        )
+        self.assertTrue(self.conn._try_debug_command(t, d))
+        self.assertIn(f"user_id={USER_OID}", self.api.sent[0][2])
+
+    def test_user_id_usage_without_mention(self):
+        t, d = self._d("/userId")
+        self.assertTrue(self.conn._try_debug_command(t, d))
+        self.assertIn("debug_user_id_usage", self.api.sent[0][2])
+
+    def test_user_id_multi_mentions(self):
+        t, d = self._d(
+            "/userId @a @b",
+            mentions=[{"member_openid": USER_OID, "username": "a"},
+                      {"member_openid": MEMBER_OID, "username": "b"}],
+        )
+        self.assertTrue(self.conn._try_debug_command(t, d))
+        self.assertIn("debug_user_id_multi", self.api.sent[0][2])
+
+    def test_bot_id_unknown_then_learned(self):
+        t, d = self._d("/botId")
+        self.assertTrue(self.conn._try_debug_command(t, d))
+        self.assertIn("debug_bot_id_unknown", self.api.sent[0][2])
+        # 被 @ 后习得自身 OpenID，再次查询即回复
+        self.conn._learn_bot_openid({"mentions": [
+            {"id": BOT_OID, "bot": True, "username": "林晚晴"}]})
+        t, d = self._d("/botId", msg_id="MSGD2")
+        self.assertTrue(self.conn._try_debug_command(t, d))
+        self.assertIn(f"bot_id={BOT_OID}", self.api.sent[1][2])
+
+    def test_c2c_user_id_self(self):
+        t, d = self._d("/userId", t="C2C_MESSAGE_CREATE")
+        d["author"] = {"user_openid": USER_OID, "username": "一梦"}
+        del d["group_openid"]
+        self.assertTrue(self.conn._try_debug_command(t, d))
+        kind, chat, text, msg_id = self.api.sent[0]
+        self.assertEqual((kind, chat), ("c2c", USER_OID))
+        self.assertIn(f"user_id={USER_OID}", text)
+
+    def test_plain_text_not_consumed(self):
+        t, d = self._d("随便聊聊")
+        self.assertFalse(self.conn._try_debug_command(t, d))
+        self.assertEqual(self.api.sent, [])
+
+    def test_whitelist_exempt(self):
+        # 白名单指向其他群时，新群里的 /groupId 仍可用（部署引导场景）
+        config = default_config(permissions={
+            "admin_ids": [],
+            "group_ids": ["OTHERGROUPOTHERGROUPOTHERGROUP01"],
+            "forward_group_ids": [],
+        })
+        conn = build_connector(config)
+        conn.api = self.api
+        t, d = self._d("/groupId", group="NEWGROUP1NEWGROUP1NEWGROUP1NEWGROUP1")
+        self.assertTrue(conn._try_debug_command(t, d))
+        self.assertEqual(self.api.sent[0][1], "NEWGROUP1NEWGROUP1NEWGROUP1NEWGROUP1")
 
 
 if __name__ == "__main__":
