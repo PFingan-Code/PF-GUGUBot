@@ -10,6 +10,7 @@ from gugubot.connector import (
     BridgeConnector,
     ConnectorManager,
     MCConnector,
+    OpenQQBotConnector,
     QQWebSocketConnector,
     TestConnector,
 )
@@ -107,6 +108,9 @@ async def on_load(server: PluginServerInterface, _) -> None:
 
     if is_main_server:
         connectors.append(QQWebSocketConnector(server, gugubot_config))
+
+    # QQ 官方机器人连接器（enable=false 或未配置凭证时 connect() 直接跳过）
+    connectors.append(OpenQQBotConnector(server, gugubot_config))
 
     for connector in connectors:
         await connector_manager.register_connector(connector)

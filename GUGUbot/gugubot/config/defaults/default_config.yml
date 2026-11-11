@@ -117,6 +117,28 @@ connector:
       max_wait_time: 5 # 最大等待时间
       token: "" # 令牌
 
+  open-qq-bot: # QQ官方机器人连接器 :: 直连 QQ 开放平台 WebSocket 网关（与 OneBot 版 QQ 连接器并行使用，文档见 devDocs/open-qq-bot/）
+    source_name: "OpenQQBot" # 显示名称
+    enable: false # 是否启用 :: 需先在 QQ 开放平台创建机器人并填写 connection.app_id/app_secret
+    enable_receive: true # 是否接收转发 :: 其他 connector 的 echo 转发时不转发到此 connector
+    enable_send: true # 是否发送 :: 广播时是否向此 connector 发送
+    connection:
+      app_id: "" # 机器人 AppID（QQ 开放平台 q.qq.com）
+      app_secret: "" # 机器人 AppSecret
+      sandbox: false # 是否使用沙箱环境
+      intents: 50331648 # 订阅事件位掩码 :: 默认 群聊/单聊(1<<25) + 群成员(1<<24) 事件
+      max_message_length: 2000 # 单片长度上限 :: 超出自动分片（官方 40054007 超限报错）
+    permissions:
+      admin_ids: # 管理员 OpenID :: 另：群内角色为 admin/owner 的成员自动视为管理员（用 /userId 获取）
+        -
+      group_ids: # 群 OpenID 白名单 :: 要监听的群（留空=响应所有已接入群；需群主授权「接收全量消息」；用 /groupId 获取）
+        -
+      forward_group_ids: # 转发目标群 OpenID :: MC消息转发到这些群（留空则使用group_ids）
+        -
+    chat_templates: # MC到QQ的聊天消息模板 :: 转发消息时根据权重随机选择模板
+      - "({display_name}) {sender}: ": 1
+      - "[{display_name}] {sender}: ": 1
+
 ########################### 风格设置 ##################################
 
 style:

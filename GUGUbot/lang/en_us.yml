@@ -16,6 +16,7 @@ gugubot:
         player_notice_error: "Player notice failed: {error}"
     
     connector:
+        name: "Connector"
         QQ:
             try_connect: "Trying to connect to: {url}"
             start_connect: "Starting QQ bot connection"
@@ -29,6 +30,12 @@ gugubot:
             error_close: "Error closing connection: {error}"
             message_handle_failed: "Failed to handle message: {error}\n{trace}"
             connect_success: "~ Connected successfully ~"
+        open-qq-bot:
+            try_connect: "Connecting to QQ official bot gateway"
+            connect_success: "~ Connected successfully, bot: {username} ~"
+            closed: "QQ official bot connection closed"
+            disabled: "Connector disabled (connector.open-qq-bot.enable=false), skipping startup"
+            not_configured: "connection.app_id/app_secret not configured, skipping startup (get from QQ open platform)"
 
     system:
         general_help:

@@ -3,6 +3,9 @@
 **.docx
 tests/build_deploy.py
 
+# Deepwork 任务状态（本地）
+.slim/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
