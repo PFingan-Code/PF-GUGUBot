@@ -1,0 +1,4 @@
+config.json
+activity.json
+__pycache__/
+*.log
