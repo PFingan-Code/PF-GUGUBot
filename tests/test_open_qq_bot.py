@@ -43,7 +43,7 @@ from pathlib import Path
 from gugubot.connector import OpenQQBotConnector
 from gugubet.connector.open_qq_bot.parser import OpenQQBotParser
 from gugubet.connector.open_qq_bot.common import QuotaManager
-from gugubet.utils.types import ProcessedInfo, Source
+from gugubet.utils.types import BroadcastInfo, ProcessedInfo, Source
 
 REPO = Path(__file__).resolve().parent.parent
 import sys as _sys
@@ -489,6 +489,45 @@ class TestBoundOfficialQuit(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(handled)
         self.assertIn("Steve", players)  # 其他平台绑定保留
         self.assertEqual(players["Steve"].accounts.get("QQ", []), [])
+
+
+class TestKeyWordSkip(unittest.IsolatedAsyncioTestCase):
+    """open-qq-bot 来源消息不做关键词回复（KeyWordSystem 跳过）。"""
+
+    def _build(self, source_origin):
+        import tempfile
+        from gugubot.logic.system.key_word import KeyWordSystem
+        tmp = tempfile.mkdtemp()
+        server = FakeServer()
+        server.get_data_folder = lambda: tmp
+        config = FakeConfig({
+            "connector": {"open-qq-bot": {"source_name": "OpenQQBot"}},
+            "system": {"key_words": {"cache_image": False}},
+        })
+        system = KeyWordSystem(server, config)
+        system.connector_manager = FakeManager()
+        system.logger = FakeLogger()
+        info = BroadcastInfo(
+            event_type="message", event_sub_type="group",
+            message=[{"type": "text", "data": {"text": "签到"}}],
+            raw={}, server=server, logger=FakeLogger(),
+            _source=Source(source_origin), source_id=GROUP_OID,
+            sender="x", sender_id=USER_OID,
+        )
+        return system, info
+
+    async def test_open_qq_bot_source_skipped(self):
+        system, info = self._build("OpenQQBot")
+        self.assertFalse(await system.process_broadcast_info(info))
+
+    async def test_section_name_source_skipped(self):
+        system, info = self._build("open-qq-bot")
+        self.assertFalse(await system.process_broadcast_info(info))
+
+    async def test_qq_source_still_processed(self):
+        # QQ 来源：原逻辑不变（空关键词库 → 无命中返回 False，未误伤）
+        system, info = self._build("QQ")
+        self.assertFalse(await system.process_broadcast_info(info))
 
 
 if __name__ == "__main__":
