@@ -5,6 +5,8 @@ C2C_MESSAGE_CREATE）转换为内部 :class:`BroadcastInfo`，接入既有系统
 （关键词/违禁词/绑定/echo 等），使系统能力对两种 QQ 接入方式透明。
 """
 
+import base64
+import json
 import re
 from typing import Optional
 
@@ -13,6 +15,10 @@ from gugubot.utils.types import BroadcastInfo, Source
 
 # @成员 的原始标记（全量模式 GROUP_MESSAGE_CREATE 保留 <@member_openid>）
 AT_MARKER = re.compile(r"<@([0-9A-Fa-f]{32})>")
+
+# 表情消息：<faceType=6,faceId="0",ext="eyJ0ZXh0IjoiIn0=">
+# ext 为 base64 的 JSON，text 字段是官方给出的描述（如「呲牙」）
+FACE_TAG = re.compile(r'<faceType=(\d+),faceId="([^"]*)",ext="([^"]*)">')
 
 
 class OpenQQBotParser(BasicParser):
@@ -107,6 +113,7 @@ class OpenQQBotParser(BasicParser):
         """content + mentions + attachments → 内部统一消息段格式。
 
         - @ 标记（<@member_openid>）替换为 @昵称 文本
+        - 表情标记（<faceType=...>）替换为描述文本：[表情: 呲牙] / [表情包]
         - 图片附件转为 OneBot 风格 image 段（data.file = 公网 URL，
           下游 McMessageBuilder 可直接消费）
         """
@@ -116,6 +123,7 @@ class OpenQQBotParser(BasicParser):
             if oid:
                 text = text.replace(f"<@{oid}>", f"@{user.get('username', oid)}")
         text = text.replace("<@all>", "@全体成员")
+        text = FACE_TAG.sub(self._render_face, text)
 
         segments = []
         if text:
@@ -125,6 +133,30 @@ class OpenQQBotParser(BasicParser):
                 segments.append({"type": "image",
                                  "data": {"file": att["url"], "url": att["url"]}})
         return segments
+
+    @staticmethod
+    def _render_face(match: re.Match) -> str:
+        """``<faceType=..,faceId="..",ext="..">`` → 可读文本。
+
+        ext 是 base64 的 JSON，``text`` 字段为官方给出的表情描述（如「呲牙」）；
+        自定义大表情（faceType=6）没有描述，真实画面在同事件的图片附件里，
+        这里只留一个 ``[表情包]`` 占位，附件会另生成 image 段。
+        """
+        face_type, ext = match.group(1), match.group(3)
+        desc = ""
+        if ext:
+            try:
+                padded = ext + "=" * (-len(ext) % 4)
+                payload = json.loads(base64.b64decode(padded).decode("utf-8"))
+                desc = str(payload.get("text") or "").strip()
+            except Exception:
+                desc = ""
+        if desc:
+            # 官方部分表情的描述自带方括号（如 [搓手]），避免出现双重括号
+            if desc.startswith("[") and desc.endswith("]"):
+                return desc
+            return f"[表情: {desc}]"
+        return "[表情]" if face_type == "1" else "[表情包]"
 
     def _is_valid_group(self, group_openid: str) -> bool:
         """群白名单：permissions.group_ids 非空时仅响应列表内的群。"""

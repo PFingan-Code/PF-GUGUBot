@@ -219,6 +219,41 @@ class TestParser(unittest.IsolatedAsyncioTestCase):
         info = await self.parser.parse(event)
         self.assertEqual([s["type"] for s in info.message], ["image"])
 
+    async def test_face_with_description(self):
+        """faceType=1 的系统表情：ext 的 text 是可提取的描述文本。"""
+        event = group_event(
+            content='<faceType=1,faceId="13",ext="eyJ0ZXh0Ijoi5ZGy54mZIn0=">'
+        )
+        info = await self.parser.parse(event)
+        self.assertEqual(info.message[0]["data"]["text"], "[表情: 呲牙]")
+
+    async def test_face_sticker_without_description(self):
+        """自定义大表情：ext 无 text，画面在同一事件的图片附件里。"""
+        event = group_event(
+            content='看这个 <faceType=6,faceId="0",ext="eyJ0ZXh0IjoiIn0=">'
+        )
+        event["d"]["attachments"] = [{"content_type": "image/gif",
+                                      "url": "https://x/s.gif"}]
+        info = await self.parser.parse(event)
+        self.assertEqual(info.message[0]["data"]["text"], "看这个 [表情包]")
+        self.assertEqual(info.message[1]["type"], "image")
+
+    async def test_face_description_already_bracketed(self):
+        """部分表情描述自带方括号（如 [搓手]），不要出现双重括号。"""
+        import base64
+        import json
+        ext = base64.b64encode(
+            json.dumps({"text": "[搓手]"}, ensure_ascii=False).encode("utf-8")
+        ).decode("ascii")
+        event = group_event(content=f'<faceType=4,faceId="",ext="{ext}">')
+        info = await self.parser.parse(event)
+        self.assertEqual(info.message[0]["data"]["text"], "[搓手]")
+
+    async def test_face_invalid_ext_falls_back(self):
+        event = group_event(content='<faceType=6,faceId="0",ext="not-base64!!">')
+        info = await self.parser.parse(event)
+        self.assertEqual(info.message[0]["data"]["text"], "[表情包]")
+
     async def test_bot_self_skipped(self):
         event = group_event()
         event["d"]["author"]["bot"] = True
