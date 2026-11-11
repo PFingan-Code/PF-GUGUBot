@@ -47,6 +47,10 @@ class CrossBroadcastSystem(BasicSystem):
         source_name = broadcast_info.receiver_source or broadcast_info.source.origin
 
         qq_source = self.config.get_keys(["connector", "QQ", "source_name"], "QQ")
+        # open-qq-bot 官方连接器同样支持 #mc（回复图片转发仅 OneBot 可用）
+        official_source = self.config.get_keys(
+            ["connector", "open-qq-bot", "source_name"], "OpenQQBot"
+        )
         mc_source = self.config.get_keys(["connector", "minecraft", "source_name"], "Minecraft")
         bridge_source = self.config.get_keys(
             ["connector", "minecraft_bridge", "source_name"], "Bridge"
@@ -55,7 +59,7 @@ class CrossBroadcastSystem(BasicSystem):
         mc_cmd = self.config.get_keys(["system", "cross_broadcast", "mc_command"], "mc")
 
         # QQ 端: #mc <消息> -> 仅广播到 MC（支持回复图片消息）
-        if source_name == qq_source and text.startswith(command_prefix + mc_cmd):
+        if source_name in (qq_source, official_source) and text.startswith(command_prefix + mc_cmd):
             remaining = self._strip_reply_command(
                 broadcast_info.message, text_idx, command_prefix + mc_cmd
             )

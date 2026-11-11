@@ -58,6 +58,10 @@ class BoundSystem(BasicSystem):
             broadcast_info.event_type == "notice"
             and broadcast_info.event_sub_type == "group_decrease"
         ):
+            # open-qq-bot 官方连接器：事件带 member_openid，走独立清理分支
+            # （无跨群在线检查能力，退群即解绑；判定不依赖可改的显示名）
+            if isinstance(broadcast_info.raw, dict) and "member_openid" in broadcast_info.raw:
+                return await self._handle_quit_member_official(broadcast_info)
             if broadcast_info.source.is_from("QQ"):
                 return await self._handle_quit_member(broadcast_info)
             return False
@@ -799,6 +803,53 @@ class BoundSystem(BasicSystem):
             return False
         except Exception as e:
             self.logger.error(f"处理退群事件失败: {e}")
+            return False
+
+    async def _handle_quit_member_official(self, broadcast_info: BroadcastInfo) -> bool:
+        """open-qq-bot 官方连接器的退群清理。
+
+        与 OneBot 版差异：
+        - 字段为 ``member_openid``（OpenID，非 QQ 号），绑定库键通用
+        - 群成员列表接口需白名单权限，无法做「是否还在其他群」检查，
+          退群即直接解绑（绑定库平台键同为 QQ，与 OneBot 版互通）
+        """
+        try:
+            raw = broadcast_info.raw or {}
+            user_id = str(raw.get("member_openid", ""))
+            if not user_id:
+                return False
+
+            player = self.player_manager.get_player(user_id, platform="QQ")
+            if not player:
+                return False
+
+            all_player_names = [str(name) for name in player.java_name] + [
+                str(name) for name in player.bedrock_name
+            ]
+
+            if all_player_names:
+                self._remove_from_whitelist(all_player_names)
+
+            has_other_platform_accounts = False
+            for platform, accounts in player.accounts.items():
+                if platform != "QQ" and accounts:
+                    has_other_platform_accounts = True
+                    break
+
+            if "QQ" in player.accounts and user_id in player.accounts["QQ"]:
+                player.accounts["QQ"].remove(user_id)
+                if not player.accounts["QQ"]:
+                    del player.accounts["QQ"]
+
+            if not has_other_platform_accounts:
+                self.player_manager.remove_player(player.name)
+            else:
+                self.player_manager.save()
+
+            self.logger.info(f"已清理退群用户 {user_id} 的绑定信息（open-qq-bot）")
+            return True
+        except Exception as e:
+            self.logger.error(f"处理退群事件失败（open-qq-bot）: {e}")
             return False
 
     async def _clean_bound(self, player: Player, player_manager: PlayerManager) -> bool:
