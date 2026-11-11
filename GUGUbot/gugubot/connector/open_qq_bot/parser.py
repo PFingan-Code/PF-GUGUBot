@@ -113,7 +113,7 @@ class OpenQQBotParser(BasicParser):
         """content + mentions + attachments → 内部统一消息段格式。
 
         - @ 标记（<@member_openid>）替换为 @昵称 文本
-        - 表情标记（<faceType=...>）替换为描述文本：[表情: 呲牙] / [表情包]
+        - 表情标记（<faceType=...>）替换为描述文本：[呲牙] / [表情包]
         - 图片附件转为 OneBot 风格 image 段（data.file = 公网 URL，
           下游 McMessageBuilder 可直接消费）
         """
@@ -138,7 +138,8 @@ class OpenQQBotParser(BasicParser):
     def _render_face(match: re.Match) -> str:
         """``<faceType=..,faceId="..",ext="..">`` → 可读文本。
 
-        ext 是 base64 的 JSON，``text`` 字段为官方给出的表情描述（如「呲牙」）；
+        ext 是 base64 的 JSON，``text`` 字段为官方给出的表情描述（如「呲牙」），
+        渲染成 ``[呲牙]``；描述本身自带方括号（如 ``[搓手]``）则原样输出，避免双重括号。
         自定义大表情（faceType=6）没有描述，真实画面在同事件的图片附件里，
         这里只留一个 ``[表情包]`` 占位，附件会另生成 image 段。
         """
@@ -153,9 +154,9 @@ class OpenQQBotParser(BasicParser):
                 desc = ""
         if desc:
             # 官方部分表情的描述自带方括号（如 [搓手]），避免出现双重括号
-            if desc.startswith("[") and desc.endswith("]"):
-                return desc
-            return f"[表情: {desc}]"
+            if not (desc.startswith("[") and desc.endswith("]")):
+                desc = f"[{desc}]"
+            return desc
         return "[表情]" if face_type == "1" else "[表情包]"
 
     def _is_valid_group(self, group_openid: str) -> bool:

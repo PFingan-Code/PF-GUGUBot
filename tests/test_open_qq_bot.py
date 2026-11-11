@@ -220,12 +220,27 @@ class TestParser(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([s["type"] for s in info.message], ["image"])
 
     async def test_face_with_description(self):
-        """faceType=1 的系统表情：ext 的 text 是可提取的描述文本。"""
+        """faceType=1 的系统表情：ext 的 text 是可提取的描述文本，直接加方括号。"""
         event = group_event(
             content='<faceType=1,faceId="13",ext="eyJ0ZXh0Ijoi5ZGy54mZIn0=">'
         )
         info = await self.parser.parse(event)
-        self.assertEqual(info.message[0]["data"]["text"], "[表情: 呲牙]")
+        self.assertEqual(info.message[0]["data"]["text"], "[呲牙]")
+
+    async def test_face_real_world_samples(self):
+        """线上真实样本回归：多个 faceType 都要落成 [描述]，不出现 faceType 原文。"""
+        cases = {
+            '<faceType=1,faceId="86",ext="eyJ0ZXh0Ijoi5oCE54GrIn0=">': "[怄火]",
+            '<faceType=3,faceId="342",ext="eyJ0ZXh0Ijoi6YW4USJ9">': "[酸Q]",
+            '<faceType=4,faceId="",ext="eyJ0ZXh0IjoiW+S8pOW/g10ifQ==">': "[伤心]",
+            '<faceType=1,faceId="277",ext="eyJ0ZXh0Ijoi5rGq5rGqIn0=">': "[汪汪]",
+        }
+        for content, expected in cases.items():
+            with self.subTest(content=content):
+                info = await self.parser.parse(group_event(content=content))
+                text = info.message[0]["data"]["text"]
+                self.assertEqual(text, expected)
+                self.assertNotIn("faceType", text)
 
     async def test_face_sticker_without_description(self):
         """自定义大表情：ext 无 text，画面在同一事件的图片附件里。"""
