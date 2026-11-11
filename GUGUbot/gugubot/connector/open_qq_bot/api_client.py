@@ -10,7 +10,6 @@ connector 侧通过 ``asyncio.to_thread`` 包装调用，避免阻塞 MCDR 事�
 
 import hashlib
 import logging
-import random
 import threading
 import time
 import urllib.parse
@@ -24,6 +23,7 @@ from gugubot.connector.open_qq_bot.common import (
     SeqManager,
     http_json,
     logger,
+    random_send_delay,
 )
 
 API_BASE = "https://api.bot.qq.com"
@@ -90,6 +90,7 @@ class ApiClient:
     def _post_group_message(self, group_openid, body, msg_id=None):
         """POST 单片群消息；命中 40054005 时换一个 msg_seq 重试（最多 2 次）。"""
         attempts = 0
+        retried_seq = False  # 去重重试换的新 msg_seq；最终仍失败时回退本地配额
         while True:
             attempts += 1
             try:
@@ -100,8 +101,12 @@ class ApiClient:
                     if new_seq is None:
                         raise
                     body["msg_seq"] = new_seq
+                    retried_seq = True
                     self.logger.warning("群消息被去重，换 msg_seq=%s 重试", new_seq)
                     continue
+                if retried_seq:
+                    # 换 seq 重试仍失败：本次分配未被服务端接受，回退配额防泄漏
+                    self.seq.release(msg_id)
                 if e.has_code(*ERR_PASSIVE_EXPIRED):
                     self.logger.warning("被动回复窗口失效（msg_id 过期或超次）：%s", e)
                 raise
@@ -149,7 +154,7 @@ class ApiClient:
                     self.seq.release(msg_id)
                 raise
             if i < len(chunks) - 1:
-                time.sleep(random.uniform(0.5, 1.5))
+                time.sleep(random_send_delay())
         return last_resp
 
     def send_group_markdown(self, group_openid, content, msg_id=None, reference=None):
@@ -199,6 +204,7 @@ class ApiClient:
         if msg_id and not self._alloc_passive(body, msg_id):
             return None
         attempts = 0
+        retried_seq = False  # 去重重试换的新 msg_seq；最终仍失败时回退本地配额
         while True:
             attempts += 1
             try:
@@ -209,7 +215,11 @@ class ApiClient:
                     if new_seq is None:
                         raise
                     body["msg_seq"] = new_seq
+                    retried_seq = True
                     continue
+                if retried_seq:
+                    # 换 seq 重试仍失败：本次分配未被服务端接受，回退配额防泄漏
+                    self.seq.release(msg_id)
                 if e.has_code(*ERR_PASSIVE_EXPIRED):
                     self.logger.warning("单聊被动回复窗口失效：%s", e)
                 raise

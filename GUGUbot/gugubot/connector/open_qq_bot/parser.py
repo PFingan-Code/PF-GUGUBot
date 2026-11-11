@@ -13,9 +13,6 @@ from typing import Optional
 from gugubot.parser.basic_parser import BasicParser
 from gugubot.utils.types import BroadcastInfo, Source
 
-# @成员 的原始标记（全量模式 GROUP_MESSAGE_CREATE 保留 <@member_openid>）
-AT_MARKER = re.compile(r"<@([0-9A-Fa-f]{32})>")
-
 # 表情消息：<faceType=6,faceId="0",ext="eyJ0ZXh0IjoiIn0=">
 # ext 为 base64 的 JSON，text 字段是官方给出的描述（如「呲牙」）
 FACE_TAG = re.compile(r'<faceType=(\d+),faceId="([^"]*)",ext="([^"]*)">')
@@ -96,6 +93,12 @@ class OpenQQBotParser(BasicParser):
         member_openid = str(d.get("member_openid", ""))
         if not member_openid:
             return None
+        source_id = str(d.get("group_openid", ""))
+        # 与消息事件共用同一份白名单：机器人所在但未监听的群，退群不解绑
+        # （用户可能仍在监听群内，未监听群的退群不应触发绑定清理）
+        if not self._is_valid_group(source_id):
+            self.logger.debug("群 %s 不在 open-qq-bot 白名单，忽略 %s 事件", source_id, t)
+            return None
         return BroadcastInfo(
             event_type="notice",
             event_sub_type=self.NOTICE_EVENTS[t],
@@ -104,7 +107,7 @@ class OpenQQBotParser(BasicParser):
             server=self.server,
             logger=self.logger,
             _source=Source(self.connector.source),
-            source_id=str(d.get("group_openid", "")),
+            source_id=source_id,
             sender=member_openid,
             sender_id=member_openid,
         )

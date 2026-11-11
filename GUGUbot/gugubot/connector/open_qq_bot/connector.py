@@ -29,6 +29,7 @@ from gugubot.connector.open_qq_bot.common import (
     ApiError,
     DedupSet,
     QuotaManager,
+    at_user_tag,
 )
 from pathlib import Path
 from gugubot.connector.open_qq_bot.gateway import Gateway
@@ -246,11 +247,13 @@ class OpenQQBotConnector(BasicConnector):
         - 带 msg_id 被动锚点回复，不占主动消息配额
         - 不受 group_ids 白名单约束：向白名单添加新群前，需要先能在该群
           查询 OpenID（OpenID 为不透明标识而非 QQ 号，泄露风险可忽略）
+        - 回复为阻塞 HTTP，经事件循环 + 线程池调度执行（见 _schedule_debug_reply），
+          避免卡住网关 WS 读线程（延迟心跳 ACK 处理，触发误重连）或 MCDR 事件循环
 
         Returns
         -------
         bool
-            True 表示已作为调试命令处理，调用方不再分发该事件
+            True 表示已作为调试命令处理（回复任务已调度），调用方不再分发该事件
         """
         if t not in OpenQQBotParser.MESSAGE_EVENTS:
             return False
@@ -276,7 +279,7 @@ class OpenQQBotConnector(BasicConnector):
 
         if command == "/groupId":
             if is_group:
-                self._debug_reply(
+                self._schedule_debug_reply(
                     chat_id,
                     self.server.tr(
                         "gugubot.connector.open-qq-bot.debug_group_id",
@@ -285,7 +288,7 @@ class OpenQQBotConnector(BasicConnector):
                     msg_id, is_group,
                 )
             else:
-                self._debug_reply(
+                self._schedule_debug_reply(
                     chat_id,
                     self.server.tr("gugubot.connector.open-qq-bot.debug_group_id_c2c"),
                     msg_id, is_group,
@@ -315,9 +318,9 @@ class OpenQQBotConnector(BasicConnector):
                         username=username or user_id[:8],
                         user_id=user_id,
                     )
-                self._debug_reply(chat_id, text, msg_id, is_group)
+                self._schedule_debug_reply(chat_id, text, msg_id, is_group)
             else:
-                self._debug_reply(
+                self._schedule_debug_reply(
                     chat_id,
                     self.server.tr(
                         "gugubot.connector.open-qq-bot.debug_user_id_self",
@@ -336,23 +339,35 @@ class OpenQQBotConnector(BasicConnector):
             text = self.server.tr(
                 "gugubot.connector.open-qq-bot.debug_bot_id_unknown"
             )
-        self._debug_reply(chat_id, text, msg_id, is_group)
+        self._schedule_debug_reply(chat_id, text, msg_id, is_group)
         return True
 
-    def _debug_reply(self, chat_id: str, text: str, msg_id, is_group: bool) -> None:
-        """调试命令的被动回复；失败仅告警（被动窗口过期即放弃，不降级）。"""
+    def _schedule_debug_reply(self, chat_id: str, text: str, msg_id, is_group: bool) -> None:
+        """调度调试命令的被动回复任务（真正的发送见 _debug_reply）。"""
         if not chat_id:
             return
+        self.server.schedule_task(
+            self._debug_reply_task(chat_id, text, msg_id, is_group)
+        )
+
+    async def _debug_reply_task(self, chat_id: str, text: str, msg_id, is_group: bool) -> None:
         try:
-            if is_group:
-                self.api.send_group_text(chat_id, text, msg_id=msg_id)
-            else:
-                self.api.send_c2c_text(chat_id, text, msg_id=msg_id)
-            self._diag(
-                "%s 调试命令回复已发送 → %s: %r", self.log_prefix, chat_id, text[:120]
-            )
-        except ApiError as e:
+            await asyncio.to_thread(self._debug_reply, chat_id, text, msg_id, is_group)
+        except Exception as e:
             self.logger.warning(f"{self.log_prefix} 调试命令回复失败: {e}")
+
+    def _debug_reply(self, chat_id: str, text: str, msg_id, is_group: bool) -> None:
+        """调试命令的被动回复（阻塞实现，经 _debug_reply_task 在线程池中执行）。
+
+        失败仅告警（被动窗口过期即放弃，不降级）。
+        """
+        if is_group:
+            self.api.send_group_text(chat_id, text, msg_id=msg_id)
+        else:
+            self.api.send_c2c_text(chat_id, text, msg_id=msg_id)
+        self._diag(
+            "%s 调试命令回复已发送 → %s: %r", self.log_prefix, chat_id, text[:120]
+        )
 
     # ---- 出站 ----
 
@@ -425,7 +440,7 @@ class OpenQQBotConnector(BasicConnector):
             elif item_type == "at":
                 target = str(data.get("qq", ""))
                 if allow_mention and OPENID_RE.match(target):
-                    texts.append(f'<qqbot-at-user id="{target}" />')
+                    texts.append(at_user_tag(target))
                     has_mention = True
                 else:
                     texts.append(f"@{target}")
@@ -469,6 +484,10 @@ class OpenQQBotConnector(BasicConnector):
                 )
             else:
                 target_plain, target_images, has_mention = plain, images, False
+                # 单聊暂不支持富媒体下发：图片以占位符并入文本，避免内容静默丢失
+                if target_images:
+                    target_plain = f"{target_plain}\n[图片]" if target_plain else "[图片]"
+                    target_images = []
             # 被动回复锚点：仅当目标与触发消息同一会话时使用（5 分钟/5 次窗口）
             anchor_id = self._reply_anchor(processed_info, target_id)
             # 主动消息配额（官方：单群 20 条/分钟、1000 条/天）；被动回复不占配额
@@ -486,10 +505,11 @@ class OpenQQBotConnector(BasicConnector):
             try:
                 if target_type == "private":
                     try:
-                        self.api.send_c2c_text(target_id, target_plain, msg_id=anchor_id)
+                        sent = self.api.send_c2c_text(target_id, target_plain, msg_id=anchor_id)
                     except ApiError as e:
                         if not (anchor_id and e.has_code(*ERR_PASSIVE_EXPIRED)):
                             raise
+                        sent = True
                         self._send_active_fallback(target_id, target_type, target_plain, target_images)
                 elif target_images or has_mention:
                     content = target_plain
@@ -498,18 +518,27 @@ class OpenQQBotConnector(BasicConnector):
                             f"![图片]({url})" for url in target_images
                         )
                     try:
-                        self.api.send_group_markdown(target_id, content, msg_id=anchor_id)
+                        sent = self.api.send_group_markdown(target_id, content, msg_id=anchor_id)
                     except ApiError as e:
                         if not (anchor_id and e.has_code(*ERR_PASSIVE_EXPIRED)):
                             raise
+                        sent = True
                         self._send_active_fallback(target_id, target_type, content, target_images)
                 else:
                     try:
-                        self.api.send_group_text(target_id, target_plain, msg_id=anchor_id)
+                        sent = self.api.send_group_text(target_id, target_plain, msg_id=anchor_id)
                     except ApiError as e:
                         if not (anchor_id and e.has_code(*ERR_PASSIVE_EXPIRED)):
                             raise
+                        sent = True
                         self._send_active_fallback(target_id, target_type, target_plain, target_images)
+                if sent is None and anchor_id:
+                    # send_* 在被动回复次数耗尽时返回 None（SeqManager 上限）而非抛错，
+                    # 此时消息未发出：降级为主动消息，避免静默丢失
+                    self.logger.info(
+                        f"{self.log_prefix} 被动回复次数耗尽，降级为主动消息发送到 {target_id}"
+                    )
+                    self._send_active_fallback(target_id, target_type, target_plain, target_images)
                 self._diag("%s 发送成功 → %s", self.log_prefix, target_id)
             except Exception as e:
                 code = getattr(e, "err_code", None) or getattr(e, "api_code", "?")

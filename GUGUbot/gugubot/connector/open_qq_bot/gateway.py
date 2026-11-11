@@ -139,7 +139,13 @@ class Gateway:
         while ws.keep_running and not self._stop:
             self._ack.clear()
             logger.debug("发送心跳 op=1 seq=%s", self.last_seq)
-            ws.send(json.dumps({"op": 1, "d": self.last_seq}))
+            try:
+                ws.send(json.dumps({"op": 1, "d": self.last_seq}))
+            except Exception as e:
+                # 连接已在 run_forever 退出过程中关闭：结束心跳线程即可，
+                # 重连由 run() 中 run_forever 的返回逻辑统一处理
+                logger.debug("心跳发送失败（连接已关闭）：%s", e)
+                return
             if not self._ack.wait(timeout=10):
                 logger.warning("心跳 ACK 超时，断开重连")
                 ws.close()

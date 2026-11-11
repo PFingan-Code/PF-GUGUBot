@@ -81,7 +81,22 @@ class FakeServer:
 
     def schedule_task(self, coro):
         FakeServer.scheduled.append(coro)
-        coro.close()
+
+
+def drain_scheduled(run: bool = True) -> list:
+    """取出 FakeServer.scheduled 中的协程。
+
+    run=True 时逐个以独立事件循环执行（调试回复等需真正发送的任务）；
+    run=False 时仅关闭（只统计调度次数的用例，避免 never-awaited 告警）。
+    """
+    pending = list(FakeServer.scheduled)
+    FakeServer.scheduled.clear()
+    for coro in pending:
+        if run:
+            asyncio.run(coro)
+        else:
+            coro.close()
+    return pending
 
 
 class FakeManager:
@@ -413,6 +428,35 @@ class TestOutbound(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(self.api.sent), 1)  # 降级为主动消息成功
         self.assertIsNone(self.api.sent[0][3])
 
+    def test_passive_exhausted_falls_back_to_active(self):
+        """SeqManager 次数耗尽时 send_* 返回 None 而非抛错：必须降级，不得静默丢弃。"""
+        def exhausted_send(g, c, msg_id=None, event_id=None, reference=None):
+            if msg_id:
+                return None  # 被动回复次数耗尽（5 次上限）
+            self.api.sent.append(("text", g, c, msg_id))
+            return {"id": "RID"}
+
+        self.api.send_group_text = exhausted_send
+        p = ProcessedInfo(processed_message=[{"type": "text", "data": {"text": "hi"}}],
+                          _source=Source("OpenQQBot"), source_id=GROUP_OID,
+                          sender="bot", raw=group_event()["d"])
+        p.target = {GROUP_OID: "group"}
+        asyncio.run(self.conn.send_message(p))
+        self.assertEqual(len(self.api.sent), 1)  # 降级为主动消息成功
+        self.assertIsNone(self.api.sent[0][3])
+
+    def test_private_images_get_placeholder(self):
+        """单聊不支持富媒体下发：图片以 [图片] 占位并入文本，不得静默丢弃。"""
+        p = ProcessedInfo(
+            processed_message=[{"type": "image", "data": {"file": "https://i/x.png"}}],
+            _source=Source("QQ"), source_id=USER_OID, sender="友",
+        )
+        p.target = {USER_OID: "private"}
+        asyncio.run(self.conn.send_message(p))
+        kind, _, content, _ = self.api.sent[0]
+        self.assertEqual(kind, "c2c")
+        self.assertIn("[图片]", content)
+
 
 class TestEventEntry(unittest.TestCase):
     def setUp(self):
@@ -429,6 +473,7 @@ class TestEventEntry(unittest.TestCase):
             None,
         )
         self.assertEqual(len(FakeServer.scheduled), 1)
+        drain_scheduled(run=False)
 
     def test_unknown_event_ignored(self):
         self.conn._on_gateway_event("SOMETHING_ELSE", {}, None)
@@ -438,6 +483,7 @@ class TestEventEntry(unittest.TestCase):
         event = group_event(content="hello")
         asyncio.run(self.conn.on_message(event))
         self.assertEqual(len(FakeServer.scheduled), 1)
+        drain_scheduled(run=False)
 
 
 class TestQuota(unittest.TestCase):
@@ -491,6 +537,24 @@ class TestNoticeAndUnbind(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(info.event_type, "notice")
         self.assertEqual(info.event_sub_type, "group_decrease")
         self.assertEqual(info.sender_id, USER_OID)
+
+    async def test_member_remove_outside_whitelist_ignored(self):
+        """未监听群的退群事件不进入管线：用户可能仍在监听群内，不应误解绑。"""
+        event = {"t": "GROUP_MEMBER_REMOVE", "d": {
+            "group_openid": "OTHEROTHEROTHEROTHEROTHEROTHEROTHER1",
+            "member_openid": USER_OID, "timestamp": 1}}
+        self.assertIsNone(await self.parser.parse(event))
+
+    async def test_member_remove_without_whitelist_passes(self):
+        """group_ids 为空 = 全量监听：任何群的退群事件都进入管线。"""
+        config = default_config(permissions={
+            "admin_ids": [], "group_ids": [], "forward_group_ids": []})
+        parser = OpenQQBotParser(build_connector(config))
+        event = {"t": "GROUP_MEMBER_REMOVE", "d": {
+            "group_openid": "ANYGROUPANYGROUPANYGROUPANYGROUPANYGROUP12",
+            "member_openid": USER_OID, "timestamp": 1}}
+        info = await parser.parse(event)
+        self.assertIsNotNone(info)
 
     async def test_quota_enforced_for_active_only(self):
         sent = []
@@ -649,6 +713,7 @@ class TestDebugCommands(unittest.TestCase):
     def test_group_id(self):
         t, d = self._d("/groupId")
         self.assertTrue(self.conn._try_debug_command(t, d))
+        drain_scheduled()
         self.assertEqual(len(self.api.sent), 1)
         kind, chat, text, msg_id = self.api.sent[0]
         self.assertEqual((kind, chat, msg_id), ("text", GROUP_OID, "MSGD"))
@@ -662,6 +727,7 @@ class TestDebugCommands(unittest.TestCase):
         # 真实链路中 _on_gateway_event 先习得 OpenID 再尝试拦截
         self.conn._learn_bot_openid(d)
         self.assertTrue(self.conn._try_debug_command(t, d))
+        drain_scheduled()
         self.assertEqual(self.api.sent[0][1], GROUP_OID)
         self.assertEqual(self.conn.bot_openid, BOT_OID)
 
@@ -671,11 +737,13 @@ class TestDebugCommands(unittest.TestCase):
             mentions=[{"member_openid": USER_OID, "username": "一梦"}],
         )
         self.assertTrue(self.conn._try_debug_command(t, d))
+        drain_scheduled()
         self.assertIn(f"user_id={USER_OID}", self.api.sent[0][2])
 
     def test_user_id_usage_without_mention(self):
         t, d = self._d("/userId")
         self.assertTrue(self.conn._try_debug_command(t, d))
+        drain_scheduled()
         self.assertIn("debug_user_id_usage", self.api.sent[0][2])
 
     def test_user_id_multi_mentions(self):
@@ -685,17 +753,20 @@ class TestDebugCommands(unittest.TestCase):
                       {"member_openid": MEMBER_OID, "username": "b"}],
         )
         self.assertTrue(self.conn._try_debug_command(t, d))
+        drain_scheduled()
         self.assertIn("debug_user_id_multi", self.api.sent[0][2])
 
     def test_bot_id_unknown_then_learned(self):
         t, d = self._d("/botId")
         self.assertTrue(self.conn._try_debug_command(t, d))
+        drain_scheduled()
         self.assertIn("debug_bot_id_unknown", self.api.sent[0][2])
         # 被 @ 后习得自身 OpenID，再次查询即回复
         self.conn._learn_bot_openid({"mentions": [
             {"id": BOT_OID, "bot": True, "username": "林晚晴"}]})
         t, d = self._d("/botId", msg_id="MSGD2")
         self.assertTrue(self.conn._try_debug_command(t, d))
+        drain_scheduled()
         self.assertIn(f"bot_id={BOT_OID}", self.api.sent[1][2])
 
     def test_c2c_user_id_self(self):
@@ -703,6 +774,7 @@ class TestDebugCommands(unittest.TestCase):
         d["author"] = {"user_openid": USER_OID, "username": "一梦"}
         del d["group_openid"]
         self.assertTrue(self.conn._try_debug_command(t, d))
+        drain_scheduled()
         kind, chat, text, msg_id = self.api.sent[0]
         self.assertEqual((kind, chat), ("c2c", USER_OID))
         self.assertIn(f"user_id={USER_OID}", text)
@@ -723,6 +795,7 @@ class TestDebugCommands(unittest.TestCase):
         conn.api = self.api
         t, d = self._d("/groupId", group="NEWGROUP1NEWGROUP1NEWGROUP1NEWGROUP1")
         self.assertTrue(conn._try_debug_command(t, d))
+        drain_scheduled()
         self.assertEqual(self.api.sent[0][1], "NEWGROUP1NEWGROUP1NEWGROUP1NEWGROUP1")
 
 
@@ -758,6 +831,7 @@ class TestDiagnosticLogging(unittest.TestCase):
         self.assertIn("入站", text)
         self.assertIn("hello 你好", text)
         self.assertIn(GROUP_OID, text)
+        drain_scheduled(run=False)
 
     def test_outbound_send_logged(self):
         conn = build_connector()
@@ -785,10 +859,57 @@ class TestDiagnosticLogging(unittest.TestCase):
         conn._try_debug_command(
             "GROUP_MESSAGE_CREATE", group_event("/groupId")["d"]
         )
+        drain_scheduled()  # 回复已异步调度，执行后才有「已发送」记录
         text = log.text()
         self.assertIn("调试命令", text)
         self.assertIn("/groupId", text)
         self.assertIn("调试命令回复已发送", text)
+
+
+class TestSeqAccounting(unittest.TestCase):
+    """去重重试换 msg_seq 后仍失败：重试分配必须回退，不得泄漏被动配额。"""
+
+    def _client(self):
+        from gugubet.connector.open_qq_bot.api_client import ApiClient, TokenManager
+
+        return ApiClient(TokenManager("a", "b"))
+
+    def test_group_retry_failure_releases_seq(self):
+        from gugubot.connector.open_qq_bot.common import ApiError
+
+        client = self._client()
+        calls = {"n": 0}
+
+        def fake_call(method, path, body=None, timeout=10):
+            calls["n"] += 1
+            if calls["n"] == 1:  # 首次：命中去重（换 seq 重试）
+                raise ApiError("POST", "u", 400, '{"err_code":40054005}', 40054005)
+            raise ApiError("POST", "u", 400, '{"err_code":40034005}', 40034005)
+
+        client._call = fake_call
+        with self.assertRaises(ApiError):
+            client.send_group_markdown("G", "hi", msg_id="M")
+        self.assertEqual(calls["n"], 2)
+        # 被动分配（seq=1）与重试分配（seq=2）均未被服务端接受，全部回退
+        self.assertEqual(client.seq._seqs.get("M", 0), 0)
+
+    def test_c2c_retry_failure_releases_seq(self):
+        from gugubot.connector.open_qq_bot.common import ApiError
+
+        client = self._client()
+        calls = {"n": 0}
+
+        def fake_call(method, path, body=None, timeout=10):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise ApiError("POST", "u", 400, '{"err_code":40054005}', 40054005)
+            raise ApiError("POST", "u", 400, '{"err_code":40034005}', 40034005)
+
+        client._call = fake_call
+        with self.assertRaises(ApiError):
+            client.send_c2c_text("U", "hi", msg_id="M")
+        self.assertEqual(calls["n"], 2)
+        self.assertEqual(client.seq._seqs.get("M"), 1)
 
 
 class TestQQConnectorEnableGuard(unittest.TestCase):

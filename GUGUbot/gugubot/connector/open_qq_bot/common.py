@@ -31,7 +31,6 @@ INTENTS = (1 << 25) | (1 << 24)
 # 官方错误码（group-messages-post.md 错误码表 + 实测补充）
 ERR_DUPLICATED = 40054005        # 消息被去重：相同 msg_id + msg_seq 重复发送
 ERR_PASSIVE_EXPIRED = {304103, 40034005, 40034128}  # 被动回复过期/超次
-ERR_AT_EVERYONE_LIMIT = 40034142  # @全体成员次数超限（每群每天 1 次，实测补充）
 
 
 class ApiError(RuntimeError):
@@ -200,22 +199,6 @@ def at_user_tag(member_openid):
     纯文本（msg_type=0）API 接受但客户端原样显示。
     """
     return f'<qqbot-at-user id="{member_openid}" />'
-
-
-def at_everyone_tag():
-    """出站 @全体成员（<qqbot-at-everyone />）。
-
-    群聊文本、Markdown 消息均支持；机器人需为该群管理员，每群每天仅 1 次。
-    """
-    return "<qqbot-at-everyone />"
-
-
-def at_everyone_tag():
-    """出站 @全体成员（<qqbot-at-everyone />）。
-
-    群聊文本、Markdown 消息均支持；机器人需为该群管理员，每群每天仅 1 次。
-    """
-    return "<qqbot-at-everyone />"
 
 
 class QuotaManager:
