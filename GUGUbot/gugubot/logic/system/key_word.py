@@ -44,10 +44,6 @@ class KeyWordSystem(BasicConfig, BasicSystem):
         broadcast_info: BroadcastInfo
             广播信息，包含消息内容
         """
-        # open-qq-bot 官方连接器：不做关键词回复（产品决策，关键词功能仅 OneBot 侧提供）
-        if self._from_open_qq_bot(broadcast_info):
-            return False
-
         if broadcast_info.event_type != "message":
             return False
 
@@ -67,14 +63,6 @@ class KeyWordSystem(BasicConfig, BasicSystem):
             return True
 
         return await self._handle_msg(broadcast_info)
-
-    def _from_open_qq_bot(self, broadcast_info: BroadcastInfo) -> bool:
-        """判断消息是否来自 open-qq-bot 官方连接器（段名或其配置的显示名）。"""
-        source = broadcast_info.source
-        official_source_name = self.config.get_keys(
-            ["connector", "open-qq-bot", "source_name"], "OpenQQBot"
-        )
-        return source.is_from("open-qq-bot") or source.is_from(official_source_name)
 
     async def _handle_msg(self, broadcast_info: BroadcastInfo) -> bool:
         """处理消息"""
