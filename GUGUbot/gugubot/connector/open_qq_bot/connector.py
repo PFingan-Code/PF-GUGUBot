@@ -15,6 +15,7 @@ GUGUBot 的 connector 管线，与 OneBot 版 QQWebSocketConnector 并行使用�
 """
 
 import asyncio
+import logging
 import random
 import re
 from typing import Optional
@@ -67,6 +68,16 @@ class OpenQQBotConnector(BasicConnector):
         connector_basic_name = self.server.tr("gugubot.connector.name")
         self.log_prefix = f"[{connector_basic_name}{self.source}]"
 
+        # 排障日志开关：MCDR 的 debug.<option> 不作用于插件 logger
+        # （set_debug_options 设在主 logger 的子类上），故按配置显式调试模块 logger；
+        # 同一 logger 还会输出 ApiClient 的 HTTP 请求/响应明细。
+        self.verbose = bool(
+            config.get_keys(["connector", self.SECTION, "verbose"], False)
+        )
+        self._diag_logger = logging.getLogger("gugubot.open_qq_bot")
+        if self.verbose:
+            self._diag_logger.setLevel(logging.DEBUG)
+
         self.app_id = config.get_keys(
             ["connector", self.SECTION, "connection", "app_id"], ""
         )
@@ -111,6 +122,11 @@ class OpenQQBotConnector(BasicConnector):
         )
 
     # ---- BasicConnector 接口 ----
+
+    def _diag(self, msg: str, *args) -> None:
+        """排障日志：仅 ``connector.open-qq-bot.verbose=true`` 时输出。"""
+        if self.verbose:
+            self._diag_logger.debug(msg, *args)
 
     async def connect(self) -> None:
         if not self.enable:
@@ -161,17 +177,17 @@ class OpenQQBotConnector(BasicConnector):
             return
         allowed = set(OpenQQBotParser.MESSAGE_EVENTS) | set(OpenQQBotParser.NOTICE_EVENTS)
         if t not in allowed:
-            self.logger.debug("忽略事件 %s", t)
+            self._diag("忽略事件 %s", t)
             return
         author = d.get("author") or {}
         if author.get("bot"):
             return
         msg_id = d.get("id")
         if msg_id and self.dedup.seen(msg_id):
-            self.logger.debug("%s 重复事件已去重：msg_id=%s", self.log_prefix, msg_id)
+            self._diag("%s 重复事件已去重：msg_id=%s", self.log_prefix, msg_id)
             return
         # 诊断日志：开启 MCDR debug 后可见（内容和发送结果不放 INFO，避免噪音）
-        self.logger.debug(
+        self._diag(
             "%s 入站 %s | 会话=%s | 发送者=%s | 内容=%r | 提及机器人=%s",
             self.log_prefix,
             t,
@@ -252,7 +268,7 @@ class OpenQQBotConnector(BasicConnector):
         else:
             chat_id = author.get("user_openid") or author.get("id") or ""
 
-        self.logger.debug(
+        self._diag(
             "%s 调试命令 %s | 会话=%s | msg_id=%s",
             self.log_prefix, command, chat_id, msg_id,
         )
@@ -331,7 +347,7 @@ class OpenQQBotConnector(BasicConnector):
                 self.api.send_group_text(chat_id, text, msg_id=msg_id)
             else:
                 self.api.send_c2c_text(chat_id, text, msg_id=msg_id)
-            self.logger.debug(
+            self._diag(
                 "%s 调试命令回复已发送 → %s: %r", self.log_prefix, chat_id, text[:120]
             )
         except ApiError as e:
@@ -426,11 +442,11 @@ class OpenQQBotConnector(BasicConnector):
 
         plain, images = self._segments_to_official(message)
         if not plain and not images:
-            self.logger.debug("%s 出站内容为空（无文本/图片），跳过", self.log_prefix)
+            self._diag("%s 出站内容为空（无文本/图片），跳过", self.log_prefix)
             return
 
         resolved = self._resolve_targets(processed_info)
-        self.logger.debug(
+        self._diag(
             "%s 出站目标：%s（来源=%s/%s）",
             self.log_prefix, list(resolved.items()) or "无",
             source.origin, processed_info.source_id,
@@ -445,7 +461,7 @@ class OpenQQBotConnector(BasicConnector):
                     f"{self.per_minute}/分钟、{self.per_day}/天），丢弃本条"
                 )
                 continue
-            self.logger.debug(
+            self._diag(
                 "%s 发送 → %s（%s，msg_id=%s）：%r",
                 self.log_prefix, target_id,
                 "被动" if anchor_id else "主动", anchor_id, plain[:120],
@@ -475,7 +491,7 @@ class OpenQQBotConnector(BasicConnector):
                         if not (anchor_id and e.has_code(*ERR_PASSIVE_EXPIRED)):
                             raise
                         self._send_active_fallback(target_id, target_type, plain, images)
-                self.logger.debug("%s 发送成功 → %s", self.log_prefix, target_id)
+                self._diag("%s 发送成功 → %s", self.log_prefix, target_id)
             except Exception as e:
                 code = getattr(e, "err_code", None) or getattr(e, "api_code", "?")
                 self.logger.warning(
@@ -503,11 +519,11 @@ class OpenQQBotConnector(BasicConnector):
                 if OPENID_RE.match(sid):
                     resolved[sid] = target_type
                 else:
-                    self.logger.debug(
+                    self._diag(
                         f"{self.log_prefix} 回复目标 {target_id} 无法映射到来源会话，跳过"
                     )
             else:
-                self.logger.debug(f"{self.log_prefix} 跳过非本连接器目标：{target_id}")
+                self._diag(f"{self.log_prefix} 跳过非本连接器目标：{target_id}")
         return resolved
 
     def _reply_anchor(self, processed_info: ProcessedInfo, target_id: str):

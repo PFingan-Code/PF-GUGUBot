@@ -615,7 +615,8 @@ class TestDiagnosticLogging(unittest.TestCase):
     def test_inbound_message_logged(self):
         conn = build_connector()
         log = RecordingLogger()
-        conn.logger = log
+        conn.verbose = True
+        conn._diag_logger = log
         conn._on_gateway_event(
             "GROUP_MESSAGE_CREATE", group_event("hello 你好")["d"], None
         )
@@ -628,7 +629,8 @@ class TestDiagnosticLogging(unittest.TestCase):
         conn = build_connector()
         conn.api = FakeApi()
         log = RecordingLogger()
-        conn.logger = log
+        conn.verbose = True
+        conn._diag_logger = log
         p = ProcessedInfo(
             processed_message=[{"type": "text", "data": {"text": "hi"}}],
             _source=Source("OpenQQBot"), source_id=GROUP_OID,
@@ -644,7 +646,8 @@ class TestDiagnosticLogging(unittest.TestCase):
         conn = build_connector()
         conn.api = FakeApi()
         log = RecordingLogger()
-        conn.logger = log
+        conn.verbose = True
+        conn._diag_logger = log
         conn._try_debug_command(
             "GROUP_MESSAGE_CREATE", group_event("/groupId")["d"]
         )
