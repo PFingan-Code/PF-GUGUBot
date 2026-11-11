@@ -592,5 +592,39 @@ class TestDebugCommands(unittest.TestCase):
         self.assertEqual(self.api.sent[0][1], "NEWGROUP1NEWGROUP1NEWGROUP1NEWGROUP1")
 
 
+class TestQQConnectorEnableGuard(unittest.TestCase):
+    """回归：OneBot QQ 连接器 enable=false 时不得发起连接（WinError 10061）。"""
+
+    def _build(self, enable):
+        from gugubot.connector.qq_connector import QQWebSocketConnector
+        config = FakeConfig({"connector": {"QQ": {
+            "enable": enable,
+            "source_name": "QQ",
+            "connection": {"host": "127.0.0.1", "port": 8777, "reconnect": 5},
+        }}})
+        conn = QQWebSocketConnector(FakeServer(), config)
+        conn.logger = FakeLogger()
+        return conn
+
+    def test_disabled_connector_never_connects(self):
+        conn = self._build(enable=False)
+        self.assertFalse(conn.enable)
+        asyncio.run(conn.connect())
+        self.assertIsNone(conn.ws_client)  # 未创建任何 WebSocket 客户端
+
+    def test_enabled_connector_creates_client(self):
+        conn = self._build(enable=True)
+        # 拦截工厂：不真正建连，仅验证守卫放行
+        from unittest import mock
+        with mock.patch(
+            "gugubot.connector.qq_connector.WebSocketFactory.create_client"
+        ) as factory:
+            fake_client = mock.MagicMock()
+            factory.return_value = fake_client
+            asyncio.run(conn.connect())
+            factory.assert_called_once()
+            fake_client.connect.assert_called_once()
+
+
 if __name__ == "__main__":
     unittest.main()

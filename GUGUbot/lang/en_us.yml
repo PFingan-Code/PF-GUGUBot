@@ -19,6 +19,7 @@ gugubot:
         name: "Connector"
         QQ:
             try_connect: "Trying to connect to: {url}"
+            disabled: "Connector disabled (connector.QQ.enable=false), skipping startup"
             start_connect: "Starting QQ bot connection"
             received_message: "Received message: {message}"
             error_connect: "Connection error: {error}"

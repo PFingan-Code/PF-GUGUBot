@@ -19,6 +19,7 @@ gugubot:
         name: "连接器"
         QQ:
             try_connect: "尝试连接到: {url}"
+            disabled: "连接器未启用（connector.QQ.enable=false），跳过启动"
             start_connect: "开始连接QQ机器人"
             received_message: "收到消息: {message}"
             error_connect: "连接错误: {error}"
