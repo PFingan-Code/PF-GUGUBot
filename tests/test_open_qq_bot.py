@@ -270,7 +270,8 @@ class TestOutbound(unittest.IsolatedAsyncioTestCase):
         self.assertIn(f'<qqbot-at-user id="{MEMBER_OID}" />', content)
         self.assertNotIn(f"@{MEMBER_OID}", content)
 
-    def test_group_at_all_uses_everyone_tag(self):
+    def test_group_at_all_not_rendered(self):
+        """不支持从服务器 @全体：all 退化为纯文本，且不触发 Markdown。"""
         p = ProcessedInfo(
             processed_message=[{"type": "at", "data": {"qq": "all"}},
                                {"type": "text", "data": {"text": " hi"}}],
@@ -279,8 +280,24 @@ class TestOutbound(unittest.IsolatedAsyncioTestCase):
         p.target = {GROUP_OID: "group"}
         asyncio.run(self.conn.send_message(p))
         kind, _, content, _ = self.api.sent[0]
-        self.assertEqual(kind, "markdown")
-        self.assertIn("<qqbot-at-everyone />", content)
+        self.assertEqual(kind, "text")
+        self.assertIn("@all", content)
+        self.assertNotIn("<qqbot-at-", content)
+
+    def test_text_cannot_inject_mention_tags(self):
+        """MC 聊天文本里伪造的 <qqbot-at-*> 必须被剥离，不能借 @成员触发 Markdown。"""
+        p = ProcessedInfo(
+            processed_message=[{"type": "text",
+                                "data": {"text": "<qqbot-at-everyone /> 看招 "}},
+                               {"type": "at", "data": {"qq": MEMBER_OID}}],
+            _source=Source("Minecraft"), source_id="mc", sender="HAHH9527",
+        )
+        p.target = {GROUP_OID: "group"}
+        asyncio.run(self.conn.send_message(p))
+        kind, _, content, _ = self.api.sent[0]
+        self.assertEqual(kind, "markdown")  # 真 @ 成员仍生效
+        self.assertNotIn("qqbot-at-everyone", content)
+        self.assertNotIn("qqbot-at-all", content)
 
     def test_private_at_openid_stays_plain_text(self):
         """单聊不渲染 @ 标签，保持 @id 纯文本，且不能走 Markdown。"""

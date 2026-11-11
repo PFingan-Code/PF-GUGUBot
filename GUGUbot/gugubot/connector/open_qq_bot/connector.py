@@ -42,6 +42,9 @@ MC_COLOR_CODE = re.compile(r"§[0-9a-fk-or]", re.IGNORECASE)
 # 消息 content 中的 @ 标记（<@openid> / <@all>），调试命令匹配前剥离
 AT_TAG_RE = re.compile(r"<@[^>]*>")
 
+# 出站文本框里的 mention 标签：外部聊天内容不得伪造 @成员/@全体
+MENTION_TAG_RE = re.compile(r"<qqbot-at-[^>]*>", re.IGNORECASE)
+
 
 class OpenQQBotConnector(BasicConnector):
     """QQ 官方机器人连接器。
@@ -404,10 +407,10 @@ class OpenQQBotConnector(BasicConnector):
     def _segments_to_official(self, message: list, *, allow_mention: bool = False):
         """内部段数组 → (纯文本, 图片 URL 列表, 是否含 @ 提及)。
 
-        - text 段拼接
+        - text 段拼接（剥离外部内容伪造的 ``<qqbot-at-*>`` 标签）
         - at 段：群聊且 qq 为 32 位 OpenID 时渲染成 Markdown 的
-          ``<qqbot-at-user id="..."/>``（实测纯文本不渲染，见 demo README），
-          ``all`` 渲染成 ``<qqbot-at-everyone/>``；其余情况退化为 ``@id`` 文本
+          ``<qqbot-at-user id="..."/>``（实测纯文本不渲染，见 demo README）；
+          ``all`` 与其它值一律退化为 ``@id`` 文本，不支持从服务器 @全体
         - image 段提取公网 URL（data.file / data.url）
         """
         texts, images = [], []
@@ -418,13 +421,10 @@ class OpenQQBotConnector(BasicConnector):
             item_type = item.get("type")
             data = item.get("data") or {}
             if item_type == "text":
-                texts.append(data.get("text", ""))
+                texts.append(MENTION_TAG_RE.sub("", data.get("text", "")))
             elif item_type == "at":
                 target = str(data.get("qq", ""))
-                if allow_mention and target.lower() == "all":
-                    texts.append("<qqbot-at-everyone />")
-                    has_mention = True
-                elif allow_mention and OPENID_RE.match(target):
+                if allow_mention and OPENID_RE.match(target):
                     texts.append(f'<qqbot-at-user id="{target}" />')
                     has_mention = True
                 else:
