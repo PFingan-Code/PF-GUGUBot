@@ -26,7 +26,9 @@ from gugubot.connector.open_qq_bot.common import (
     ERR_PASSIVE_EXPIRED,
     ApiError,
     DedupSet,
+    QuotaManager,
 )
+from pathlib import Path
 from gugubot.connector.open_qq_bot.gateway import Gateway
 from gugubot.connector.open_qq_bot.parser import OpenQQBotParser
 from gugubot.utils.types import ProcessedInfo
@@ -74,6 +76,17 @@ class OpenQQBotConnector(BasicConnector):
         self.max_message_length = config.get_keys(
             ["connector", self.SECTION, "connection", "max_message_length"], 2000
         )
+        self.per_minute = config.get_keys(
+            ["connector", self.SECTION, "rate_limit", "per_minute"], 20
+        )
+        self.per_day = config.get_keys(
+            ["connector", self.SECTION, "rate_limit", "per_day"], 1000
+        )
+        try:
+            quota_path = Path(server.get_data_folder()) / "open_qq_bot_quota.json"
+        except Exception:
+            quota_path = None
+        self.quota = QuotaManager(self.per_minute, self.per_day, quota_path)
 
         self.tokens = TokenManager(self.app_id, self.app_secret)
         self.api = ApiClient(
@@ -137,7 +150,8 @@ class OpenQQBotConnector(BasicConnector):
         """网关线程回调：去重/过滤后调度到 MCDR 事件循环。"""
         if not self.enable:
             return
-        if t not in OpenQQBotParser.MESSAGE_EVENTS:
+        allowed = set(OpenQQBotParser.MESSAGE_EVENTS) | set(OpenQQBotParser.NOTICE_EVENTS)
+        if t not in allowed:
             self.logger.debug("忽略事件 %s", t)
             return
         author = d.get("author") or {}
@@ -254,6 +268,13 @@ class OpenQQBotConnector(BasicConnector):
         for target_id, target_type in resolved.items():
             # 被动回复锚点：仅当目标与触发消息同一会话时使用（5 分钟/5 次窗口）
             anchor_id = self._reply_anchor(processed_info, target_id)
+            # 主动消息配额（官方：单群 20 条/分钟、1000 条/天）；被动回复不占配额
+            if anchor_id is None and not self.quota.allow(target_id):
+                self.logger.warning(
+                    f"{self.log_prefix} 主动消息配额已用尽（{target_id}: "
+                    f"{self.per_minute}/分钟、{self.per_day}/天），丢弃本条"
+                )
+                continue
             try:
                 if target_type == "private":
                     try:
@@ -327,6 +348,11 @@ class OpenQQBotConnector(BasicConnector):
 
     def _send_active_fallback(self, target_id, target_type, plain, images):
         """被动回复窗口失效（40034005 等）时的主动消息降级。"""
+        if not self.quota.allow(target_id):
+            self.logger.warning(
+                f"{self.log_prefix} 主动消息配额已用尽（{target_id}），降级发送已丢弃"
+            )
+            return
         self.logger.info(
             f"{self.log_prefix} 被动回复失效，降级为主动消息发送到 {target_id}"
         )

@@ -13,6 +13,7 @@ import time
 import urllib.error
 import urllib.request
 from collections import OrderedDict
+from pathlib import Path
 
 logger = logging.getLogger("gugubot.open_qq_bot")
 
@@ -200,3 +201,72 @@ def at_everyone_tag():
     群聊文本、Markdown 消息均支持；机器人需为该群管理员，每群每天仅 1 次。
     """
     return "<qqbot-at-everyone />"
+
+
+def at_everyone_tag():
+    """出站 @全体成员（<qqbot-at-everyone />）。
+
+    群聊文本、Markdown 消息均支持；机器人需为该群管理员，每群每天仅 1 次。
+    """
+    return "<qqbot-at-everyone />"
+
+
+class QuotaManager:
+    """主动消息配额管理器。
+
+    官方限制（消息/group-messages-post.md）：单群 20 条/分钟、1000 条/天；
+    Bot 维度 30~60 条/分钟。仅统计**主动消息**——被动回复（带 msg_id 锚点）
+    不占分钟/天配额，由 :class:`SeqManager` 单独管理 5 次/5 分钟窗口。
+
+    状态持久化为 JSON（按 key 记录当日计数与分钟滑动窗口），
+    重启不重置当日计数，避免配额被重启绕过。
+    """
+
+    def __init__(self, per_minute=20, per_day=1000, persist_path=None):
+        self.per_minute = max(1, int(per_minute))
+        self.per_day = max(1, int(per_day))
+        self._persist_path = Path(persist_path) if persist_path else None
+        self._lock = threading.Lock()
+        self._state = {}  # key -> {"date": "YYYY-MM-DD", "day": int, "minute": [ts...]}
+        self._load()
+
+    def _load(self):
+        if not self._persist_path or not self._persist_path.is_file():
+            return
+        try:
+            self._state = json.loads(self._persist_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            self._state = {}
+
+    def _save(self):
+        if not self._persist_path:
+            return
+        try:
+            self._persist_path.parent.mkdir(parents=True, exist_ok=True)
+            self._persist_path.write_text(
+                json.dumps(self._state, ensure_ascii=False), encoding="utf-8"
+            )
+        except OSError:
+            pass
+
+    def allow(self, key):
+        """记录一次主动消息并判断 key（群/用户 OpenID）当前是否允许发送。"""
+        with self._lock:
+            today = time.strftime("%Y-%m-%d")
+            st = self._state.setdefault(key, {"date": today, "day": 0, "minute": []})
+            if st.get("date") != today:
+                st["date"] = today
+                st["day"] = 0
+            now = time.time()
+            window = [t for t in st.get("minute", []) if now - t < 60]
+            st["minute"] = window
+            if st.get("day", 0) >= self.per_day:
+                self._save()
+                return False
+            if len(window) >= self.per_minute:
+                self._save()
+                return False
+            window.append(now)
+            st["day"] = st.get("day", 0) + 1
+            self._save()
+            return True

@@ -24,6 +24,9 @@ class OpenQQBotParser(BasicParser):
         "C2C_MESSAGE_CREATE",
     }
 
+    # 通知事件 → 内部 event_sub_type（供 bound 系统做退群解绑等）
+    NOTICE_EVENTS = {"GROUP_MEMBER_REMOVE": "group_decrease"}
+
     async def parse(self, raw: dict) -> Optional[BroadcastInfo]:
         """解析单个官方事件。
 
@@ -33,6 +36,10 @@ class OpenQQBotParser(BasicParser):
             connector 包装的事件：``{"t": 事件名, "d": 事件体, "event_id": ...}``。
         """
         t = raw.get("t")
+
+        if t in self.NOTICE_EVENTS:
+            return self._parse_notice(t, raw.get("d") or {})
+
         if t not in self.MESSAGE_EVENTS:
             return None
         d = raw.get("d") or {}
@@ -77,6 +84,24 @@ class OpenQQBotParser(BasicParser):
         )
 
     # ---- 内部 ----
+
+    def _parse_notice(self, t: str, d: dict) -> Optional[BroadcastInfo]:
+        """通知事件：GROUP_MEMBER_REMOVE → group_decrease（供 bound 系统退群解绑）。"""
+        member_openid = str(d.get("member_openid", ""))
+        if not member_openid:
+            return None
+        return BroadcastInfo(
+            event_type="notice",
+            event_sub_type=self.NOTICE_EVENTS[t],
+            message=[{"type": "text", "data": {"text": ""}}],
+            raw=d,
+            server=self.server,
+            logger=self.logger,
+            _source=Source(self.connector.source),
+            source_id=str(d.get("group_openid", "")),
+            sender=member_openid,
+            sender_id=member_openid,
+        )
 
     def _build_segments(self, d: dict) -> list:
         """content + mentions + attachments → 内部统一消息段格式。
