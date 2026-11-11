@@ -401,13 +401,17 @@ class OpenQQBotConnector(BasicConnector):
             prefix_text = f"[{source.origin}] {processed_info.sender}: "
         return [{"type": "text", "data": {"text": prefix_text}}]
 
-    def _segments_to_official(self, message: list):
-        """内部段数组 → (纯文本, 图片 URL 列表)。
+    def _segments_to_official(self, message: list, *, allow_mention: bool = False):
+        """内部段数组 → (纯文本, 图片 URL 列表, 是否含 @ 提及)。
 
-        - text 段拼接；at 段转 ``@id`` 文本
+        - text 段拼接
+        - at 段：群聊且 qq 为 32 位 OpenID 时渲染成 Markdown 的
+          ``<qqbot-at-user id="..."/>``（实测纯文本不渲染，见 demo README），
+          ``all`` 渲染成 ``<qqbot-at-everyone/>``；其余情况退化为 ``@id`` 文本
         - image 段提取公网 URL（data.file / data.url）
         """
         texts, images = [], []
+        has_mention = False
         for item in message:
             if not isinstance(item, dict):
                 continue
@@ -416,7 +420,15 @@ class OpenQQBotConnector(BasicConnector):
             if item_type == "text":
                 texts.append(data.get("text", ""))
             elif item_type == "at":
-                texts.append(f"@{data.get('qq', '')}")
+                target = str(data.get("qq", ""))
+                if allow_mention and target.lower() == "all":
+                    texts.append("<qqbot-at-everyone />")
+                    has_mention = True
+                elif allow_mention and OPENID_RE.match(target):
+                    texts.append(f'<qqbot-at-user id="{target}" />')
+                    has_mention = True
+                else:
+                    texts.append(f"@{target}")
             elif item_type == "image":
                 url = data.get("file") or data.get("url")
                 if isinstance(url, str) and url.startswith("http"):
@@ -424,7 +436,7 @@ class OpenQQBotConnector(BasicConnector):
                 else:
                     texts.append("[图片]")
         plain = "".join(texts).strip()
-        return plain, images
+        return plain, images, has_mention
 
     def _send_sync(self, processed_info: ProcessedInfo) -> None:
         """阻塞发送实现（由 send_message 通过 asyncio.to_thread 调用）。"""
@@ -438,7 +450,7 @@ class OpenQQBotConnector(BasicConnector):
             else:
                 message = [{"type": "text", "data": {"text": f"[{source.origin}] "}}] + message
 
-        plain, images = self._segments_to_official(message)
+        plain, images, _ = self._segments_to_official(message)
         if not plain and not images:
             self._diag("%s 出站内容为空（无文本/图片），跳过", self.log_prefix)
             return
@@ -450,6 +462,13 @@ class OpenQQBotConnector(BasicConnector):
             source.origin, processed_info.source_id,
         )
         for target_id, target_type in resolved.items():
+            # @ 提及仅在群聊渲染，且必须走 Markdown；私聊保持纯文本
+            if target_type == "group":
+                target_plain, target_images, has_mention = self._segments_to_official(
+                    message, allow_mention=True
+                )
+            else:
+                target_plain, target_images, has_mention = plain, images, False
             # 被动回复锚点：仅当目标与触发消息同一会话时使用（5 分钟/5 次窗口）
             anchor_id = self._reply_anchor(processed_info, target_id)
             # 主动消息配额（官方：单群 20 条/分钟、1000 条/天）；被动回复不占配额
@@ -462,33 +481,35 @@ class OpenQQBotConnector(BasicConnector):
             self._diag(
                 "%s 发送 → %s（%s，msg_id=%s）：%r",
                 self.log_prefix, target_id,
-                "被动" if anchor_id else "主动", anchor_id, plain[:120],
+                "被动" if anchor_id else "主动", anchor_id, target_plain[:120],
             )
             try:
                 if target_type == "private":
                     try:
-                        self.api.send_c2c_text(target_id, plain, msg_id=anchor_id)
+                        self.api.send_c2c_text(target_id, target_plain, msg_id=anchor_id)
                     except ApiError as e:
                         if not (anchor_id and e.has_code(*ERR_PASSIVE_EXPIRED)):
                             raise
-                        self._send_active_fallback(target_id, target_type, plain, images)
-                elif images:
-                    content = plain + "\n\n" + "\n\n".join(
-                        f"![图片]({url})" for url in images
-                    )
+                        self._send_active_fallback(target_id, target_type, target_plain, target_images)
+                elif target_images or has_mention:
+                    content = target_plain
+                    if target_images:
+                        content += "\n\n" + "\n\n".join(
+                            f"![图片]({url})" for url in target_images
+                        )
                     try:
                         self.api.send_group_markdown(target_id, content, msg_id=anchor_id)
                     except ApiError as e:
                         if not (anchor_id and e.has_code(*ERR_PASSIVE_EXPIRED)):
                             raise
-                        self._send_active_fallback(target_id, target_type, content, images)
+                        self._send_active_fallback(target_id, target_type, content, target_images)
                 else:
                     try:
-                        self.api.send_group_text(target_id, plain, msg_id=anchor_id)
+                        self.api.send_group_text(target_id, target_plain, msg_id=anchor_id)
                     except ApiError as e:
                         if not (anchor_id and e.has_code(*ERR_PASSIVE_EXPIRED)):
                             raise
-                        self._send_active_fallback(target_id, target_type, plain, images)
+                        self._send_active_fallback(target_id, target_type, target_plain, target_images)
                 self._diag("%s 发送成功 → %s", self.log_prefix, target_id)
             except Exception as e:
                 code = getattr(e, "err_code", None) or getattr(e, "api_code", "?")
@@ -548,8 +569,10 @@ class OpenQQBotConnector(BasicConnector):
         )
         if target_type == "private":
             self.api.send_c2c_text(target_id, plain)
-        elif images:
-            content = plain + "\n\n" + "\n\n".join(f"![图片]({url})" for url in images)
+        elif images or "<qqbot-at-" in plain:
+            content = plain
+            if images:
+                content += "\n\n" + "\n\n".join(f"![图片]({url})" for url in images)
             self.api.send_group_markdown(target_id, content)
         else:
             self.api.send_group_text(target_id, plain)

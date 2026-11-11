@@ -256,6 +256,59 @@ class TestOutbound(unittest.IsolatedAsyncioTestCase):
         self.assertIn("![图片](https://i/x.png)", content)
         self.assertIn("Steve", content)  # 跨源前缀
 
+    def test_group_at_openid_uses_markdown_mention(self):
+        """MC 侧 CQ:at 转成 at 段后，群聊须渲染 <qqbot-at-user/> 并走 Markdown。"""
+        p = ProcessedInfo(
+            processed_message=[{"type": "at", "data": {"qq": MEMBER_OID}},
+                               {"type": "text", "data": {"text": " hi"}}],
+            _source=Source("Minecraft"), source_id="mc", sender="HAHH9527",
+        )
+        p.target = {GROUP_OID: "group"}
+        asyncio.run(self.conn.send_message(p))
+        kind, group, content, _ = self.api.sent[0]
+        self.assertEqual((kind, group), ("markdown", GROUP_OID))
+        self.assertIn(f'<qqbot-at-user id="{MEMBER_OID}" />', content)
+        self.assertNotIn(f"@{MEMBER_OID}", content)
+
+    def test_group_at_all_uses_everyone_tag(self):
+        p = ProcessedInfo(
+            processed_message=[{"type": "at", "data": {"qq": "all"}},
+                               {"type": "text", "data": {"text": " hi"}}],
+            _source=Source("Minecraft"), source_id="mc", sender="HAHH9527",
+        )
+        p.target = {GROUP_OID: "group"}
+        asyncio.run(self.conn.send_message(p))
+        kind, _, content, _ = self.api.sent[0]
+        self.assertEqual(kind, "markdown")
+        self.assertIn("<qqbot-at-everyone />", content)
+
+    def test_private_at_openid_stays_plain_text(self):
+        """单聊不渲染 @ 标签，保持 @id 纯文本，且不能走 Markdown。"""
+        p = ProcessedInfo(
+            processed_message=[{"type": "at", "data": {"qq": USER_OID}},
+                               {"type": "text", "data": {"text": " hi"}}],
+            _source=Source("QQ"), source_id=USER_OID, sender="友",
+        )
+        p.target = {USER_OID: "private"}
+        asyncio.run(self.conn.send_message(p))
+        kind, _, content, _ = self.api.sent[0]
+        self.assertEqual(kind, "c2c")
+        self.assertIn(f"@{USER_OID}", content)
+        self.assertNotIn("<qqbot-at-", content)
+
+    def test_group_at_non_openid_stays_plain_text(self):
+        """OneBot 的 QQ 号/昵称无法映射 OpenID，退化为纯文本 @。"""
+        p = ProcessedInfo(
+            processed_message=[{"type": "at", "data": {"qq": "123456"}},
+                               {"type": "text", "data": {"text": " hi"}}],
+            _source=Source("QQ"), source_id=GROUP_OID, sender="群友",
+        )
+        p.target = {GROUP_OID: "group"}
+        asyncio.run(self.conn.send_message(p))
+        kind, _, content, _ = self.api.sent[0]
+        self.assertEqual(kind, "text")
+        self.assertIn("@123456", content)
+
     def test_digit_target_skipped(self):
         p = ProcessedInfo(processed_message=[{"type": "text", "data": {"text": "hi"}}],
                           _source=Source("MC"), source_id="mc", sender="mc")
