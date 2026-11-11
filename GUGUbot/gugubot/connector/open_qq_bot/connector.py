@@ -168,7 +168,19 @@ class OpenQQBotConnector(BasicConnector):
             return
         msg_id = d.get("id")
         if msg_id and self.dedup.seen(msg_id):
+            self.logger.debug("%s 重复事件已去重：msg_id=%s", self.log_prefix, msg_id)
             return
+        # 诊断日志：开启 MCDR debug 后可见（内容和发送结果不放 INFO，避免噪音）
+        self.logger.debug(
+            "%s 入站 %s | 会话=%s | 发送者=%s | 内容=%r | 提及机器人=%s",
+            self.log_prefix,
+            t,
+            d.get("group_openid") or author.get("user_openid") or author.get("id") or "",
+            author.get("username") or author.get("member_openid")
+            or author.get("user_openid") or "?",
+            (d.get("content") or "")[:200],
+            any(u.get("bot") for u in d.get("mentions") or []),
+        )
         # 记录机器人自身 OpenID；拦截 /groupId /userId /botId（不进广播管线）
         self._learn_bot_openid(d)
         if self._try_debug_command(t, d):
@@ -239,6 +251,11 @@ class OpenQQBotConnector(BasicConnector):
             chat_id = d.get("group_openid", "")
         else:
             chat_id = author.get("user_openid") or author.get("id") or ""
+
+        self.logger.debug(
+            "%s 调试命令 %s | 会话=%s | msg_id=%s",
+            self.log_prefix, command, chat_id, msg_id,
+        )
 
         if command == "/groupId":
             if is_group:
@@ -314,6 +331,9 @@ class OpenQQBotConnector(BasicConnector):
                 self.api.send_group_text(chat_id, text, msg_id=msg_id)
             else:
                 self.api.send_c2c_text(chat_id, text, msg_id=msg_id)
+            self.logger.debug(
+                "%s 调试命令回复已发送 → %s: %r", self.log_prefix, chat_id, text[:120]
+            )
         except ApiError as e:
             self.logger.warning(f"{self.log_prefix} 调试命令回复失败: {e}")
 
@@ -406,9 +426,15 @@ class OpenQQBotConnector(BasicConnector):
 
         plain, images = self._segments_to_official(message)
         if not plain and not images:
+            self.logger.debug("%s 出站内容为空（无文本/图片），跳过", self.log_prefix)
             return
 
         resolved = self._resolve_targets(processed_info)
+        self.logger.debug(
+            "%s 出站目标：%s（来源=%s/%s）",
+            self.log_prefix, list(resolved.items()) or "无",
+            source.origin, processed_info.source_id,
+        )
         for target_id, target_type in resolved.items():
             # 被动回复锚点：仅当目标与触发消息同一会话时使用（5 分钟/5 次窗口）
             anchor_id = self._reply_anchor(processed_info, target_id)
@@ -419,6 +445,11 @@ class OpenQQBotConnector(BasicConnector):
                     f"{self.per_minute}/分钟、{self.per_day}/天），丢弃本条"
                 )
                 continue
+            self.logger.debug(
+                "%s 发送 → %s（%s，msg_id=%s）：%r",
+                self.log_prefix, target_id,
+                "被动" if anchor_id else "主动", anchor_id, plain[:120],
+            )
             try:
                 if target_type == "private":
                     try:
@@ -444,6 +475,7 @@ class OpenQQBotConnector(BasicConnector):
                         if not (anchor_id and e.has_code(*ERR_PASSIVE_EXPIRED)):
                             raise
                         self._send_active_fallback(target_id, target_type, plain, images)
+                self.logger.debug("%s 发送成功 → %s", self.log_prefix, target_id)
             except Exception as e:
                 code = getattr(e, "err_code", None) or getattr(e, "api_code", "?")
                 self.logger.warning(

@@ -592,6 +592,68 @@ class TestDebugCommands(unittest.TestCase):
         self.assertEqual(self.api.sent[0][1], "NEWGROUP1NEWGROUP1NEWGROUP1NEWGROUP1")
 
 
+class RecordingLogger(FakeLogger):
+    """记录 DEBUG 调用，用于断言诊断日志（不影响 FakeLogger 其他行为）。"""
+
+    def __init__(self):
+        self.debugs = []
+
+    def debug(self, *a, **k):
+        self.debugs.append((a, k))
+
+    def text(self):
+        return " ".join(str(x) for a, _ in self.debugs for x in a)
+
+
+class TestDiagnosticLogging(unittest.TestCase):
+    """回归：入站内容 / 出站结果需在 DEBUG 级留痕，便于真机排障。
+
+    真机上回复成功是静默的（被动回复不写 INFO），曾导致「命令是否生效」
+    无法从日志判断；这些 DEBUG 记录配合 MCDR ``debug.all`` 可完整还原链路。
+    """
+
+    def test_inbound_message_logged(self):
+        conn = build_connector()
+        log = RecordingLogger()
+        conn.logger = log
+        conn._on_gateway_event(
+            "GROUP_MESSAGE_CREATE", group_event("hello 你好")["d"], None
+        )
+        text = log.text()
+        self.assertIn("入站", text)
+        self.assertIn("hello 你好", text)
+        self.assertIn(GROUP_OID, text)
+
+    def test_outbound_send_logged(self):
+        conn = build_connector()
+        conn.api = FakeApi()
+        log = RecordingLogger()
+        conn.logger = log
+        p = ProcessedInfo(
+            processed_message=[{"type": "text", "data": {"text": "hi"}}],
+            _source=Source("OpenQQBot"), source_id=GROUP_OID,
+            sender="bot", raw=group_event()["d"],
+        )
+        p.target = {"OpenQQBot": "group"}
+        asyncio.run(conn.send_message(p))
+        text = log.text()
+        self.assertIn("发送成功", text)
+        self.assertIn("被动", text)  # 同会话 → 被动回复锚点
+
+    def test_debug_command_logged(self):
+        conn = build_connector()
+        conn.api = FakeApi()
+        log = RecordingLogger()
+        conn.logger = log
+        conn._try_debug_command(
+            "GROUP_MESSAGE_CREATE", group_event("/groupId")["d"]
+        )
+        text = log.text()
+        self.assertIn("调试命令", text)
+        self.assertIn("/groupId", text)
+        self.assertIn("调试命令回复已发送", text)
+
+
 class TestQQConnectorEnableGuard(unittest.TestCase):
     """回归：OneBot QQ 连接器 enable=false 时不得发起连接（WinError 10061）。"""
 
