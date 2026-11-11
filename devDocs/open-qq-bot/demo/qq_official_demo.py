@@ -589,24 +589,18 @@ HELP_TEXT = (
     "· 撤回 —— 撤回机器人最近一条群消息（限 2 分钟内）\n"
     "· 发本地文件 <文件名> —— 管理员分片上传 demo 目录内文件\n"
     "· /groupId /userId @某人 /botId —— 获取群/用户/机器人 ID\n"
-    "· 关键词回复 / 违禁词撤回由配置驱动；其余文本原样 echo（引用回复）\n"
+    "· 关键词回复 / 违禁词撤回由配置驱动（未命中的消息不做回复）\n"
     "单聊支持：图片 / 撤回（撤回机器人最近一条回复，限 2 分钟内）"
 )
 
 
 class DemoHandlers:
-    """对照 GUGUBot 功能清单：echo 互通、关键词回复、违禁词撤回、图片收发、成员事件、群命令。"""
+    """对照 GUGUBot 功能清单：关键词回复、违禁词撤回、图片收发、成员事件、群命令。"""
 
     def __init__(self, api: ApiClient, config: dict):
         self.api = api
         self.keywords = config.get("keywords", {})
         self.ban_words = config.get("ban_words", [])
-        self.echo = config.get("echo_enable", True)
-        self.at_reply = config.get("at_reply_enable", True)
-        # @ 回复格式：markdown=通过 msg_type=2 Markdown 发送 qqbot-at-user 标签；
-        # qqbot-at-user=纯文本+新标签（实测不渲染）；legacy=<@openid> 纯文本（实测不渲染）；
-        # off=不 @。纯文本两种格式已实测均原样显示，问题确认后收敛为单一实现。
-        self.at_reply_format = config.get("at_reply_format", "markdown")
         self.image_echo = config.get("image_echo_enable", True)
         self.member_notice = config.get("member_notice_enable", True)
         self.welcome_text = config.get("welcome_text", "欢迎入群！发送「帮助」查看机器人功能。")
@@ -625,7 +619,7 @@ class DemoHandlers:
         self._activity_path = Path(__file__).with_name("activity.json")
         self._activity = self._load_activity()
         self.bot_id = None        # READY 事件的数字 id
-        self.bot_username = None  # 用于剔除 echo 里的 "@机器人" 前缀
+        self.bot_username = None  # 用于剔除命令消息里的 "@机器人" 前缀
         self.bot_openid = None    # 从 mentions 学到的机器人 openid（消息标记里用的是它）
 
     # ---- 活跃度跟踪（GUGUBot 群成员对账的 demo 版：按群/成员计数发言）----
@@ -678,14 +672,14 @@ class DemoHandlers:
             # GROUP_DEL_ROBOT / FRIEND_ADD / FRIEND_DEL 等：记录事件即可
             log.info("[事件] %s: %s", t, json.dumps(d, ensure_ascii=False))
 
-    # ---- 群消息（对照 GUGUBot：违禁词 → 关键词 → echo 的系统消费顺序）----
+    # ---- 群消息（对照 GUGUBot：违禁词 → 关键词 → 命令 的系统消费顺序）----
 
     def _group_message(self, t, d):
         msg_id = d.get("id")
         if not msg_id:
             return
         if d.get("author", {}).get("bot"):
-            return  # 跳过机器人自己的消息，防止 echo 循环
+            return  # 跳过机器人自己的消息，防止消息回环
         # 完全空的消息（无文本无附件）不占用去重名额：官方可能对同一 msg_id
         # 先推空消息、再推完整内容，提前消耗去重会吞掉真实消息
         if not (d.get("content") or "").strip() and not d.get("attachments"):
@@ -717,7 +711,7 @@ class DemoHandlers:
         )
         content = self._render_content(d)
         # 被 @ 时统一剔除渲染出的 "@机器人名" 前缀（全量模式标记替换而来），
-        # 保证命令/关键词/echo 拿到的都是净文本（对照 GUGUBot：at 段先解析再分发）
+        # 保证命令/关键词拿到的都是净文本（对照 GUGUBot：at 段先解析再分发）
         if at_me and self.bot_username and content.startswith(f"@{self.bot_username}"):
             content = content[len(self.bot_username) + 1:].strip() or content
         self._track_activity(group, author.get("member_openid"), author.get("username"))
@@ -733,24 +727,7 @@ class DemoHandlers:
             return
         if self._keyword_reply(group, msg_id, content, reference):
             return
-        if self.echo and content:
-            try:
-                reply = f"[echo] {content}"
-                if at_me and self.at_reply:
-                    member_openid = author.get("member_openid") or author.get("id") or ""
-                    if member_openid and self.at_reply_format == "legacy":
-                        reply = f"<@{member_openid}> [echo] {content}"
-                    elif member_openid and self.at_reply_format in ("qqbot-at-user", "markdown"):
-                        reply = f"{at_user_tag(member_openid)} [echo] {content}"
-                use_markdown = at_me and self.at_reply and self.at_reply_format == "markdown"
-                log.info("echo 发送%s：%r", "（Markdown）" if use_markdown else "", reply)
-                if use_markdown:
-                    resp = self.api.send_group_markdown(group, reply, msg_id=msg_id)
-                else:
-                    resp = self.api.send_group_text(group, reply, msg_id=msg_id, reference=reference)
-                self._remember_group_reply(group, resp)
-            except ApiError as e:
-                log.warning("echo 发送失败：%s", e)
+        # 未命中任何规则的普通消息不做回复（连接验证阶段的调试 echo 已移除）
 
     @staticmethod
     def _render_content(d):
@@ -1088,13 +1065,7 @@ class DemoHandlers:
         if text == "撤回":
             self._c2c_recall_last(user)
             return
-        if self.echo and content:
-            try:
-                resp = self.api.send_c2c_text(user, f"[echo] {content}", msg_id=msg_id)
-                if resp and resp.get("id"):
-                    self._last_c2c_reply[user] = resp["id"]  # 记录回复 ID 供「撤回」
-            except ApiError as e:
-                log.warning("单聊 echo 失败：%s", e)
+        # 未命中的普通单聊消息不做回复（连接验证阶段的调试 echo 已移除）
 
     def _c2c_send_image(self, user, msg_id):
         """单聊「图片」命令：URL 上传（单聊/群聊媒体隔离，须用 /v2/users 端点）+ 发送。"""

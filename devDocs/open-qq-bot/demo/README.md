@@ -47,9 +47,6 @@ python qq_official_demo.py
 | `app_id` / `app_secret` | — | 开放平台凭证 |
 | `sandbox` | `true` | 沙箱/正式环境 |
 | `log_file` | 无 | 日志文件名（滚动 1MB×3，同时输出控制台） |
-| `echo_enable` | `true` | 未命中其他规则时原样 echo |
-| `at_reply_enable` | `true` | 被 @ 时回复并 @ 回对方 |
-| `at_reply_format` | `markdown` | @ 格式：`markdown`=经 msg_type=2 Markdown 发送 `<qqbot-at-user>` 标签；`qqbot-at-user`/`legacy`=纯文本下两种标记（均实测原样显示，不渲染）；`off`=不 @ |
 | `image_echo_enable` | `true` | 收到图片转存回显 |
 | `member_notice_enable` | `true` | 入群欢迎 / 退群告别 |
 | `listen_groups` | `[]` | 群白名单：非空时仅响应列表内的群 |

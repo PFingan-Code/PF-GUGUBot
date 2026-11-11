@@ -3,9 +3,6 @@
   "app_secret": "你的AppSecret",
   "sandbox": true,
   "log_file": "qq_official_demo.log",
-  "echo_enable": true,
-  "at_reply_enable": true,
-  "at_reply_format": "markdown",
   "image_echo_enable": true,
   "quote_reply_enable": true,
   "member_notice_enable": true,
@@ -16,7 +13,7 @@
   "farewell_text": "有成员离开了群聊。",
   "keywords": {
     "签到": "签到成功，积分 +50！",
-    "帮助": "发送「签到」演示关键词回复；发送「图片」演示富媒体回复；其余消息原样 echo。"
+    "帮助": "发送「签到」演示关键词回复；发送「图片」演示富媒体回复。"
   },
   "ban_words": ["广告"],
   "demo_image_url": "https://example.com/demo.png",
