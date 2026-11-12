@@ -22,7 +22,11 @@ from typing import Optional
 
 from gugubot.config import BotConfig
 from gugubot.connector.basic_connector import BasicConnector
-from gugubot.connector.open_qq_bot.api_client import ApiClient, TokenManager
+from gugubot.connector.open_qq_bot.api_client import (
+    ApiClient,
+    PartialDelivery,
+    TokenManager,
+)
 from gugubot.connector.open_qq_bot.common import (
     ERR_PASSIVE_EXPIRED,
     INTENTS,
@@ -30,6 +34,8 @@ from gugubot.connector.open_qq_bot.common import (
     DedupSet,
     QuotaManager,
     at_user_tag,
+    split_markdown,
+    split_message,
 )
 from pathlib import Path
 from gugubot.connector.open_qq_bot.gateway import Gateway
@@ -92,20 +98,32 @@ class OpenQQBotConnector(BasicConnector):
             ["connector", self.SECTION, "connection", "sandbox"], False
         )
         self.intents = INTENTS
-        self.max_message_length = config.get_keys(
-            ["connector", self.SECTION, "connection", "max_message_length"], 2000
-        )
+        # 分片长度上限：配置边界防御（非整数/<=0 会导致分片死循环或 TypeError）
+        try:
+            self.max_message_length = max(1, int(config.get_keys(
+                ["connector", self.SECTION, "connection", "max_message_length"],
+                2000,
+            )))
+        except (TypeError, ValueError):
+            self.max_message_length = 2000
         self.per_minute = config.get_keys(
             ["connector", self.SECTION, "rate_limit", "per_minute"], 20
         )
         self.per_day = config.get_keys(
             ["connector", self.SECTION, "rate_limit", "per_day"], 1000
         )
+        # Bot 维度全局主动消息限速（官方 30~60 条/分钟，多群广播合计）
+        self.bot_per_minute = config.get_keys(
+            ["connector", self.SECTION, "rate_limit", "bot_per_minute"], 30
+        )
         try:
             quota_path = Path(server.get_data_folder()) / "open_qq_bot_quota.json"
         except Exception:
             quota_path = None
-        self.quota = QuotaManager(self.per_minute, self.per_day, quota_path)
+        self.quota = QuotaManager(
+            self.per_minute, self.per_day, quota_path,
+            bot_per_minute=self.bot_per_minute,
+        )
         # 机器人自身群聊 OpenID：READY 只返回数字 id（与 OpenID 不同源），
         # 只能从被 @ 事件的 mentions(bot:true) 习得；供 /botId 查询使用
         self.bot_openid = None
@@ -153,6 +171,15 @@ class OpenQQBotConnector(BasicConnector):
         self.logger.info(
             f"{self.log_prefix} {self.server.tr('gugubot.connector.open-qq-bot.closed')}"
         )
+
+    @property
+    def connected(self) -> bool:
+        """官方网关是否在线（网关线程存活即视为在线/重连中）。
+
+        健康检查面：网关线程意外死亡时插件仍显示已加载，可通过此属性
+        探测真实连接状态（避免「线程已死但插件看起来正常」）。
+        """
+        return bool(self.enable and self.gateway.alive)
 
     async def on_message(self, raw: dict) -> None:
         """直接注入一个官方事件（dict 形态），供测试或其他插件调用。"""
@@ -232,7 +259,7 @@ class OpenQQBotConnector(BasicConnector):
             return
         for user in d.get("mentions") or []:
             if user.get("bot"):
-                oid = user.get("id") or user.get("member_openid") or ""
+                oid = user.get("member_openid") or user.get("id") or ""
                 if oid:
                     self.bot_openid = oid
                     self.logger.info(
@@ -453,6 +480,28 @@ class OpenQQBotConnector(BasicConnector):
         plain = "".join(texts).strip()
         return plain, images, has_mention
 
+    def _markdown_content(self, plain: str, images: list) -> str:
+        """群 Markdown 通道完整内容（图片以 ``![图片](url)`` 追加）。"""
+        content = plain
+        if images:
+            content += "\n\n" + "\n\n".join(f"![图片]({url})" for url in images)
+        return content
+
+    def _chunk_count(self, target_type: str, plain: str, images: list,
+                     has_mention: bool = False) -> int:
+        """预估本次发送将产生的 API 分片数（与 ApiClient 分片逻辑一致）。
+
+        供主动消息配额按实际请求数记账（一次分片发送 ≠ 一个 API 请求）。
+        """
+        if target_type == "private":
+            return max(1, len(split_message(plain or "", self.max_message_length)))
+        if images or has_mention:
+            return max(1, len(split_markdown(
+                self._markdown_content(plain or "", images or []),
+                self.max_message_length,
+            )))
+        return max(1, len(split_message(plain or "", self.max_message_length)))
+
     def _send_sync(self, processed_info: ProcessedInfo) -> None:
         """阻塞发送实现（由 send_message 通过 asyncio.to_thread 调用）。"""
         source = processed_info.source
@@ -490,8 +539,12 @@ class OpenQQBotConnector(BasicConnector):
                     target_images = []
             # 被动回复锚点：仅当目标与触发消息同一会话时使用（5 分钟/5 次窗口）
             anchor_id = self._reply_anchor(processed_info, target_id)
-            # 主动消息配额（官方：单群 20 条/分钟、1000 条/天）；被动回复不占配额
-            if anchor_id is None and not self.quota.allow(target_id):
+            # 主动消息配额（官方：单群 20 条/分钟、1000 条/天、Bot 全局 30~60
+            # 条/分钟）；被动回复不占配额；分片按实际 API 请求数记账
+            if anchor_id is None and not self.quota.allow_many(
+                target_id,
+                self._chunk_count(target_type, target_plain, target_images, has_mention),
+            ):
                 self.logger.warning(
                     f"{self.log_prefix} 主动消息配额已用尽（{target_id}: "
                     f"{self.per_minute}/分钟、{self.per_day}/天），丢弃本条"
@@ -512,18 +565,16 @@ class OpenQQBotConnector(BasicConnector):
                         sent = True
                         self._send_active_fallback(target_id, target_type, target_plain, target_images)
                 elif target_images or has_mention:
-                    content = target_plain
-                    if target_images:
-                        content += "\n\n" + "\n\n".join(
-                            f"![图片]({url})" for url in target_images
-                        )
+                    content = self._markdown_content(target_plain, target_images)
                     try:
                         sent = self.api.send_group_markdown(target_id, content, msg_id=anchor_id)
                     except ApiError as e:
                         if not (anchor_id and e.has_code(*ERR_PASSIVE_EXPIRED)):
                             raise
                         sent = True
-                        self._send_active_fallback(target_id, target_type, content, target_images)
+                        # 降级传纯文本 + 图片列表，由 _send_active_fallback
+                        # 统一拼装 Markdown（避免图片 URL 重复追加）
+                        self._send_active_fallback(target_id, target_type, target_plain, target_images)
                 else:
                     try:
                         sent = self.api.send_group_text(target_id, target_plain, msg_id=anchor_id)
@@ -533,13 +584,19 @@ class OpenQQBotConnector(BasicConnector):
                         sent = True
                         self._send_active_fallback(target_id, target_type, target_plain, target_images)
                 if sent is None and anchor_id:
-                    # send_* 在被动回复次数耗尽时返回 None（SeqManager 上限）而非抛错，
+                    # send_* 在一片未发出时返回 None（SeqManager 上限）而非抛错，
                     # 此时消息未发出：降级为主动消息，避免静默丢失
                     self.logger.info(
                         f"{self.log_prefix} 被动回复次数耗尽，降级为主动消息发送到 {target_id}"
                     )
                     self._send_active_fallback(target_id, target_type, target_plain, target_images)
                 self._diag("%s 发送成功 → %s", self.log_prefix, target_id)
+            except PartialDelivery as e:
+                # 分片部分送达：整体降级重发会重复已送达内容，显式告警部分丢失
+                self.logger.warning(
+                    f"{self.log_prefix} 发送到 {target_id} 部分送达："
+                    f"{e.sent} 片成功，{e.remaining} 片未发出，剩余内容已丢弃"
+                )
             except Exception as e:
                 code = getattr(e, "err_code", None) or getattr(e, "api_code", "?")
                 self.logger.warning(
@@ -587,8 +644,16 @@ class OpenQQBotConnector(BasicConnector):
         return None
 
     def _send_active_fallback(self, target_id, target_type, plain, images):
-        """被动回复窗口失效（40034005 等）时的主动消息降级。"""
-        if not self.quota.allow(target_id):
+        """被动回复窗口失效（40034005 等）时的主动消息降级。
+
+        ``plain`` 必须是不含图片 Markdown 的纯文本：图片统一由本方法
+        拼装（调用方传已拼装内容会导致图片重复追加）。
+        """
+        if not self.quota.allow_many(
+            target_id,
+            self._chunk_count(target_type, plain, images,
+                              has_mention="<qqbot-at-" in plain),
+        ):
             self.logger.warning(
                 f"{self.log_prefix} 主动消息配额已用尽（{target_id}），降级发送已丢弃"
             )
@@ -599,9 +664,6 @@ class OpenQQBotConnector(BasicConnector):
         if target_type == "private":
             self.api.send_c2c_text(target_id, plain)
         elif images or "<qqbot-at-" in plain:
-            content = plain
-            if images:
-                content += "\n\n" + "\n\n".join(f"![图片]({url})" for url in images)
-            self.api.send_group_markdown(target_id, content)
+            self.api.send_group_markdown(target_id, self._markdown_content(plain, images))
         else:
             self.api.send_group_text(target_id, plain)

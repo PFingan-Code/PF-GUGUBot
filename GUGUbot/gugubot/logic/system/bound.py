@@ -59,7 +59,7 @@ class BoundSystem(BasicSystem):
             and broadcast_info.event_sub_type == "group_decrease"
         ):
             # open-qq-bot 官方连接器：事件带 member_openid，走独立清理分支
-            # （无跨群在线检查能力，退群即解绑；判定不依赖可改的显示名）
+            # （分支判定不依赖可改的显示名；清理时的平台键与绑定时一致）
             if isinstance(broadcast_info.raw, dict) and "member_openid" in broadcast_info.raw:
                 return await self._handle_quit_member_official(broadcast_info)
             if broadcast_info.source.is_from("QQ"):
@@ -752,8 +752,9 @@ class BoundSystem(BasicSystem):
                 str(gid) for gid in admin_group_ids if gid
             ]
 
-            # 获取该用户的绑定信息
-            player = self.player_manager.get_player(user_id, platform="QQ")
+            # 获取该用户的绑定信息（平台键与绑定时写入的 source.origin 一致）
+            platform = broadcast_info.source.origin
+            player = self.player_manager.get_player(user_id, platform=platform)
 
             # 如果退群的是普通群，发送通知到管理群
             if is_normal_group and not is_admin_group:
@@ -766,37 +767,7 @@ class BoundSystem(BasicSystem):
 
             # 如果用户不在任何群中，执行清理
             if user_id not in all_member_ids and player:
-                # 获取所有玩家名（转换为字符串）
-                all_player_names = [str(name) for name in player.java_name] + [
-                    str(name) for name in player.bedrock_name
-                ]
-
-                # 从白名单中移除玩家名
-                if all_player_names:
-                    self._remove_from_whitelist(all_player_names)
-
-                # 检查该用户是否还有其他平台的账户绑定
-                has_other_platform_accounts = False
-                for platform, accounts in player.accounts.items():
-                    if platform != "QQ" and accounts:
-                        has_other_platform_accounts = True
-                        break
-
-                # 从绑定数据中删除该用户的QQ账户绑定
-                if "QQ" in player.accounts and user_id in player.accounts["QQ"]:
-                    player.accounts["QQ"].remove(user_id)
-                    # 如果QQ账户列表为空，删除该平台
-                    if not player.accounts["QQ"]:
-                        del player.accounts["QQ"]
-
-                # 如果该用户没有其他平台的账户绑定，删除整个 Player（包括所有玩家名）
-                # 参考 bound_system.py 的逻辑：退群时删除整个绑定
-                if not has_other_platform_accounts:
-                    self.player_manager.remove_player(player.name)
-                else:
-                    # 如果还有其他平台的账户，只删除QQ账户绑定，保留玩家名和其他平台绑定
-                    self.player_manager.save()
-
+                await self._cleanup_quit_player(player, platform, user_id)
                 self.logger.info(f"已清理退群用户 {user_id} 的绑定信息")
                 return True
 
@@ -805,13 +776,63 @@ class BoundSystem(BasicSystem):
             self.logger.error(f"处理退群事件失败: {e}")
             return False
 
+    async def _cleanup_quit_player(
+        self, player: Player, platform: str, user_id: str
+    ) -> None:
+        """退群清理公共逻辑（OneBot 与官方连接器共用）。
+
+        移除白名单 → 删除该平台账户绑定 → 无其他平台绑定时删除整个 Player。
+
+        Parameters
+        ----------
+        player : Player
+            退群用户的绑定信息
+        platform : str
+            退群账户所属的平台键（须与绑定时写入的 ``source.origin`` 一致：
+            OneBot 为连接器显示名（默认 "QQ"），官方连接器默认 "OpenQQBot"）
+        user_id : str
+            该平台下的账户 ID
+        """
+        # 获取所有玩家名（转换为字符串）
+        all_player_names = [str(name) for name in player.java_name] + [
+            str(name) for name in player.bedrock_name
+        ]
+
+        # 从白名单中移除玩家名
+        if all_player_names:
+            self._remove_from_whitelist(all_player_names)
+
+        # 检查该用户是否还有其他平台的账户绑定
+        has_other_platform_accounts = any(
+            name != platform and accounts
+            for name, accounts in player.accounts.items()
+        )
+
+        # 从绑定数据中删除该用户的账户绑定
+        accounts = player.accounts.get(platform, [])
+        if user_id in accounts:
+            accounts.remove(user_id)
+            # 如果该平台账户列表为空，删除该平台
+            if not accounts:
+                del player.accounts[platform]
+
+        # 如果该用户没有其他平台的账户绑定，删除整个 Player（包括所有玩家名）
+        if not has_other_platform_accounts:
+            self.player_manager.remove_player(player.name)
+        else:
+            # 还有其他平台的账户时，只删除该平台账户绑定，保留玩家名和其他平台绑定
+            self.player_manager.save()
+
     async def _handle_quit_member_official(self, broadcast_info: BroadcastInfo) -> bool:
         """open-qq-bot 官方连接器的退群清理。
 
         与 OneBot 版差异：
-        - 字段为 ``member_openid``（OpenID，非 QQ 号），绑定库键通用
+        - 字段为 ``member_openid``（OpenID，非 QQ 号），与 OneBot QQ 号
+          **不是同一标识空间**，绑定记录互不通用
+        - 平台键与绑定写入侧一致（``source.origin``，即连接器显示名，
+          默认 ``OpenQQBot``），而非 "QQ"——否则永远查不到官方绑定
         - 群成员列表接口需白名单权限，无法做「是否还在其他群」检查，
-          退群即直接解绑（绑定库平台键同为 QQ，与 OneBot 版互通）
+          退群即直接解绑；管理群退群通知同样不可用（官方平台无对应能力）
         """
         try:
             raw = broadcast_info.raw or {}
@@ -819,32 +840,13 @@ class BoundSystem(BasicSystem):
             if not user_id:
                 return False
 
-            player = self.player_manager.get_player(user_id, platform="QQ")
+            # 平台键必须与绑定时使用的 source.origin 一致（默认 "OpenQQBot"）
+            platform = broadcast_info.source.origin
+            player = self.player_manager.get_player(user_id, platform=platform)
             if not player:
                 return False
 
-            all_player_names = [str(name) for name in player.java_name] + [
-                str(name) for name in player.bedrock_name
-            ]
-
-            if all_player_names:
-                self._remove_from_whitelist(all_player_names)
-
-            has_other_platform_accounts = False
-            for platform, accounts in player.accounts.items():
-                if platform != "QQ" and accounts:
-                    has_other_platform_accounts = True
-                    break
-
-            if "QQ" in player.accounts and user_id in player.accounts["QQ"]:
-                player.accounts["QQ"].remove(user_id)
-                if not player.accounts["QQ"]:
-                    del player.accounts["QQ"]
-
-            if not has_other_platform_accounts:
-                self.player_manager.remove_player(player.name)
-            else:
-                self.player_manager.save()
+            await self._cleanup_quit_player(player, platform, user_id)
 
             self.logger.info(f"已清理退群用户 {user_id} 的绑定信息（open-qq-bot）")
             return True

@@ -618,6 +618,7 @@ class DemoHandlers:
         self._last_group_reply = {}  # group_openid -> 机器人最后一条群消息 ID（供群聊「撤回」）
         self._activity_path = Path(__file__).with_name("activity.json")
         self._activity = self._load_activity()
+        self._activity_last_flush = 0.0  # 上次落盘时间（monotonic），写盘节流用
         self.bot_id = None        # READY 事件的数字 id
         self.bot_username = None  # 用于剔除命令消息里的 "@机器人" 前缀
         self.bot_openid = None    # 从 mentions 学到的机器人 openid（消息标记里用的是它）
@@ -638,6 +639,12 @@ class DemoHandlers:
         entry["count"] = entry.get("count", 0) + 1
         if username:
             entry["username"] = username
+        # 网关线程内避免每条消息同步写盘（高负载时阻塞心跳 ACK 触发误重连）：
+        # 计数在内存累加，最多每 30 秒落盘一次（demo 场景可接受少量丢失）
+        now = time.monotonic()
+        if now - self._activity_last_flush < 30:
+            return
+        self._activity_last_flush = now
         try:
             self._activity_path.write_text(
                 json.dumps(self._activity, ensure_ascii=False), encoding="utf-8")
@@ -755,10 +762,12 @@ class DemoHandlers:
         hit = next((w for w in self.ban_words if w and w in content), None)
         if not hit:
             return False
-        # 管理员/群主豁免（对照 GUGUBot 违禁词的权限模型）
+        # 管理员/群主豁免（对照 GUGUBot 违禁词的权限模型）：
+        # 返回 False 表示「未处理」，让消息继续走命令/关键词流程——
+        # 若返回 True 会被调用方当作「已处理并终止」，吞掉含违禁词的管理命令
         if author.get("member_role") in ("admin", "owner"):
             log.info("违禁词命中但发送者为 %s，豁免", author.get("member_role"))
-            return True
+            return False
         try:
             self.api.recall_group_message(group, msg_id)
             log.info("已撤回违禁消息（命中：%s）", hit)

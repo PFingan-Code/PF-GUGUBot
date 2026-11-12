@@ -115,18 +115,35 @@ class OpenQQBotParser(BasicParser):
     def _build_segments(self, d: dict) -> list:
         """content + mentions + attachments → 内部统一消息段格式。
 
-        - @ 标记（<@member_openid>）替换为 @昵称 文本
+        - @ 标记（<@member_openid>）替换为 @昵称 文本；@机器人自身
+          （mentions 中 bot=true）渲染出的前缀被剥离——全量模式下用户
+          习惯 ``@机器人 #命令``，不剥离则首段不再以 ``#`` 开头，
+          命令无法识别（对照 demo 的 at_me 处理）。raw 保持原样，
+          供被动回复锚点使用
         - 表情标记（<faceType=...>）替换为描述文本：[呲牙] / [表情包]
         - 图片附件转为 OneBot 风格 image 段（data.file = 公网 URL，
           下游 McMessageBuilder 可直接消费）
         """
         text = (d.get("content") or "").strip()
+        bot_rendered = []
         for user in d.get("mentions") or []:
             oid = user.get("member_openid") or user.get("id") or ""
-            if oid:
-                text = text.replace(f"<@{oid}>", f"@{user.get('username', oid)}")
+            if not oid:
+                continue
+            rendered = f"@{user.get('username', oid)}"
+            text = text.replace(f"<@{oid}>", rendered)
+            if user.get("bot") and rendered.strip():
+                bot_rendered.append(rendered)
         text = text.replace("<@all>", "@全体成员")
         text = FACE_TAG.sub(self._render_face, text)
+
+        # 剥离 @机器人 渲染前缀：@机器人 #绑定 → #绑定（仅剥一次，剥空则保留原文）
+        for prefix in bot_rendered:
+            if text.startswith(prefix):
+                stripped = text[len(prefix):].strip()
+                if stripped:
+                    text = stripped
+                break
 
         segments = []
         if text:

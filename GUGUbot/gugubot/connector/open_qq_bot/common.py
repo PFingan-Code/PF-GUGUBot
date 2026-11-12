@@ -4,6 +4,7 @@
 行为与官方文档（devDocs/open-qq-bot/消息、起步指南）对齐。
 """
 
+import http.client
 import json
 import logging
 import random
@@ -37,11 +38,13 @@ class ApiError(RuntimeError):
     """带官方错误码的 API 调用异常，便于按错误码做重试/降级。
 
     官方响应里 ``err_code`` 与 ``code`` 含义不总是一致（如群成员列表接口
-    ``code=11253`` 无权限、``err_code=40012010``），两个字段都保留供判断。
+    ``code=11253`` 无权限、``err_code=40012010``），两个字段都保留供判断；
+    ``status`` 为 HTTP 状态码（401/403 等凭据类错误供重试策略判断）。
     """
 
     def __init__(self, method, url, status, message, err_code=None, api_code=None):
         super().__init__(f"{method} {url} -> HTTP {status}: {message}")
+        self.status = status
         self.err_code = err_code
         self.api_code = api_code
 
@@ -77,7 +80,9 @@ def http_json(method, url, token=None, body=None, timeout=10):
     Raises
     ------
     ApiError
-        HTTP 非 2xx 时抛出，携带 ``err_code`` / ``api_code``。
+        HTTP 非 2xx 时抛出，携带 ``err_code`` / ``api_code``；
+        网络层失败（超时/连接重置/URLError 等）抛出 ``status=0`` 的 ApiError，
+        使发送层 seq 回退与网关重试策略与 HTTP 错误走同一路径。
     """
     headers = {"Content-Type": "application/json"}
     if token:
@@ -107,6 +112,12 @@ def http_json(method, url, token=None, body=None, timeout=10):
         except json.JSONDecodeError:
             pass
         raise ApiError(method, url, e.code, text, err_code, api_code) from e
+    except (OSError, http.client.HTTPException) as e:
+        # HTTPError 已是 URLError/OSError 子类并在上方处理；这里兜底其余网络层
+        # 失败（URLError、超时、连接重置、IncompleteRead 等），统一为 status=0
+        cost = int((time.monotonic() - start) * 1000)
+        logger.warning("[HTTP ←] %s %s -> 网络错误 (%sms): %s", method, url, cost, e)
+        raise ApiError(method, url, 0, str(e), None, None) from e
 
 
 class SeqManager:
@@ -168,9 +179,22 @@ class DedupSet:
         return False
 
 
+def _clamp_max_length(max_length) -> int:
+    """分片长度防御：非整数回退默认值，<=0 修正为 1（避免死循环/TypeError）。"""
+    try:
+        max_length = int(max_length)
+    except (TypeError, ValueError):
+        max_length = 2000
+    return max(1, max_length)
+
+
 def split_message(content, max_length):
-    """长消息分片：优先在换行边界切分，退化为硬切。"""
-    content = content.strip()
+    """长消息分片：优先在换行边界切分，退化为硬切。
+
+    ``max_length`` 非法（非整数 / <=0）时防御性修正，避免死循环。
+    """
+    max_length = _clamp_max_length(max_length)
+    content = (content or "").strip()
     if len(content) <= max_length:
         return [content] if content else []
     chunks = []
@@ -183,6 +207,55 @@ def split_message(content, max_length):
         rest = rest[cut:].strip()
     if rest:
         chunks.append(rest)
+    return chunks
+
+
+# Markdown 受保护片段：@ 成员标签 / 图片语法 / URL，分片时不得切断
+_MD_PROTECTED_RE = re.compile(
+    r"<qqbot-at-[^>]*>|\[[^\]]*\]\([^)]*\)|https?://\S+", re.IGNORECASE
+)
+
+
+def split_markdown(content, max_length):
+    """Markdown 长消息分片：优先换行边界，且不切断 @ 标签、图片与 URL。
+
+    与 :func:`split_message` 的差异：@ 成员标签（``<qqbot-at-user .../>``）、
+    图片语法（``![..](..)``）与 URL 被视为不可分割片段——切点落在其内部时
+    向前回退；单个片段本身超过 ``max_length`` 时放弃保护硬切（保证终止）。
+    """
+    max_length = _clamp_max_length(max_length)
+    content = (content or "").strip()
+    if len(content) <= max_length:
+        return [content] if content else []
+
+    # 标记所有受保护字符区间
+    protected = bytearray(len(content))
+    for m in _MD_PROTECTED_RE.finditer(content):
+        for i in range(m.start(), m.end()):
+            protected[i] = 1
+
+    chunks = []
+    start, n = 0, len(content)
+    while n - start > max_length:
+        limit = start + max_length
+        cut = content.rfind("\n", start + 1, limit + 1)
+        if cut <= start:
+            cut = limit
+        # 切点把某个受保护片段一分为二（两侧都在片段内）时向前回退；
+        # 紧贴片段边界的切点是干净的（片段完整落入某一侧）
+        while cut > start and protected[cut - 1] and protected[cut]:
+            cut -= 1
+        if cut <= start:
+            cut = limit  # 单个受保护片段超长：放弃保护，硬切防死循环
+        chunk = content[start:cut].strip()
+        if chunk:
+            chunks.append(chunk)
+        start = cut
+        while start < n and content[start] in "\n\r \t":
+            start += 1
+    tail = content[start:].strip()
+    if tail:
+        chunks.append(tail)
     return chunks
 
 
@@ -202,22 +275,28 @@ def at_user_tag(member_openid):
 
 
 class QuotaManager:
-    """主动消息配额管理器。
+    """主动消息配额管理器（key 级 + Bot 全局两层滑动窗口）。
 
     官方限制（消息/group-messages-post.md）：单群 20 条/分钟、1000 条/天；
     Bot 维度 30~60 条/分钟。仅统计**主动消息**——被动回复（带 msg_id 锚点）
     不占分钟/天配额，由 :class:`SeqManager` 单独管理 5 次/5 分钟窗口。
 
-    状态持久化为 JSON（按 key 记录当日计数与分钟滑动窗口），
-    重启不重置当日计数，避免配额被重启绕过。
+    key 级状态持久化为 JSON（按 key 记录当日计数与分钟滑动窗口），
+    重启不重置当日计数，避免配额被重启绕过；Bot 全局分钟窗口为进程内
+    状态（短窗口，重启清零对平台侧限流无实质影响）。
     """
 
-    def __init__(self, per_minute=20, per_day=1000, persist_path=None):
+    def __init__(self, per_minute=20, per_day=1000, persist_path=None,
+                 bot_per_minute=30):
         self.per_minute = max(1, int(per_minute))
         self.per_day = max(1, int(per_day))
+        # Bot 维度全局限流（多群合计）；取 30 保守下限，防止多群同时广播
+        # 触发平台级限流后消息仅剩 warning 日志
+        self.bot_per_minute = max(1, int(bot_per_minute))
         self._persist_path = Path(persist_path) if persist_path else None
         self._lock = threading.Lock()
         self._state = {}  # key -> {"date": "YYYY-MM-DD", "day": int, "minute": [ts...]}
+        self._global_minute = []  # Bot 维度分钟滑动窗口
         self._load()
 
     def _load(self):
@@ -241,22 +320,44 @@ class QuotaManager:
 
     def allow(self, key):
         """记录一次主动消息并判断 key（群/用户 OpenID）当前是否允许发送。"""
+        return self.allow_many(key, 1)
+
+    def allow_many(self, key, count):
+        """按实际 API 请求数（分片数）记账并判断是否允许发送。
+
+        分片发送一次可能产生多个 API 请求，应按 ``count`` 计入两个窗口，
+        否则多群广播时会低估用量、绕过平台全局限流。
+
+        Returns
+        -------
+        bool
+            任一窗口（key 级分钟/日、Bot 全局分钟）容量不足即整体拒绝，
+            不做部分消费。
+        """
+        count = max(1, int(count))
         with self._lock:
+            now = time.time()
+            self._global_minute = [
+                t for t in self._global_minute if now - t < 60
+            ]
+            if len(self._global_minute) + count > self.bot_per_minute:
+                return False
+
             today = time.strftime("%Y-%m-%d")
             st = self._state.setdefault(key, {"date": today, "day": 0, "minute": []})
             if st.get("date") != today:
                 st["date"] = today
                 st["day"] = 0
-            now = time.time()
             window = [t for t in st.get("minute", []) if now - t < 60]
             st["minute"] = window
-            if st.get("day", 0) >= self.per_day:
+            if st.get("day", 0) + count > self.per_day:
                 self._save()
                 return False
-            if len(window) >= self.per_minute:
+            if len(window) + count > self.per_minute:
                 self._save()
                 return False
-            window.append(now)
-            st["day"] = st.get("day", 0) + 1
+            st["minute"] = window + [now] * count
+            st["day"] = st.get("day", 0) + count
+            self._global_minute.extend([now] * count)
             self._save()
             return True

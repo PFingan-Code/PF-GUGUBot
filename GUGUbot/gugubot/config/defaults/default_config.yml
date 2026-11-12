@@ -68,9 +68,10 @@ connector:
       app_secret: "" # 机器人 AppSecret
       sandbox: false # 是否使用沙箱环境
       max_message_length: 2000 # 单片长度上限 :: 超出自动分片（官方 40054007 超限报错）
-    rate_limit: # 主动消息配额 :: 官方限制 单群20条/分钟、1000条/天（被动回复不占配额；超限丢弃并告警）
+    rate_limit: # 主动消息配额 :: 官方限制 单群20条/分钟、1000条/天、Bot全局30~60条/分钟（被动回复不占配额；超限丢弃并告警）
       per_minute: 20
       per_day: 1000
+      bot_per_minute: 30 # Bot 全局限速 :: 所有群合计的主动消息条/分钟（防止多群广播触发平台级限流）
     permissions:
       admin_ids: # 管理员 OpenID :: 另：群内角色为 admin/owner 的成员自动视为管理员（群内发 /userId @某人 获取）
         -
@@ -181,7 +182,9 @@ system:
     enable: true
     mc_command: "mc"    # QQ 端命令：{command_prefix}{mc_command} 消息
     qq_command: "!!qq"  # MC 端命令：{qq_command} 消息
-    qq_forward_group_ids: # !!qq 转发目标群号 :: 留空则使用 QQ connector 的 forward_group_ids/group_ids
+    qq_forward_group_ids: # !!qq 转发目标群号 :: OneBot 连接器（数字群号），留空则使用 QQ connector 的 forward_group_ids/group_ids
+      -
+    qq_forward_openids: # !!qq 转发目标群 OpenID :: open-qq-bot 官方连接器（32位 OpenID，群内发 /groupId 获取；与数字群号不通用），留空则使用官方 connector 的 forward_group_ids/group_ids
       -
 
   execute: # 命令执行系统

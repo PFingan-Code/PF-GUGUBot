@@ -1,8 +1,10 @@
 """QQ 官方机器人 REST API 客户端（open-qq-bot 连接器）。
 
 由 demo 的 ApiClient / TokenManager 拆分而来：所有参数改为构造注入，
-不再读取 config.json。覆盖群聊/单聊文本、Markdown、富媒体、撤回、
-分片上传与群管理查询；被动回复由 :class:`~.common.SeqManager` 统一管理。
+不再读取 config.json。核心发送层覆盖群聊/单聊文本与 Markdown（自动分片、
+被动回复 msg_seq 记账与去重重试）；富媒体、撤回、群管理查询与分片上传
+为**实验性接口**（见对应 section 注释）。被动回复由
+:class:`~.common.SeqManager` 统一管理。
 
 线程模型：本类全部为**同步阻塞**实现（HTTP + 分片间 sleep），
 connector 侧通过 ``asyncio.to_thread`` 包装调用，避免阻塞 MCDR 事件循环。
@@ -24,10 +26,25 @@ from gugubot.connector.open_qq_bot.common import (
     http_json,
     logger,
     random_send_delay,
+    split_markdown,
+    split_message,
 )
 
 API_BASE = "https://api.bot.qq.com"
 SANDBOX_API_BASE = "https://sandbox.api.bot.qq.com"
+
+
+class PartialDelivery(RuntimeError):
+    """分片消息部分送达：``sent`` 片已发出，剩余 ``remaining`` 片未发出。
+
+    与「一片未发」（返回 ``None``，调用方可整体降级重发）不同，部分送达时
+    整体重发会造成已送达内容重复，调用方只能告警，不得补发全文。
+    """
+
+    def __init__(self, sent: int, remaining: int):
+        super().__init__(f"已发送 {sent} 片，剩余 {remaining} 片未发出")
+        self.sent = sent
+        self.remaining = remaining
 
 
 class TokenManager:
@@ -87,28 +104,69 @@ class ApiClient:
 
     # ---- 发送层：msg_seq 管理 + 去重重试 ----
 
+    def _release_seqs(self, msg_id, count):
+        """回退 msg_id 的 count 个 msg_seq 名额（发送失败/去重补偿用）。"""
+        if msg_id and count > 0:
+            for _ in range(count):
+                self.seq.release(msg_id)
+
     def _post_group_message(self, group_openid, body, msg_id=None):
-        """POST 单片群消息；命中 40054005 时换一个 msg_seq 重试（最多 2 次）。"""
+        """POST 单片群消息；命中 40054005 时换一个 msg_seq 重试（最多 2 次）。
+
+        msg_seq 记账：重试成功时释放换掉的旧 seq（一条消息只消耗一个被动
+        名额）；重试仍失败时释放本次新分配的 seq（初始 seq 由调用方回退）。
+        """
         attempts = 0
-        retried_seq = False  # 去重重试换的新 msg_seq；最终仍失败时回退本地配额
+        retry_seqs = 0  # 去重重试额外分配的 msg_seq 数
         while True:
             attempts += 1
             try:
-                return self._call("POST", f"/v2/groups/{group_openid}/messages", body)
+                resp = self._call("POST", f"/v2/groups/{group_openid}/messages", body)
+                if retry_seqs:
+                    # 换 seq 重试成功：旧 seq 名额回退，一条消息只消耗一个
+                    self._release_seqs(msg_id, retry_seqs)
+                return resp
             except ApiError as e:
                 if e.has_code(ERR_DUPLICATED) and msg_id and attempts <= 2:
                     new_seq = self.seq.allocate(msg_id)
                     if new_seq is None:
+                        self._release_seqs(msg_id, retry_seqs)
                         raise
                     body["msg_seq"] = new_seq
-                    retried_seq = True
+                    retry_seqs += 1
                     self.logger.warning("群消息被去重，换 msg_seq=%s 重试", new_seq)
                     continue
-                if retried_seq:
-                    # 换 seq 重试仍失败：本次分配未被服务端接受，回退配额防泄漏
-                    self.seq.release(msg_id)
+                if retry_seqs:
+                    # 换 seq 重试仍失败：本次分配未被服务端接受，回退防泄漏
+                    self._release_seqs(msg_id, retry_seqs)
                 if e.has_code(*ERR_PASSIVE_EXPIRED):
                     self.logger.warning("被动回复窗口失效（msg_id 过期或超次）：%s", e)
+                raise
+
+    def _post_c2c_message(self, user_openid, body, msg_id=None):
+        """POST 单片单聊消息；去重重试与 seq 记账同 :meth:`_post_group_message`。"""
+        attempts = 0
+        retry_seqs = 0
+        while True:
+            attempts += 1
+            try:
+                resp = self._call("POST", f"/v2/users/{user_openid}/messages", body)
+                if retry_seqs:
+                    # 换 seq 重试成功：旧 seq 名额回退，一条消息只消耗一个
+                    self._release_seqs(msg_id, retry_seqs)
+                return resp
+            except ApiError as e:
+                if e.has_code(ERR_DUPLICATED) and msg_id and attempts <= 2:
+                    new_seq = self.seq.allocate(msg_id)
+                    if new_seq is None:
+                        self._release_seqs(msg_id, retry_seqs)
+                        raise
+                    body["msg_seq"] = new_seq
+                    retry_seqs += 1
+                    self.logger.warning("单聊消息被去重，换 msg_seq=%s 重试", new_seq)
+                    continue
+                if retry_seqs:
+                    self._release_seqs(msg_id, retry_seqs)
                 raise
 
     def _alloc_passive(self, body, msg_id):
@@ -124,7 +182,10 @@ class ApiClient:
                         event_id=None, reference=None):
         """发送群文本（自动分片，片间随机 0.5~1.5s 限速）。
 
-        返回最后一个成功响应（含消息 id，可记录用于「撤回」）。
+        返回最后一个成功响应（含消息 id，可记录用于「撤回」）；
+        一片未发出（被动回复次数耗尽）返回 ``None``，调用方可整体降级为
+        主动消息重发；部分分片送达后中断则抛 :class:`PartialDelivery`
+        （此时整体重发会重复已送达内容）。
 
         Parameters
         ----------
@@ -132,8 +193,6 @@ class ApiClient:
             引用回复的 message_id（来自入站事件 message_scene.ext 的 msg_idx），
             仅随第一片发送。
         """
-        from gugubot.connector.open_qq_bot.common import split_message
-
         chunks = split_message(content, self.max_message_length)
         last_resp = None
         for i, chunk in enumerate(chunks):
@@ -144,14 +203,18 @@ class ApiClient:
                 if not self._alloc_passive(body, msg_id):
                     self.logger.warning("分片 %s/%s 因被动回复次数耗尽未发送",
                                         i + 1, len(chunks))
-                    break
+                    if i > 0:
+                        # 已有分片送达：整体降级重发会重复，显式抛错告警
+                        raise PartialDelivery(i, len(chunks) - i)
+                    return None  # 一片未发：调用方可整体降级为主动消息
             elif event_id:
                 body["event_id"] = event_id
             try:
                 last_resp = self._post_group_message(group_openid, body, msg_id=msg_id)
-            except ApiError:
-                if msg_id:
-                    self.seq.release(msg_id)
+            except ApiError as e:
+                self._release_seqs(msg_id, 1)
+                if i > 0:
+                    raise PartialDelivery(i, len(chunks) - i) from e
                 raise
             if i < len(chunks) - 1:
                 time.sleep(random_send_delay())
@@ -160,20 +223,39 @@ class ApiClient:
     def send_group_markdown(self, group_openid, content, msg_id=None, reference=None):
         """msg_type=2 自定义 Markdown（群聊已开放全部机器人，无需申请模板）。
 
-        @ 标签（<qqbot-at-user/> 等）仅在此通道渲染。
+        @ 标签（<qqbot-at-user/> 等）仅在此通道渲染。超长内容自动分片，
+        分片边界不切断 @ 标签 / 图片 / URL。返回值与部分失败语义同
+        :meth:`send_group_text`。
         可能的错误：304036/40034127=无 Markdown 权限；40034124=参数错误。
         """
-        body = {"msg_type": 2, "markdown": {"content": content}}
-        if reference:
-            body["message_reference"] = {"message_id": reference}
-        if msg_id and not self._alloc_passive(body, msg_id):
-            return None
-        try:
-            return self._post_group_message(group_openid, body, msg_id=msg_id)
-        except ApiError:
+        chunks = split_markdown(content, self.max_message_length)
+        last_resp = None
+        for i, chunk in enumerate(chunks):
+            body = {"msg_type": 2, "markdown": {"content": chunk}}
+            if reference and i == 0:
+                body["message_reference"] = {"message_id": reference}
             if msg_id:
-                self.seq.release(msg_id)
-            raise
+                if not self._alloc_passive(body, msg_id):
+                    self.logger.warning("分片 %s/%s 因被动回复次数耗尽未发送",
+                                        i + 1, len(chunks))
+                    if i > 0:
+                        raise PartialDelivery(i, len(chunks) - i)
+                    return None
+            try:
+                last_resp = self._post_group_message(group_openid, body, msg_id=msg_id)
+            except ApiError as e:
+                self._release_seqs(msg_id, 1)
+                if i > 0:
+                    raise PartialDelivery(i, len(chunks) - i) from e
+                raise
+            if i < len(chunks) - 1:
+                time.sleep(random_send_delay())
+        return last_resp
+
+    # ---- 实验性接口 ----
+    # 以下方法覆盖官方 REST 的富媒体/撤回/群管理/分片上传能力，尚未接入
+    # 出站管线（如单聊图片仍以 [图片] 占位下发），也没有测试覆盖。
+    # 接入前请先在沙箱验证行为；长期未接入应考虑删除，避免与文档漂移。
 
     def send_group_media(self, group_openid, file_type, url, msg_id=None):
         """URL 上传富媒体（file_type: 1=图 2=视频 3=语音 4=文件）并以 msg_type=7 发送。"""
@@ -199,30 +281,35 @@ class ApiClient:
     # ---- 单聊（单聊/群聊上传接口相互隔离）----
 
     def send_c2c_text(self, user_openid, content, msg_id=None):
-        """发送单聊文本；返回响应（含 id，可记录用于「撤回」）。"""
-        body = {"msg_type": 0, "content": content}
-        if msg_id and not self._alloc_passive(body, msg_id):
-            return None
-        attempts = 0
-        retried_seq = False  # 去重重试换的新 msg_seq；最终仍失败时回退本地配额
-        while True:
-            attempts += 1
+        """发送单聊文本（自动分片，片间随机 0.5~1.5s 限速）。
+
+        返回值与部分失败语义同 :meth:`send_group_text`；msg_seq 记账：
+        本次发送分配的全部 seq（含去重重试）在失败时全部回退，重试成功
+        时释放换掉的旧 seq，一条消息只消耗一个被动名额。
+        """
+        chunks = split_message(content, self.max_message_length)
+        last_resp = None
+        for i, chunk in enumerate(chunks):
+            body = {"msg_type": 0, "content": chunk}
+            if msg_id:
+                if not self._alloc_passive(body, msg_id):
+                    self.logger.warning("分片 %s/%s 因被动回复次数耗尽未发送",
+                                        i + 1, len(chunks))
+                    if i > 0:
+                        raise PartialDelivery(i, len(chunks) - i)
+                    return None
             try:
-                return self._call("POST", f"/v2/users/{user_openid}/messages", body)
+                last_resp = self._post_c2c_message(user_openid, body, msg_id=msg_id)
             except ApiError as e:
-                if e.has_code(ERR_DUPLICATED) and msg_id and attempts <= 2:
-                    new_seq = self.seq.allocate(msg_id)
-                    if new_seq is None:
-                        raise
-                    body["msg_seq"] = new_seq
-                    retried_seq = True
-                    continue
-                if retried_seq:
-                    # 换 seq 重试仍失败：本次分配未被服务端接受，回退配额防泄漏
-                    self.seq.release(msg_id)
+                self._release_seqs(msg_id, 1)
                 if e.has_code(*ERR_PASSIVE_EXPIRED):
                     self.logger.warning("单聊被动回复窗口失效：%s", e)
+                if i > 0:
+                    raise PartialDelivery(i, len(chunks) - i) from e
                 raise
+            if i < len(chunks) - 1:
+                time.sleep(random_send_delay())
+        return last_resp
 
     def upload_c2c_media(self, user_openid, file_type, url):
         resp = self._call("POST", f"/v2/users/{user_openid}/files",

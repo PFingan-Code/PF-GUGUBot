@@ -17,7 +17,7 @@ import time
 
 import websocket
 
-from gugubot.connector.open_qq_bot.common import INTENTS
+from gugubot.connector.open_qq_bot.common import INTENTS, ApiError
 
 logger = logging.getLogger("gugubot.open_qq_bot")
 
@@ -25,6 +25,9 @@ logger = logging.getLogger("gugubot.open_qq_bot")
 RESUME_CLOSE_CODES = {None, 1000, 1001, 1006, 4008, 4009}  # 可尝试 Resume 重连
 FATAL_CLOSE_CODES = {4914, 4915}  # 机器人已下架/封禁，不可恢复
 RECONNECT_BACKOFF_MAX = 60
+
+# 凭据类 HTTP 状态码：重试无意义，应停止并给出明确告警
+CREDENTIAL_HTTP_CODES = {401, 403}
 
 
 class GatewayStopped(Exception):
@@ -64,9 +67,11 @@ class Gateway:
         self._ack = threading.Event()
         self._heartbeat_interval = 45.0
         self._stop = False
+        self._stop_event = threading.Event()
         self._fatal = False
         self._reidentify = False
         self._backoff = 1
+        self._thread = None
 
     # ---- 内部 ----
 
@@ -154,19 +159,47 @@ class Gateway:
 
     # ---- 对外 ----
 
+    @staticmethod
+    def _is_credential_error(e: Exception) -> bool:
+        """凭据类错误（HTTP 401/403）：重试无意义，应停止并明确告警。"""
+        return isinstance(e, ApiError) and e.status in CREDENTIAL_HTTP_CODES
+
     def run(self):
         """阻塞运行网关连接循环（应在独立线程中调用）。
+
+        网关地址 / access_token 的获取同样纳入指数退避重试——启动瞬时
+        故障（网络超时、QQ 接口 5xx 等）不再让异常逃出线程导致永久离线；
+        凭据类错误（HTTP 401/403）视为不可恢复，直接终止并提示检查配置。
 
         Raises
         ------
         GatewayStopped
-            机器人已下架/封禁（4914/4915）或调用方请求停止。
+            机器人已下架/封禁（4914/4915）、凭据无效或调用方请求停止。
         """
         while not self._stop:
             self._hello.clear()
             self._ready.clear()
             self._reidentify = False
-            url = self._get_url()
+            try:
+                url = self._get_url()
+            except GatewayStopped:
+                raise
+            except Exception as e:
+                if self._is_credential_error(e):
+                    raise GatewayStopped(
+                        f"获取网关地址失败（HTTP {e.status}，凭据无效）："
+                        "请检查 connector.open-qq-bot.connection.app_id / app_secret"
+                    ) from e
+                logger.warning(
+                    "获取网关地址失败（%s: %s），%ss 后重试",
+                    type(e).__name__, e, self._backoff,
+                )
+                if self._stop_event.wait(self._backoff):
+                    break  # stop() 被调用，立即退出
+                self._backoff = min(self._backoff * 2, RECONNECT_BACKOFF_MAX)
+                continue
+            if self._stop:
+                break
             logger.info("连接网关：%s", url)
             self.ws = websocket.WebSocketApp(
                 url, on_message=self._on_message, on_close=self._on_close,
@@ -183,12 +216,24 @@ class Gateway:
                 self.session_id = None
                 self.last_seq = None
             logger.info("%ss 后重连", self._backoff)
-            time.sleep(self._backoff)
+            if self._stop_event.wait(self._backoff):
+                break
             self._backoff = min(self._backoff * 2, RECONNECT_BACKOFF_MAX)
 
     def connect(self):
         """在独立 daemon 线程中启动网关循环（非阻塞，供 connector.connect 调用）。"""
-        threading.Thread(target=self._run_guarded, daemon=True).start()
+        self._stop = False
+        self._stop_event.clear()
+        self._fatal = False
+        self._thread = threading.Thread(
+            target=self._run_guarded, daemon=True, name="open-qq-bot-gateway"
+        )
+        self._thread.start()
+
+    @property
+    def alive(self) -> bool:
+        """网关线程是否存活（健康检查：线程死亡即离线，供连接器探测）。"""
+        return bool(self._thread and self._thread.is_alive())
 
     def _run_guarded(self):
         try:
@@ -201,5 +246,6 @@ class Gateway:
     def stop(self):
         """请求停止网关循环并断开当前连接。"""
         self._stop = True
+        self._stop_event.set()
         if self.ws:
             self.ws.close()

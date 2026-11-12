@@ -50,10 +50,10 @@ class EchoSystem(BasicSystem):
         if not self.enable:
             return False
 
-        # QQ 私聊消息不广播（OneBot 与官方机器人连接器同约定，隐私考量）
+        # QQ 私聊消息不广播（OneBot 与官方机器人连接器同约定，隐私考量；
+        # 官方连接器按配置的显示名判断——其 origin 是显示名而非段名）
         if broadcast_info.event_sub_type == "private" and (
             broadcast_info.source.is_from("QQ")
-            or broadcast_info.source.is_from("open-qq-bot")
             or broadcast_info.source.is_from(
                 self.config.get_keys(
                     ["connector", "open-qq-bot", "source_name"], "OpenQQBot"

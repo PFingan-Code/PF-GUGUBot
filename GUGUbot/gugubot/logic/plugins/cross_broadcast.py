@@ -3,6 +3,9 @@
 
 在 QQ 端发送 #mc <消息> 可突破 enable_send 限制，将消息仅广播到 MC；
 在 MC 端发送 !!qq <消息> 可将消息仅广播到 QQ（主服和经 Bridge 连接的子服均可使用）。
+!!qq 会同时路由到所有已启用的 QQ 类连接器（OneBot 与官方 open-qq-bot），
+两者群标识不同：OneBot 用数字群号（qq_forward_group_ids），
+官方用 32 位群 OpenID（qq_forward_openids）。
 支持回复图片消息时使用 #mc 将被回复的图片转发到 MC。
 """
 
@@ -73,8 +76,7 @@ class CrossBroadcastSystem(BasicSystem):
         qq_cmd = self.config.get_keys(["system", "cross_broadcast", "qq_command"], "!!qq")
         if source_name in (mc_source, bridge_source) and text.startswith(qq_cmd):
             remaining = self._strip_command(broadcast_info.message, qq_cmd)
-            target = self._build_qq_forward_target()
-            return await self._broadcast_to(broadcast_info, remaining, qq_source, target=target)
+            return await self._broadcast_to_qq_connectors(broadcast_info, remaining)
 
         return False
 
@@ -148,14 +150,63 @@ class CrossBroadcastSystem(BasicSystem):
             result.pop(0)
         return result or list(_EMPTY_TEXT)
 
-    def _build_qq_forward_target(self) -> dict | None:
-        """构建 !!qq 自定义转发目标群字典，留空则由 QQ connector 自行决定。"""
+    def _build_forward_target(self, config_key: str) -> dict | None:
+        """按配置键构建 !!qq 自定义转发目标字典，留空返回 None。"""
         group_ids = self.config.get_keys(
-            ["system", "cross_broadcast", "qq_forward_group_ids"], []
+            ["system", "cross_broadcast", config_key], []
         )
         if group_ids and any(group_ids):
             return {str(gid): "group" for gid in group_ids if gid}
         return None
+
+    def _build_qq_forward_destinations(self) -> list:
+        """收集 !!qq 的全部目标连接器：``[(connector 显示名, target 或 None)]``。
+
+        - OneBot（QQ 段）：``qq_forward_group_ids``（数字群号）
+        - 官方（open-qq-bot 段）：``qq_forward_openids``（32 位群 OpenID，
+          与 OneBot 数字群号是不同标识空间，需单独配置）
+        自定义目标留空时 target=None，由连接器按自身
+        forward_group_ids/group_ids（OpenID）决定投递目标。
+        """
+        return [
+            (
+                self.config.get_keys(["connector", "QQ", "source_name"], "QQ"),
+                self._build_forward_target("qq_forward_group_ids"),
+            ),
+            (
+                self.config.get_keys(
+                    ["connector", "open-qq-bot", "source_name"], "OpenQQBot"
+                ),
+                self._build_forward_target("qq_forward_openids"),
+            ),
+        ]
+
+    async def _broadcast_to_qq_connectors(
+            self, broadcast_info: BroadcastInfo, message: list,
+    ) -> bool:
+        """将消息广播到所有已启用的 QQ 类连接器（OneBot 与官方 open-qq-bot）。
+
+        Returns
+        -------
+        bool
+            恒为 True：命令已被识别消费。即使当前没有任何已启用的 QQ 类
+            连接器也不回落到 echo——否则 ``!!qq`` 原文会被当普通聊天
+            泄漏到 QQ 群。
+        """
+        manager = self.system_manager.connector_manager
+        delivered = False
+        for dest, target in self._build_qq_forward_destinations():
+            connector = manager.get_connector(dest)
+            if not connector or not connector.enable:
+                continue
+            if await self._broadcast_to(broadcast_info, message, dest, target=target):
+                delivered = True
+        if not delivered:
+            self.logger.warning(
+                "!!qq 未命中任何已启用的 QQ 类连接器，消息未投递"
+                "（已阻止原文经 echo 泄漏到 QQ）"
+            )
+        return True
 
     async def _broadcast_to(
             self, broadcast_info: BroadcastInfo, message: list,
