@@ -1412,6 +1412,83 @@ class TestGatewayResilience(unittest.TestCase):
         ws_cls.assert_not_called()
 
 
+class FakeGatewayWS:
+    """网关 WS 桩：记录 send/close，可按需在发送后触发 ACK。"""
+
+    def __init__(self, on_send=None):
+        self.sent = []
+        self.closed = False
+        self.keep_running = True
+        self._on_send = on_send
+
+    def send(self, payload):
+        self.sent.append(payload)
+        if self._on_send:
+            self._on_send(self)
+
+    def close(self):
+        self.closed = True
+
+
+class TestGatewayHeartbeat(unittest.TestCase):
+    """心跳日志方案：HELLO 时 INFO 一次正常间隔；正常心跳只留 DEBUG；
+    ACK 超过一个心跳间隔才 WARNING。"""
+
+    def _gateway(self):
+        from gugubot.connector.open_qq_bot.gateway import Gateway
+
+        return Gateway(
+            gateway_url_getter=lambda: "wss://example", token_getter=lambda: "t",
+            on_event=lambda *a: None,
+        )
+
+    def test_hello_logs_heartbeat_interval(self):
+        """服务端下发的正常心跳间隔必须可见（此前只存内部字段，日志无迹可查）。"""
+        import json
+
+        g = self._gateway()
+        ws = FakeGatewayWS()
+        with self.assertLogs("gugubot.open_qq_bot", level="INFO") as logs:
+            g._on_message(ws, json.dumps({
+                "op": 10, "d": {"heartbeat_interval": 41250},
+            }))
+        self.assertEqual(g._heartbeat_interval, 41.25)
+        self.assertTrue(any(
+            "心跳间隔" in m and "服务端下发" in m for m in logs.output
+        ))
+
+    def test_normal_beat_not_warned(self):
+        """正常心跳（ACK 在一个间隔内返回）：不产生 WARNING。"""
+        g = self._gateway()
+        g._heartbeat_interval = 0.2
+        g._hello.set()
+        g._ready.set()
+
+        def ack_once(ws):
+            g._ack.set()
+            ws.keep_running = False  # 一拍后退出循环
+
+        ws = FakeGatewayWS(on_send=ack_once)
+        with self.assertLogs("gugubot.open_qq_bot", level="DEBUG") as logs:
+            g._heartbeat_loop(ws)
+        self.assertFalse(ws.closed)
+        self.assertTrue(any("发送心跳" in m for m in logs.output))
+        self.assertFalse(any("WARNING" in m for m in logs.output))
+
+    def test_ack_exceeding_interval_warns(self):
+        """ACK 超过正常间隔未返回：WARNING 带出实际等待与正常间隔。"""
+        g = self._gateway()
+        g._heartbeat_interval = 0.2
+        g._hello.set()
+        g._ready.set()
+        ws = FakeGatewayWS()
+        with self.assertLogs("gugubot.open_qq_bot", level="WARNING") as logs:
+            g._heartbeat_loop(ws)
+        self.assertTrue(ws.closed)
+        self.assertIn("心跳 ACK 超过 0.2s 未返回", logs.output[0])
+        self.assertIn("正常间隔 0.2s", logs.output[0])
+
+
 class TestCrossBroadcastQQRouting(unittest.IsolatedAsyncioTestCase):
     """M-6：!!qq 路由到所有已启用的 QQ 类连接器，且不回落 echo。"""
 

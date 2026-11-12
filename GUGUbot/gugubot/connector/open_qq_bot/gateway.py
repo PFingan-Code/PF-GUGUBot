@@ -86,6 +86,7 @@ class Gateway:
         logger.log(level, "收到网关消息：op=%s t=%s s=%s", op, payload.get("t"), payload.get("s"))
         if op == 10:
             self._heartbeat_interval = payload["d"]["heartbeat_interval"] / 1000
+            logger.info("心跳间隔：%.1fs（服务端下发）", self._heartbeat_interval)
             self._hello.set()
             if self.session_id and self.last_seq is not None:
                 logger.info("发送 Resume（session=%s, seq=%s）", self.session_id, self.last_seq)
@@ -141,9 +142,22 @@ class Gateway:
         # 必须等鉴权完成（READY/RESUMED）再发心跳，网关不回未鉴权连接的 ACK
         if not self._hello.wait(timeout=10) or not self._ready.wait(timeout=15):
             return
+        # 日志方案：正常心跳只留 DEBUG（发送 + ACK 各一条），不按拍刷 INFO；
+        # 间隔以 HELLO 下发值为准（INFO 打印一次），ACK 超过一个间隔才 WARNING。
+        interval = self._heartbeat_interval
+        last_beat = None
         while ws.keep_running and not self._stop:
+            now = time.monotonic()
+            if last_beat is not None:
+                gap = now - last_beat
+                # 线程被 GIL/系统挂起拖慢时，实际间隔会明显超过下发值
+                if gap > interval * 1.5:
+                    logger.warning(
+                        "心跳间隔 %.1fs，超过正常间隔 %.1fs", gap, interval
+                    )
+            last_beat = now
             self._ack.clear()
-            logger.debug("发送心跳 op=1 seq=%s", self.last_seq)
+            logger.debug("发送心跳 op=1 seq=%s（间隔 %.1fs）", self.last_seq, interval)
             try:
                 ws.send(json.dumps({"op": 1, "d": self.last_seq}))
             except Exception as e:
@@ -151,11 +165,14 @@ class Gateway:
                 # 重连由 run() 中 run_forever 的返回逻辑统一处理
                 logger.debug("心跳发送失败（连接已关闭）：%s", e)
                 return
-            if not self._ack.wait(timeout=10):
-                logger.warning("心跳 ACK 超时，断开重连")
+            if not self._ack.wait(timeout=interval):
+                logger.warning(
+                    "心跳 ACK 超过 %.1fs 未返回（正常间隔 %.1fs），断开重连",
+                    interval, interval,
+                )
                 ws.close()
                 return
-            time.sleep(self._heartbeat_interval)
+            time.sleep(interval)
 
     # ---- 对外 ----
 
