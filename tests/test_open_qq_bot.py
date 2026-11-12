@@ -1,6 +1,6 @@
 """open-qq-bot 连接器集成测试。
 
-运行方式（需插件依赖，见 AGENTS.md；MCDR 事件循环以 FakeServer 桩替代）：
+运行方式（需插件依赖；MCDR 事件循环以 FakeServer 桩替代）：
 
     PYTHONPATH=GUGUbot python -m unittest tests.test_open_qq_bot -v
 
@@ -10,7 +10,7 @@
         PYTHONPATH=GUGUbot python -m unittest tests.test_open_qq_bot -v
 
 本文件不做任何 sys.path 硬编码 / 包别名注册：包路径统一由
-PYTHONPATH=GUGUbot 提供（与 AGENTS.md 约定一致），保证 Linux/CI 可移植。
+PYTHONPATH=GUGUbot 提供，保证 Linux/CI 可移植。
 """
 
 try:

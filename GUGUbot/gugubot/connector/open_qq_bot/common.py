@@ -1,7 +1,6 @@
 """open-qq-bot 连接器公共工具：错误码、限流、去重、分片、@ 标签。
 
-由 devDocs/open-qq-bot/demo/qq_official_demo.py 的公共部分拆分而来，
-行为与官方文档（devDocs/open-qq-bot/消息、起步指南）对齐。
+行为与 QQ 开放平台官方文档对齐。
 """
 
 import http.client

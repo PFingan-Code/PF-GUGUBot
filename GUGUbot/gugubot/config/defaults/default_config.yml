@@ -57,7 +57,7 @@ connector:
       forward_other_bot: false       # 转发官方机器人回复
       change_group_card: true       # 是否修改群员群名片 :: 绑定ID时自动修改群名片为游戏名
 
-  open-qq-bot: # QQ官方机器人连接器 :: 直连 QQ 开放平台 WebSocket 网关（与 OneBot 版 QQ 连接器并行使用，文档见 devDocs/open-qq-bot/）
+  open-qq-bot: # QQ官方机器人连接器 :: 直连 QQ 开放平台 WebSocket 网关（与 OneBot 版 QQ 连接器并行使用）
     source_name: "OpenQQBot" # 显示名称
     enable: false # 是否启用 :: 需先在 QQ 开放平台创建机器人并填写 connection.app_id/app_secret
     enable_receive: true # 是否接收转发 :: 其他 connector 的 echo 转发时不转发到此 connector

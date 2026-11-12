@@ -8,7 +8,7 @@ GUGUBot 的 connector 管线，与 OneBot 版 QQWebSocketConnector 并行使用�
 - 出站：``send_message(ProcessedInfo)`` → 段数组转官方文本/Markdown
   （含跨源前缀、颜色码剥离、@/图片转换）→ ``asyncio.to_thread`` 调 API
 
-与 OneBot 版的关键差异（官方平台限制，见 devDocs/open-qq-bot/）：
+与 OneBot 版的关键差异（官方平台限制）：
 - 出站均为主动消息，受频控（单群 20 条/分钟、1000 条/天），无配额管理前
   不适合做高流量的 MC→QQ 全量聊天同步
 - @ 标签仅 Markdown 通道渲染；被动回复有 5 分钟/5 次窗口（SeqManager 管理）

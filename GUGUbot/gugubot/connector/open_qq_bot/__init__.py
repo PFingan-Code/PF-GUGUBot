@@ -1,9 +1,9 @@
 """QQ 官方机器人（open-qq-bot）连接器。
 
-将 QQ 官方机器人 WebSocket API（devDocs/open-qq-bot/ 文档）适配为
+将 QQ 官方机器人 WebSocket API 适配为
 GUGUBot 的一个 connector，与 OneBot 版 QQWebSocketConnector 并行使用。
 
-模块划分（由 devDocs/open-qq-bot/demo/qq_official_demo.py 工程化拆分而来）：
+模块划分：
 
 - :mod:`gugubot.connector.open_qq_bot.common`      -- 错误码/限流/分片/@ 标签等公共工具
 - :mod:`gugubot.connector.open_qq_bot.api_client`   -- REST API 客户端（token/发消息/富媒体/撤回）
