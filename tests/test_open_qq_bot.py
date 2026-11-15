@@ -13,11 +13,68 @@
 PYTHONPATH=GUGUbot 提供，保证 Linux/CI 可移植。
 """
 
+import importlib.machinery
+import sys
+
+
+def _is_stub_module(m):
+    """ModuleType 桩（无 __file__）判定，用于识别其他测试文件注册的假模块。"""
+    return getattr(m, "__file__", None) is None
+
+
+# 记录导入前已注册的 mcdreforged 模块（可能来自其他测试文件如 test_plugin_api
+# 的桩注册），供模块末尾恢复，确保本文件不在 sys.modules 留下痕迹。
+_SAVED_MCDR_MODULES = {
+    k: sys.modules[k]
+    for k in list(sys.modules)
+    if k == "mcdreforged" or k.startswith("mcdreforged.")
+}
+
+# 其他测试文件（test_plugin_api）可能已向 sys.modules 注册 gugubot/mcdreforged
+# 桩模块；先清除，保证本文件始终导入真实的 gugubot 包。
+for _k in [
+    k
+    for k in list(sys.modules)
+    if k == "gugubot"
+    or k.startswith("gugubot.")
+    or (
+        (k == "mcdreforged" or k.startswith("mcdreforged."))
+        and _is_stub_module(sys.modules[k])
+    )
+]:
+    del sys.modules[_k]
+
 try:
     from gugubot.connector import OpenQQBotConnector
+    from gugubot.connector.open_qq_bot import common
+    from gugubot.connector.open_qq_bot.api_client import (
+        ApiClient,
+        PartialDelivery,
+        TokenManager,
+    )
+    from gugubot.connector.open_qq_bot.common import (
+        INTENTS,
+        ApiError,
+        QuotaManager,
+        split_markdown,
+        split_message,
+    )
+    from gugubot.connector.open_qq_bot.gateway import Gateway, GatewayStopped
+    import gugubot.connector.open_qq_bot.gateway as gw
     from gugubot.connector.open_qq_bot.parser import OpenQQBotParser
-    from gugubot.connector.open_qq_bot.common import QuotaManager
-    from gugubot.utils.types import ProcessedInfo, Source
+    from gugubot.connector.qq_connector import (
+        QQWebSocketConnector,
+        WebSocketFactory,
+    )
+    from gugubot.logic.plugins.cross_broadcast import CrossBroadcastSystem
+    from gugubot.logic.system.bound import BoundSystem
+    from gugubot.utils.player_manager import Player
+    from gugubot.utils.types import (
+        BroadcastInfo,
+        ProcessedInfo,
+        Source,
+        Source as Src,
+    )
 except ModuleNotFoundError as _e:  # pragma: no cover
     raise RuntimeError(
         "无法导入 gugubot 包；请按项目约定设置 PYTHONPATH=GUGUbot 后运行：\n"
@@ -177,8 +234,6 @@ class TestConfig(unittest.TestCase):
 
     def test_intents_fixed_in_code(self):
         """配置里写了 intents 也不生效：位掩码由代码常量决定。"""
-        from gugubot.connector.open_qq_bot.common import INTENTS
-
         self.assertEqual(INTENTS, (1 << 25) | (1 << 24))
         config = default_config(
             connection={"app_id": "a", "app_secret": "b",
@@ -440,7 +495,6 @@ class TestOutbound(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(msg_id, "MSG1")  # 同会话 → 被动回复锚点生效
 
     def test_passive_expired_falls_back_to_active(self):
-        from gugubot.connector.open_qq_bot.common import ApiError
 
         def failing_send(g, c, msg_id=None, event_id=None, reference=None):
             if msg_id:  # 带锚点（被动）时模拟窗口失效
@@ -459,9 +513,6 @@ class TestOutbound(unittest.IsolatedAsyncioTestCase):
 
     def test_midchunk_passive_expiry_no_duplicate_resend(self):
         """N1（端到端）：分片中途被动过期 → 仅告警，不整体降级重发已送达片。"""
-        from gugubot.connector.open_qq_bot.api_client import ApiClient, TokenManager
-        from gugubot.connector.open_qq_bot.common import ApiError
-
         client = ApiClient(TokenManager("a", "b"))
         client.max_message_length = 10
         passive, active = [], []
@@ -506,7 +557,6 @@ class TestOutbound(unittest.IsolatedAsyncioTestCase):
 
     def test_passive_expired_markdown_fallback_no_duplicate_images(self):
         """M-1：Markdown 被动回复过期降级时，图片 URL 不得重复追加。"""
-        from gugubot.connector.open_qq_bot.common import ApiError
 
         def failing_markdown(g, c, msg_id=None, reference=None):
             if msg_id:  # 带锚点（被动）时模拟窗口失效
@@ -578,7 +628,6 @@ class TestQuota(unittest.TestCase):
         self.path = Path(self.dir) / "quota.json"
 
     def test_minute_and_day_limits(self):
-        from gugubot.connector.open_qq_bot.common import QuotaManager
         q = QuotaManager(per_minute=2, per_day=3, persist_path=self.path)
         assert q.allow("G")
         assert q.allow("G")
@@ -589,7 +638,6 @@ class TestQuota(unittest.TestCase):
 
     def test_day_reset_and_persistence(self):
         import time
-        from gugubot.connector.open_qq_bot.common import QuotaManager
         q = QuotaManager(per_minute=5, per_day=1, persist_path=self.path)
         q.allow("G")
         assert not q.allow("G")
@@ -602,7 +650,6 @@ class TestQuota(unittest.TestCase):
         assert q2._state["G"]["day"] == 1
 
     def test_per_key_isolation(self):
-        from gugubot.connector.open_qq_bot.common import QuotaManager
         q = QuotaManager(per_minute=1, per_day=10, persist_path=self.path)
         assert q.allow("A")
         assert not q.allow("A")
@@ -610,7 +657,6 @@ class TestQuota(unittest.TestCase):
 
     def test_bot_global_minute_window(self):
         """L-2：Bot 全局滑动窗口限制所有群合计的主动消息速率。"""
-        from gugubot.connector.open_qq_bot.common import QuotaManager
         q = QuotaManager(per_minute=2, per_day=100, bot_per_minute=3,
                          persist_path=self.path)
         assert q.allow("A")
@@ -620,7 +666,6 @@ class TestQuota(unittest.TestCase):
 
     def test_allow_many_counts_chunks(self):
         """分片发送按实际 API 请求数记账。"""
-        from gugubot.connector.open_qq_bot.common import QuotaManager
         q = QuotaManager(per_minute=3, per_day=100, bot_per_minute=10,
                          persist_path=self.path)
         assert q.allow_many("A", 3)  # 3 片一次计入
@@ -629,7 +674,6 @@ class TestQuota(unittest.TestCase):
 
     def test_allow_many_all_or_nothing(self):
         """容量不足时整体拒绝，不做部分消费。"""
-        from gugubot.connector.open_qq_bot.common import QuotaManager
         q = QuotaManager(per_minute=2, per_day=100, bot_per_minute=10,
                          persist_path=self.path)
         assert q.allow_many("A", 2)
@@ -705,7 +749,6 @@ class TestNoticeAndUnbind(unittest.IsolatedAsyncioTestCase):
         }
 
         def expiring_send(g, c, msg_id=None, *a, **k):
-            from gugubot.connector.open_qq_bot.common import ApiError
             if msg_id:
                 raise ApiError("POST", "u", 400, '{"err_code":40034005}', 40034005)
             sent.append(("active-fallback", g, msg_id))
@@ -736,10 +779,6 @@ class TestBoundOfficialQuit(unittest.IsolatedAsyncioTestCase):
         self.addCleanup(self._tmpdir.cleanup)
 
     async def _run(self, accounts):
-        from gugubot.logic.system.bound import BoundSystem
-        from gugubot.utils.player_manager import Player
-        from gugubot.utils.types import BroadcastInfo, Source as Src
-
         class FakeWhitelist:
             def __init__(self):
                 self.removed = []
@@ -985,12 +1024,9 @@ class TestSeqAccounting(unittest.TestCase):
     """去重重试换 msg_seq 后：成功不泄漏旧名额，失败全部回退。"""
 
     def _client(self):
-        from gugubot.connector.open_qq_bot.api_client import ApiClient, TokenManager
-
         return ApiClient(TokenManager("a", "b"))
 
     def test_group_retry_failure_releases_seq(self):
-        from gugubot.connector.open_qq_bot.common import ApiError
 
         client = self._client()
         calls = {"n": 0}
@@ -1010,7 +1046,6 @@ class TestSeqAccounting(unittest.TestCase):
 
     def test_group_retry_success_no_leak(self):
         """去重重试成功：一条消息只消耗一个被动名额（旧 seq 回退）。"""
-        from gugubot.connector.open_qq_bot.common import ApiError
 
         client = self._client()
         calls = {"n": 0}
@@ -1028,7 +1063,6 @@ class TestSeqAccounting(unittest.TestCase):
         self.assertEqual(client.seq._seqs.get("M", 0), 1)
 
     def test_c2c_retry_failure_releases_seq(self):
-        from gugubot.connector.open_qq_bot.common import ApiError
 
         client = self._client()
         calls = {"n": 0}
@@ -1048,7 +1082,6 @@ class TestSeqAccounting(unittest.TestCase):
 
     def test_c2c_first_failure_releases_seq(self):
         """首次发送因非去重错误失败：分配的 seq 必须回退（此前泄漏 1 个）。"""
-        from gugubot.connector.open_qq_bot.common import ApiError
 
         client = self._client()
 
@@ -1062,7 +1095,6 @@ class TestSeqAccounting(unittest.TestCase):
 
     def test_c2c_retry_success_no_leak(self):
         """去重重试成功：一条消息只消耗一个被动名额（旧 seq 回退）。"""
-        from gugubot.connector.open_qq_bot.common import ApiError
 
         client = self._client()
         calls = {"n": 0}
@@ -1080,7 +1112,6 @@ class TestSeqAccounting(unittest.TestCase):
 
     def test_network_error_releases_seq(self):
         """N2：网络层失败统一为 status=0 的 ApiError，seq 走同一回退路径。"""
-        from gugubot.connector.open_qq_bot.common import ApiError
 
         client = self._client()
 
@@ -1094,7 +1125,6 @@ class TestSeqAccounting(unittest.TestCase):
 
     def test_group_double_dup_exhaust_no_leak(self):
         """N3：连续去重直至名额耗尽，重试分配的 seq 必须全部回退。"""
-        from gugubot.connector.open_qq_bot.common import ApiError
 
         client = self._client()
         client.seq._seqs["M"] = 3  # 预占 3 个名额（上限 5）
@@ -1110,7 +1140,6 @@ class TestSeqAccounting(unittest.TestCase):
 
     def test_c2c_double_dup_exhaust_no_leak(self):
         """N3（单聊）：连续去重直至名额耗尽，不泄漏重试 seq。"""
-        from gugubot.connector.open_qq_bot.common import ApiError
 
         client = self._client()
         client.seq._seqs["M"] = 3
@@ -1128,13 +1157,9 @@ class TestChunking(unittest.TestCase):
     """M-2 / L-1：Markdown 与单聊文本分片，split 防御非法长度。"""
 
     def _client(self):
-        from gugubot.connector.open_qq_bot.api_client import ApiClient, TokenManager
-
         return ApiClient(TokenManager("a", "b"))
 
     def test_split_message_invalid_length(self):
-        from gugubot.connector.open_qq_bot.common import split_message
-
         # <=0 会死循环；非整数会 TypeError —— 均需防御（非法值钳/回退默认值）
         self.assertEqual(len(split_message("hello", 0)), 5)  # 钳到 1，逐字符切不死循环
         self.assertEqual(len(split_message("a" * 10, 0)), 10)
@@ -1142,15 +1167,11 @@ class TestChunking(unittest.TestCase):
         self.assertEqual(split_message("", 0), [])
 
     def test_split_markdown_basic(self):
-        from gugubot.connector.open_qq_bot.common import split_markdown
-
         chunks = split_markdown("a" * 30, 10)
         self.assertEqual("".join(chunks), "a" * 30)
         self.assertTrue(all(len(c) <= 10 for c in chunks))
 
     def test_split_markdown_protects_tags_and_urls(self):
-        from gugubot.connector.open_qq_bot.common import split_markdown
-
         tag = '<qqbot-at-user id="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" />'
         url = "https://example.com/aaaaaaaaaaaaaaaaaaaa"
         content = f"前缀\n{tag}\n中\n![图片]({url})\n尾"
@@ -1161,8 +1182,6 @@ class TestChunking(unittest.TestCase):
 
     def test_split_markdown_backtracks_across_protected_span(self):
         """切点默认落在受保护片段内部时，回退到片段起点之前。"""
-        from gugubot.connector.open_qq_bot.common import split_markdown
-
         url = "https://e.com/" + "x" * 12  # 20 字符受保护片段
         content = "a" * 25 + url + "b" * 25
         chunks = split_markdown(content, 30)
@@ -1171,8 +1190,6 @@ class TestChunking(unittest.TestCase):
 
     def test_split_markdown_protected_span_longer_than_limit(self):
         """单个受保护片段超长：放弃保护硬切，保证终止。"""
-        from gugubot.connector.open_qq_bot.common import split_markdown
-
         url = "https://example.com/" + "a" * 100
         chunks = split_markdown(url, 10)
         self.assertEqual("".join(chunks), url)
@@ -1222,8 +1239,6 @@ class TestChunking(unittest.TestCase):
 
     def test_api_partial_delivery_after_success(self):
         """首片成功、后续片被动耗尽：抛 PartialDelivery（不再静默截断）。"""
-        from gugubot.connector.open_qq_bot.api_client import PartialDelivery
-
         client = self._client()
         sent = []
 
@@ -1244,9 +1259,6 @@ class TestChunking(unittest.TestCase):
 
     def test_group_text_midchunk_apierror_partial(self):
         """N1：分片中途 API 失败（非去重）→ PartialDelivery，不整体重发。"""
-        from gugubot.connector.open_qq_bot.api_client import PartialDelivery
-        from gugubot.connector.open_qq_bot.common import ApiError
-
         client = self._client()
         calls = {"n": 0}
 
@@ -1268,9 +1280,6 @@ class TestChunking(unittest.TestCase):
 
     def test_group_markdown_midchunk_apierror_partial(self):
         """N1（Markdown）：中途失败抛 PartialDelivery，已送达片不重发。"""
-        from gugubot.connector.open_qq_bot.api_client import PartialDelivery
-        from gugubot.connector.open_qq_bot.common import ApiError
-
         client = self._client()
         calls = {"n": 0}
 
@@ -1290,9 +1299,6 @@ class TestChunking(unittest.TestCase):
 
     def test_c2c_midchunk_apierror_partial(self):
         """N1（单聊）：中途失败抛 PartialDelivery，已送达片不重发。"""
-        from gugubot.connector.open_qq_bot.api_client import PartialDelivery
-        from gugubot.connector.open_qq_bot.common import ApiError
-
         client = self._client()
         calls = {"n": 0}
 
@@ -1315,8 +1321,6 @@ class TestGatewayResilience(unittest.TestCase):
     """H-2：网关地址/token 获取失败须退避重试，凭据错误才终止线程。"""
 
     def _gateway(self, url_getter):
-        from gugubot.connector.open_qq_bot.gateway import Gateway
-
         return Gateway(
             gateway_url_getter=url_getter, token_getter=lambda: "t",
             on_event=lambda *a: None,
@@ -1346,9 +1350,6 @@ class TestGatewayResilience(unittest.TestCase):
 
     def test_credential_error_stops_gateway(self):
         """HTTP 401/403（凭据无效）：明确终止并抛 GatewayStopped，不无限重试。"""
-        from gugubot.connector.open_qq_bot.common import ApiError
-        from gugubot.connector.open_qq_bot.gateway import GatewayStopped
-
         def unauthorized():
             raise ApiError("GET", "u", 401, "invalid appid", None, None)
 
@@ -1358,7 +1359,6 @@ class TestGatewayResilience(unittest.TestCase):
 
     def test_transient_http_error_retried(self):
         """5xx 属可重试错误：不触发凭据终止。"""
-        from gugubot.connector.open_qq_bot.common import ApiError
 
         attempts = {"n": 0}
 
@@ -1398,8 +1398,6 @@ class TestGatewayResilience(unittest.TestCase):
         """N5：_get_url 阻塞期间收到 stop()，返回后不得再新建 WS 连接。"""
         from unittest import mock
 
-        import gugubot.connector.open_qq_bot.gateway as gw
-
         g = self._gateway(lambda: "wss://example")
 
         def url_then_stop():
@@ -1435,8 +1433,6 @@ class TestGatewayHeartbeat(unittest.TestCase):
     ACK 超过一个心跳间隔才 WARNING。"""
 
     def _gateway(self):
-        from gugubot.connector.open_qq_bot.gateway import Gateway
-
         return Gateway(
             gateway_url_getter=lambda: "wss://example", token_getter=lambda: "t",
             on_event=lambda *a: None,
@@ -1493,9 +1489,6 @@ class TestCrossBroadcastQQRouting(unittest.IsolatedAsyncioTestCase):
     """M-6：!!qq 路由到所有已启用的 QQ 类连接器，且不回落 echo。"""
 
     async def _run(self, enabled=("QQ",), group_ids=None, openids=None):
-        from gugubot.logic.plugins.cross_broadcast import CrossBroadcastSystem
-        from gugubot.utils.types import BroadcastInfo, Source as Src
-
         sent = []
 
         class FakeConnector:
@@ -1582,7 +1575,6 @@ class TestQQConnectorEnableGuard(unittest.TestCase):
     """回归：OneBot QQ 连接器 enable=false 时不得发起连接（WinError 10061）。"""
 
     def _build(self, enable):
-        from gugubot.connector.qq_connector import QQWebSocketConnector
         config = FakeConfig({"connector": {"QQ": {
             "enable": enable,
             "source_name": "QQ",
@@ -1602,9 +1594,7 @@ class TestQQConnectorEnableGuard(unittest.TestCase):
         conn = self._build(enable=True)
         # 拦截工厂：不真正建连，仅验证守卫放行
         from unittest import mock
-        with mock.patch(
-            "gugubot.connector.qq_connector.WebSocketFactory.create_client"
-        ) as factory:
+        with mock.patch.object(WebSocketFactory, "create_client") as factory:
             fake_client = mock.MagicMock()
             factory.return_value = fake_client
             asyncio.run(conn.connect())
@@ -1620,8 +1610,6 @@ class TestReviewRegressions(unittest.TestCase):
         import urllib.error
         from unittest import mock
 
-        from gugubot.connector.open_qq_bot import common
-
         with mock.patch.object(common.urllib.request, "urlopen",
                                side_effect=urllib.error.URLError("conn reset")):
             with self.assertRaises(common.ApiError) as ctx:
@@ -1632,8 +1620,6 @@ class TestReviewRegressions(unittest.TestCase):
         """N2：IncompleteRead（HTTPException，非 OSError）同样归一为 status=0。"""
         import http.client
         from unittest import mock
-
-        from gugubot.connector.open_qq_bot import common
 
         with mock.patch.object(common.urllib.request, "urlopen",
                                side_effect=http.client.IncompleteRead(b"partial")):
@@ -1670,6 +1656,69 @@ class TestReviewRegressions(unittest.TestCase):
             {"bot": True, "id": "GLOBAL_ID", "member_openid": BOT_OID}
         ]})
         self.assertEqual(conn.bot_openid, BOT_OID)
+
+
+# 将 gugubot.* 从 sys.modules 摘除：本文件通过模块级名称直接引用真实对象，
+# 同时避免污染 sys.modules，影响依赖桩注册的测试文件（test_plugin_api）。
+for _k in [
+    k for k in list(sys.modules) if k == "gugubot" or k.startswith("gugubot.")
+]:
+    del sys.modules[_k]
+
+# mcdreforged：摘除导入真实 gugubot 时连带引入的子模块，并恢复导入前已存在
+# 的注册项（可能是 test_plugin_api 的桩）。若不恢复，plugin_api 测试中的
+# 函数级 `from mcdreforged.api.event import MCDRPluginEvents` 会解析到真实
+# 库（其 PLUGIN_UNLOADED 是 MCDREvent 对象而非桩提供的字符串 id），破坏其断言。
+for _k in [
+    k
+    for k in list(sys.modules)
+    if (k == "mcdreforged" or k.startswith("mcdreforged."))
+    and k not in _SAVED_MCDR_MODULES
+]:
+    del sys.modules[_k]
+sys.modules.update(_SAVED_MCDR_MODULES)
+
+
+# 其他测试文件（test_config / test_parser）的过期导入在收集阶段失败时，
+# 仍会重新执行真实的 gugubot/__init__，把 gugubot.api 与
+# gugubot.logic.system.plugin_commands 残留在 sys.modules；这会让
+# test_plugin_api 的 _install_stubs 守卫（"gugubot.api" in sys.modules）
+# 提前返回真实模块，桩注册失效。此钩子在真实 gugubot 包每次从磁盘导入
+# 完成后立即摘除这两个键，确保桩守卫永远不误判。gugubot 包自身及其余
+# 子模块照常保留（test_websocket 等仍可正常导入真实 gugubot.ws）。
+class _GuardKeyScrubbingFinder:
+    """sys.meta_path 钩子：真实导入 gugubot 包后摘除桩守卫键。"""
+
+    _GUARD_KEYS = (
+        "gugubot.logic.system.plugin_commands",
+        "gugubot.api",
+    )
+
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname != "gugubot" or "gugubot" in sys.modules:
+            return None
+        spec = importlib.machinery.PathFinder.find_spec(fullname, path)
+        if spec is None or spec.loader is None:
+            return None
+        real_loader = spec.loader
+
+        class _ScrubbingLoader:
+            def __getattr__(self, name):
+                return getattr(real_loader, name)
+
+            def create_module(self, s):
+                return real_loader.create_module(s)
+
+            def exec_module(self, module):
+                real_loader.exec_module(module)
+                for _k in _GuardKeyScrubbingFinder._GUARD_KEYS:
+                    sys.modules.pop(_k, None)
+
+        spec.loader = _ScrubbingLoader()
+        return spec
+
+
+sys.meta_path.insert(0, _GuardKeyScrubbingFinder())
 
 
 def tearDownModule():
