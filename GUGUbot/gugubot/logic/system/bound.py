@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import re
-from typing import List, Optional, Union
+import time
+from typing import Dict, List, Optional, Union
 
 from mcdreforged.api.types import PluginServerInterface
 
@@ -26,6 +27,8 @@ class BoundSystem(BasicSystem):
         self.server = server
         self.player_manager = PlayerManager(server, self)
         self.whitelist: Optional[WhitelistSystem] = None
+        # 官方退群清理跳过告警的按群限频时间戳（群 OpenID -> 上次告警时间戳）
+        self._quit_group_warn_at: Dict[str, float] = {}
 
     def initialize(self) -> None:
         """初始化系统，加载配置等"""
@@ -781,7 +784,9 @@ class BoundSystem(BasicSystem):
     ) -> None:
         """退群清理公共逻辑（OneBot 与官方连接器共用）。
 
-        移除白名单 → 删除该平台账户绑定 → 无其他平台绑定时删除整个 Player。
+        删除该平台账户绑定总是执行；仅当所有平台均无剩余账户绑定时，
+        才移除白名单并删除整个 Player。任一平台仍有剩余绑定时保留
+        Player 与白名单（只删账户），避免跨平台绑定被误清理。
 
         Parameters
         ----------
@@ -793,21 +798,6 @@ class BoundSystem(BasicSystem):
         user_id : str
             该平台下的账户 ID
         """
-        # 获取所有玩家名（转换为字符串）
-        all_player_names = [str(name) for name in player.java_name] + [
-            str(name) for name in player.bedrock_name
-        ]
-
-        # 从白名单中移除玩家名
-        if all_player_names:
-            self._remove_from_whitelist(all_player_names)
-
-        # 检查该用户是否还有其他平台的账户绑定
-        has_other_platform_accounts = any(
-            name != platform and accounts
-            for name, accounts in player.accounts.items()
-        )
-
         # 从绑定数据中删除该用户的账户绑定
         accounts = player.accounts.get(platform, [])
         if user_id in accounts:
@@ -816,12 +806,18 @@ class BoundSystem(BasicSystem):
             if not accounts:
                 del player.accounts[platform]
 
-        # 如果该用户没有其他平台的账户绑定，删除整个 Player（包括所有玩家名）
-        if not has_other_platform_accounts:
-            self.player_manager.remove_player(player.name)
-        else:
-            # 还有其他平台的账户时，只删除该平台账户绑定，保留玩家名和其他平台绑定
+        # 任一平台仍有剩余账户绑定：保留 Player 与白名单，只删该平台账户
+        if any(player.accounts.values()):
             self.player_manager.save()
+            return
+
+        # 所有平台均无剩余绑定：移除白名单并删除整个 Player（包括所有玩家名）
+        all_player_names = [str(name) for name in player.java_name] + [
+            str(name) for name in player.bedrock_name
+        ]
+        if all_player_names:
+            self._remove_from_whitelist(all_player_names)
+        self.player_manager.remove_player(player.name)
 
     async def _handle_quit_member_official(self, broadcast_info: BroadcastInfo) -> bool:
         """open-qq-bot 官方连接器的退群清理。
@@ -831,8 +827,9 @@ class BoundSystem(BasicSystem):
           **不是同一标识空间**，绑定记录互不通用
         - 平台键与绑定写入侧一致（``source.origin``，即连接器显示名，
           默认 ``OpenQQBot``），而非 "QQ"——否则永远查不到官方绑定
-        - 群成员列表接口需白名单权限，无法做「是否还在其他群」检查，
-          退群即直接解绑；管理群退群通知同样不可用（官方平台无对应能力）
+        - 群成员列表接口需白名单权限，无法做「是否还在其他群」检查：
+          仅配置了单个监听群时退群即解绑；多群或未配置监听群时跳过清理
+          （退群事件仅证明退出一个群，无法确认已退出全部监听群）
         """
         try:
             raw = broadcast_info.raw or {}
@@ -846,6 +843,15 @@ class BoundSystem(BasicSystem):
             if not player:
                 return False
 
+            # 退群事件仅证明退出单个群：多群或未配置监听群时无法确认
+            # 已退出全部监听群，跳过清理（按群限频告警，避免刷屏）
+            monitored_groups = self._get_official_monitored_groups()
+            if len(monitored_groups) != 1:
+                self._warn_quit_cleanup_skipped(
+                    broadcast_info.source_id, user_id, monitored_groups
+                )
+                return True
+
             await self._cleanup_quit_player(player, platform, user_id)
 
             self.logger.info(f"已清理退群用户 {user_id} 的绑定信息（open-qq-bot）")
@@ -853,6 +859,27 @@ class BoundSystem(BasicSystem):
         except Exception as e:
             self.logger.error(f"处理退群事件失败（open-qq-bot）: {e}")
             return False
+
+    def _get_official_monitored_groups(self) -> List[str]:
+        """读取官方连接器监听群列表（permissions.group_ids，过滤空项）。"""
+        group_ids = self.config.get_keys(
+            ["connector", "open-qq-bot", "permissions", "group_ids"], []
+        ) or []
+        return [str(group_id) for group_id in group_ids if group_id]
+
+    def _warn_quit_cleanup_skipped(
+        self, group_id: str, user_id: str, monitored_groups: List[str]
+    ) -> None:
+        """退群清理被跳过时按群限频记录告警（避免多群部署每次退群刷屏）。"""
+        now = time.time()
+        if now - self._quit_group_warn_at.get(group_id, 0.0) < 3600:
+            return
+        self._quit_group_warn_at[group_id] = now
+        self.logger.warning(
+            f"群 {group_id} 成员 {user_id} 退群：官方连接器监听群为 "
+            f"{len(monitored_groups)} 个（未配置或多群），无法确认已退出全部"
+            "监听群，跳过退群自动解绑"
+        )
 
     async def _clean_bound(self, player: Player, player_manager: PlayerManager) -> bool:
         """清理绑定"""
