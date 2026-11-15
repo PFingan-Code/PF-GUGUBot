@@ -143,11 +143,19 @@ class SeqManager:
             self._prune()
             return seq
 
-    def release(self, msg_id):
-        """发送失败时回退一次配额，避免白白消耗 5 次机会。"""
+    def release(self, msg_id, seq):
+        """精确释放 msg_id 的指定 msg_seq 名额（发送失败回退用）。
+
+        仅当 ``seq`` 是该 msg_id 当前栈顶（最后一次分配、且未被服务端
+        接受）时生效，否则忽略——防止同一 msg_id 被并发/多系统同时回复
+        时误放其他发送方预留的名额。约束：已发出的 seq 严格递增，服务端
+        接受（或以 duplicate 拒绝，说明早已消费）的 seq 永不回退。
+        """
+        if seq is None:
+            return
         with self._lock:
-            if self._seqs.get(msg_id, 0) > 0:
-                self._seqs[msg_id] -= 1
+            if self._seqs.get(msg_id) == seq:
+                self._seqs[msg_id] = seq - 1
 
     def _prune(self):
         now = time.time()

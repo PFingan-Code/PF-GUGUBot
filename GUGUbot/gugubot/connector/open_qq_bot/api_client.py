@@ -47,6 +47,21 @@ class PartialDelivery(RuntimeError):
         self.remaining = remaining
 
 
+class PassiveSeqExhausted(RuntimeError):
+    """被动回复 msg_seq 名额耗尽，且服务端刚以 duplicate（40054005）拒绝。
+
+    与 :class:`PartialDelivery` 同族的发送层异常：首片（i == 0）由 send_*
+    捕获并返回 ``None``（调用方可整体降级为主动消息重发），后续片转为
+    PartialDelivery。注意：此路径**不得回退基 seq**——duplicate 拒绝说明
+    服务端已消费该 seq，回退会使下次分配撞上已用过的 seq，令该 msg_id
+    的后续回复持续命中 40054005（本地配额账本也会与服务端错位）。
+    """
+
+    def __init__(self, msg_id):
+        super().__init__(f"msg_id={msg_id} 被动回复名额耗尽（去重重试后仍被拒绝）")
+        self.msg_id = msg_id
+
+
 class TokenManager:
     """access_token 管理：到期前 60 秒自动刷新（官方建议，旧 token 短暂有效）。
 
@@ -104,40 +119,45 @@ class ApiClient:
 
     # ---- 发送层：msg_seq 管理 + 去重重试 ----
 
-    def _release_seqs(self, msg_id, count):
-        """回退 msg_id 的 count 个 msg_seq 名额（发送失败/去重补偿用）。"""
-        if msg_id and count > 0:
-            for _ in range(count):
-                self.seq.release(msg_id)
+    def _release_seqs(self, msg_id, seqs):
+        """倒序精确回退 msg_id 的一组 msg_seq（发送失败清理专用）。
+
+        约束：seq 严格递增，仅**未被服务端接受**的预留可回退；经
+        :meth:`~.common.SeqManager.release` 校验、仅当该 seq 仍是该
+        msg_id 当前栈顶时生效，防止并发场景误放其他调用方预留的名额。
+        """
+        for seq in reversed(seqs or []):
+            self.seq.release(msg_id, seq)
 
     def _post_group_message(self, group_openid, body, msg_id=None):
         """POST 单片群消息；命中 40054005 时换一个 msg_seq 重试（最多 2 次）。
 
-        msg_seq 记账：重试成功时释放换掉的旧 seq（一条消息只消耗一个被动
-        名额）；重试仍失败时释放本次新分配的 seq（初始 seq 由调用方回退）。
+        msg_seq 记账（所有权：本方法只负责**去重重试 seq** 的预留与清理，
+        初始基 seq 由 send_* 管理）：seq 一旦发出即严格递增、永不回退——
+        换 seq 重试成功时旧 seq **不释放**（服务端已消费，回退会令下次
+        分配撞上已用过的 seq，后续回复持续命中 40054005）；重试仍失败时
+        本次预留未被服务端接受，倒序精确回退防泄漏；名额耗尽抛
+        :class:`PassiveSeqExhausted`（基 seq 不回退：duplicate 拒绝 =
+        服务端已消费该 seq）。
         """
-        attempts = 0
-        retry_seqs = 0  # 去重重试额外分配的 msg_seq 数
+        retry_seqs = []  # 去重重试额外分配的 msg_seq（栈，失败时倒序回退）
         while True:
-            attempts += 1
             try:
-                resp = self._call("POST", f"/v2/groups/{group_openid}/messages", body)
-                if retry_seqs:
-                    # 换 seq 重试成功：旧 seq 名额回退，一条消息只消耗一个
-                    self._release_seqs(msg_id, retry_seqs)
-                return resp
+                return self._call("POST", f"/v2/groups/{group_openid}/messages", body)
             except ApiError as e:
-                if e.has_code(ERR_DUPLICATED) and msg_id and attempts <= 2:
+                if e.has_code(ERR_DUPLICATED) and msg_id and len(retry_seqs) < 2:
                     new_seq = self.seq.allocate(msg_id)
                     if new_seq is None:
+                        # 名额耗尽且服务端刚拒绝 duplicate：倒序回退本次预留
+                        # 的 retry seq；基 seq 不回退（见 PassiveSeqExhausted）
                         self._release_seqs(msg_id, retry_seqs)
-                        raise
+                        raise PassiveSeqExhausted(msg_id) from e
                     body["msg_seq"] = new_seq
-                    retry_seqs += 1
+                    retry_seqs.append(new_seq)
                     self.logger.warning("群消息被去重，换 msg_seq=%s 重试", new_seq)
                     continue
                 if retry_seqs:
-                    # 换 seq 重试仍失败：本次分配未被服务端接受，回退防泄漏
+                    # 换 seq 重试仍失败：本次预留未被服务端接受，倒序精确回退
                     self._release_seqs(msg_id, retry_seqs)
                 if e.has_code(*ERR_PASSIVE_EXPIRED):
                     self.logger.warning("被动回复窗口失效（msg_id 过期或超次）：%s", e)
@@ -145,47 +165,50 @@ class ApiClient:
 
     def _post_c2c_message(self, user_openid, body, msg_id=None):
         """POST 单片单聊消息；去重重试与 seq 记账同 :meth:`_post_group_message`。"""
-        attempts = 0
-        retry_seqs = 0
+        retry_seqs = []  # 去重重试额外分配的 msg_seq（栈，失败时倒序回退）
         while True:
-            attempts += 1
             try:
-                resp = self._call("POST", f"/v2/users/{user_openid}/messages", body)
-                if retry_seqs:
-                    # 换 seq 重试成功：旧 seq 名额回退，一条消息只消耗一个
-                    self._release_seqs(msg_id, retry_seqs)
-                return resp
+                return self._call("POST", f"/v2/users/{user_openid}/messages", body)
             except ApiError as e:
-                if e.has_code(ERR_DUPLICATED) and msg_id and attempts <= 2:
+                if e.has_code(ERR_DUPLICATED) and msg_id and len(retry_seqs) < 2:
                     new_seq = self.seq.allocate(msg_id)
                     if new_seq is None:
+                        # 名额耗尽且服务端刚拒绝 duplicate：倒序回退本次预留
+                        # 的 retry seq；基 seq 不回退（见 PassiveSeqExhausted）
                         self._release_seqs(msg_id, retry_seqs)
-                        raise
+                        raise PassiveSeqExhausted(msg_id) from e
                     body["msg_seq"] = new_seq
-                    retry_seqs += 1
+                    retry_seqs.append(new_seq)
                     self.logger.warning("单聊消息被去重，换 msg_seq=%s 重试", new_seq)
                     continue
                 if retry_seqs:
+                    # 换 seq 重试仍失败：本次预留未被服务端接受，倒序精确回退
                     self._release_seqs(msg_id, retry_seqs)
                 raise
 
     def _alloc_passive(self, body, msg_id):
-        """为被动回复分配 msg_seq；返回 False 表示次数耗尽应放弃发送。"""
+        """为被动回复分配 msg_seq；返回分配的 seq，次数耗尽返回 None。
+
+        返回的 seq 由调用方（send_*）持有：仅在非 duplicate 失败时精确
+        回退，duplicate 拒绝（服务端已消费）后永不回退。
+        """
         seq = self.seq.allocate(msg_id)
         if seq is None:
-            return False
+            return None
         body["msg_id"] = msg_id
         body["msg_seq"] = seq
-        return True
+        return seq
 
     def send_group_text(self, group_openid, content, msg_id=None,
                         event_id=None, reference=None):
         """发送群文本（自动分片，片间随机 0.5~1.5s 限速）。
 
         返回最后一个成功响应（含消息 id，可记录用于「撤回」）；
-        一片未发出（被动回复次数耗尽）返回 ``None``，调用方可整体降级为
-        主动消息重发；部分分片送达后中断则抛 :class:`PartialDelivery`
-        （此时整体重发会重复已送达内容）。
+        一片未发出（被动回复次数耗尽，含去重重试后名额耗尽且服务端刚
+        拒绝 duplicate 的情形）返回 ``None``，调用方可整体降级为主动消息
+        重发；部分分片送达后中断则抛 :class:`PartialDelivery`
+        （此时整体重发会重复已送达内容）。名额耗尽的 duplicate 路径
+        不回退已被服务端消费的 seq（见 :class:`PassiveSeqExhausted`）。
 
         Parameters
         ----------
@@ -199,8 +222,10 @@ class ApiClient:
             body = {"msg_type": 0, "content": chunk}
             if reference and i == 0:
                 body["message_reference"] = {"message_id": reference}
+            base_seq = None  # 本片基 seq：由 send_* 管理，_post_* 只管重试 seq
             if msg_id:
-                if not self._alloc_passive(body, msg_id):
+                base_seq = self._alloc_passive(body, msg_id)
+                if base_seq is None:
                     self.logger.warning("分片 %s/%s 因被动回复次数耗尽未发送",
                                         i + 1, len(chunks))
                     if i > 0:
@@ -211,8 +236,17 @@ class ApiClient:
                 body["event_id"] = event_id
             try:
                 last_resp = self._post_group_message(group_openid, body, msg_id=msg_id)
+            except PassiveSeqExhausted as e:
+                # 名额耗尽且服务端刚拒绝 duplicate：基 seq 已被服务端消费，
+                # 不回退（回退会复发持续 40054005）；按「一片未发」返回 None
+                self.logger.warning("分片 %s/%s 被动回复名额耗尽（去重后仍被拒绝）",
+                                    i + 1, len(chunks))
+                if i > 0:
+                    raise PartialDelivery(i, len(chunks) - i) from e
+                return None  # 一片未发：调用方可整体降级为主动消息
             except ApiError as e:
-                self._release_seqs(msg_id, 1)
+                # 非 duplicate 失败：本片基 seq 未被服务端接受，精确回退防泄漏
+                self._release_seqs(msg_id, [base_seq])
                 if i > 0:
                     raise PartialDelivery(i, len(chunks) - i) from e
                 raise
@@ -234,8 +268,10 @@ class ApiClient:
             body = {"msg_type": 2, "markdown": {"content": chunk}}
             if reference and i == 0:
                 body["message_reference"] = {"message_id": reference}
+            base_seq = None  # 本片基 seq：由 send_* 管理，_post_* 只管重试 seq
             if msg_id:
-                if not self._alloc_passive(body, msg_id):
+                base_seq = self._alloc_passive(body, msg_id)
+                if base_seq is None:
                     self.logger.warning("分片 %s/%s 因被动回复次数耗尽未发送",
                                         i + 1, len(chunks))
                     if i > 0:
@@ -243,8 +279,17 @@ class ApiClient:
                     return None
             try:
                 last_resp = self._post_group_message(group_openid, body, msg_id=msg_id)
+            except PassiveSeqExhausted as e:
+                # 名额耗尽且服务端刚拒绝 duplicate：基 seq 已被服务端消费，
+                # 不回退（回退会复发持续 40054005）；按「一片未发」返回 None
+                self.logger.warning("分片 %s/%s 被动回复名额耗尽（去重后仍被拒绝）",
+                                    i + 1, len(chunks))
+                if i > 0:
+                    raise PartialDelivery(i, len(chunks) - i) from e
+                return None
             except ApiError as e:
-                self._release_seqs(msg_id, 1)
+                # 非 duplicate 失败：本片基 seq 未被服务端接受，精确回退防泄漏
+                self._release_seqs(msg_id, [base_seq])
                 if i > 0:
                     raise PartialDelivery(i, len(chunks) - i) from e
                 raise
@@ -284,15 +329,19 @@ class ApiClient:
         """发送单聊文本（自动分片，片间随机 0.5~1.5s 限速）。
 
         返回值与部分失败语义同 :meth:`send_group_text`；msg_seq 记账：
-        本次发送分配的全部 seq（含去重重试）在失败时全部回退，重试成功
-        时释放换掉的旧 seq，一条消息只消耗一个被动名额。
+        seq 严格递增、服务端已消费的 seq 永不回退——基 seq 由本方法管理
+        （仅非 duplicate 失败时精确回退）；去重重试 seq 由 ``_post_*``
+        管理，重试成功不回退；去重后名额耗尽返回 ``None``（一片未发），
+        基 seq 不回退（duplicate 拒绝 = 服务端已消费该 seq）。
         """
         chunks = split_message(content, self.max_message_length)
         last_resp = None
         for i, chunk in enumerate(chunks):
             body = {"msg_type": 0, "content": chunk}
+            base_seq = None  # 本片基 seq：由 send_* 管理，_post_* 只管重试 seq
             if msg_id:
-                if not self._alloc_passive(body, msg_id):
+                base_seq = self._alloc_passive(body, msg_id)
+                if base_seq is None:
                     self.logger.warning("分片 %s/%s 因被动回复次数耗尽未发送",
                                         i + 1, len(chunks))
                     if i > 0:
@@ -300,8 +349,17 @@ class ApiClient:
                     return None
             try:
                 last_resp = self._post_c2c_message(user_openid, body, msg_id=msg_id)
+            except PassiveSeqExhausted as e:
+                # 名额耗尽且服务端刚拒绝 duplicate：基 seq 已被服务端消费，
+                # 不回退（回退会复发持续 40054005）；按「一片未发」返回 None
+                self.logger.warning("分片 %s/%s 被动回复名额耗尽（去重后仍被拒绝）",
+                                    i + 1, len(chunks))
+                if i > 0:
+                    raise PartialDelivery(i, len(chunks) - i) from e
+                return None
             except ApiError as e:
-                self._release_seqs(msg_id, 1)
+                # 非 duplicate 失败：本片基 seq 未被服务端接受，精确回退防泄漏
+                self._release_seqs(msg_id, [base_seq])
                 if e.has_code(*ERR_PASSIVE_EXPIRED):
                     self.logger.warning("单聊被动回复窗口失效：%s", e)
                 if i > 0:
