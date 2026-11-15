@@ -18,6 +18,8 @@ import asyncio
 import logging
 import random
 import re
+import traceback
+import weakref
 from typing import Optional
 
 from gugubot.config import BotConfig
@@ -52,6 +54,52 @@ AT_TAG_RE = re.compile(r"<@[^>]*>")
 # 出站文本框里的 mention 标签：外部聊天内容不得伪造 @成员/@全体
 MENTION_TAG_RE = re.compile(r"<qqbot-at-[^>]*>", re.IGNORECASE)
 
+# 图片外链 URL 白名单：Markdown 通道以 ``![图片](url)`` 拼接，URL 若含
+# ``(``/``)`` 可提前闭合语法、引号/空白/反斜杠（尾 ``\`` 转义收尾 ``)``）
+# 可吞掉后续内容并注入活标签（如伪造 ``<qqbot-at-user/>``），一律拒绝
+IMAGE_URL_RE = re.compile(r"^https?://[^\s()<>\[\]\"'\\]+$")
+
+
+class _MCDRForwardHandler(logging.Handler):
+    """把 ``gugubot.open_qq_bot`` 子包 logger 的记录转发到 MCDR 插件 logger。
+
+    背景：子包模块（gateway/api_client/common/connector）共用该 logger，
+    但从不 addHandler；MCDR 的 console/file handler 挂在插件自身 logger 上，
+    root 无 handler → INFO 全丢、WARNING+ 只落 lastResort 裸 stderr。
+
+    - DEBUG 走 ``target.mdebug(no_check=True)``：MCDReforgedLogger 构造即
+      setLevel(INFO)，``log(DEBUG, ...)`` 会被级别门丢弃，verbose 形同虚设
+    - 有 exc_info 时把格式化堆栈附进消息（``record.getMessage()`` 不含堆栈）
+    - 目标 logger 经连接器弱引用在 emit 时解析：连接器 ``__init__`` 时
+      ``self.logger`` 尚为 None（ConnectorManager 注册时才覆写为 MCDR
+      logger），插件重载后须指向新实例；连接器被回收后记录静默丢弃，
+      handler 不延长其生命周期
+    """
+
+    def __init__(self, connector) -> None:
+        super().__init__()
+        self._connector_ref = weakref.ref(connector)
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            connector = self._connector_ref()
+            target = getattr(connector, "logger", None)
+            if target is None:
+                return
+            msg = record.getMessage()
+            if record.exc_info:
+                msg = f"{msg}\n" + "".join(
+                    traceback.format_exception(*record.exc_info)
+                )
+            if record.levelno >= logging.INFO:
+                target.log(record.levelno, msg)
+            else:
+                target.mdebug(msg, no_check=True)
+        except Exception:
+            # 转发目标异常（如测试桩缺 .log/.mdebug）不得反噬调用方：
+            # 网关线程在 WS 收包路径上打日志，emit 抛错会中断收包循环
+            self.handleError(record)
+
 
 class OpenQQBotConnector(BasicConnector):
     """QQ 官方机器人连接器。
@@ -85,8 +133,21 @@ class OpenQQBotConnector(BasicConnector):
             config.get_keys(["connector", self.SECTION, "verbose"], False)
         )
         self._diag_logger = logging.getLogger("gugubot.open_qq_bot")
-        if self.verbose:
-            self._diag_logger.setLevel(logging.DEBUG)
+        # 子包日志修复：该 logger 原本无任何 handler（MCDR 的 console/file
+        # handler 挂在插件自身 logger 上，root 也没有），INFO 全丢、WARNING+
+        # 只落 lastResort 裸 stderr。挂转发 handler 后一处 attach 全子包受益；
+        # 按属性防重挂（MCDR 插件重载时模块级 logger 仍存活）
+        handler = getattr(self._diag_logger, "_mcdr_forward_handler", None)
+        if handler is None:
+            handler = _MCDRForwardHandler(self)
+            handler.setLevel(logging.INFO)
+            self._diag_logger.addHandler(handler)
+            self._diag_logger.propagate = False
+            self._diag_logger._mcdr_forward_handler = handler
+        # 重载后重新指向新连接器实例；默认放行 INFO，verbose 时放行 DEBUG
+        handler._connector_ref = weakref.ref(self)
+        handler.setLevel(logging.DEBUG if self.verbose else logging.INFO)
+        self._diag_logger.setLevel(logging.DEBUG if self.verbose else logging.INFO)
 
         self.app_id = config.get_keys(
             ["connector", self.SECTION, "connection", "app_id"], ""
@@ -453,7 +514,9 @@ class OpenQQBotConnector(BasicConnector):
         - at 段：群聊且 qq 为 32 位 OpenID 时渲染成 Markdown 的
           ``<qqbot-at-user id="..."/>``（实测纯文本不渲染，见 demo README）；
           ``all`` 与其它值一律退化为 ``@id`` 文本，不支持从服务器 @全体
-        - image 段提取公网 URL（data.file / data.url）
+        - image 段提取公网 URL（data.file / data.url）：须通过
+          :data:`IMAGE_URL_RE` 白名单校验，否则降级为 ``[图片]`` 占位文本
+          （保留图片语义，不静默丢弃，也不给 Markdown 注入留下入口）
         """
         texts, images = [], []
         has_mention = False
@@ -473,9 +536,10 @@ class OpenQQBotConnector(BasicConnector):
                     texts.append(f"@{target}")
             elif item_type == "image":
                 url = data.get("file") or data.get("url")
-                if isinstance(url, str) and url.startswith("http"):
+                if isinstance(url, str) and IMAGE_URL_RE.match(url):
                     images.append(url)
                 else:
+                    # URL 不在白名单（可注入 Markdown 语法的字符）→ 占位文本
                     texts.append("[图片]")
         plain = "".join(texts).strip()
         return plain, images, has_mention
