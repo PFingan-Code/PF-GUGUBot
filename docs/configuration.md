@@ -52,6 +52,8 @@ connector:
   QQ:
     source_name: "QQ"         # 显示名称
     enable: true              # 是否启用
+    enable_receive: true      # 是否接收其他连接器转发的消息
+    enable_send: true         # 是否接收广播发送的消息
     
     connection:               # 连接设置
       host: 127.0.0.1         # 主机地址
@@ -76,16 +78,22 @@ connector:
       group_ids:              # 要监听的群号列表
         - 12345615646416
       
+      forward_group_ids:      # 转发目标群号 :: MC消息转发到这些群（留空则使用group_ids）
+        - 
+      
+      notice_forward_groups:  # 通知专用转发群号 :: 开关服/进出/成就/死亡通知转发到这些群（留空则使用forward_group_ids）
+        - 
+      
       friend_is_admin: false  # 好友是否自动拥有管理权限
       
       custom_group_name:      # 自定义群名显示
         726741344: "定制的显示群名"
     
-    chat_templates:           # 消息模板（随机选择）
-      - "({display_name}) {sender}: "
-      - "[{display_name}] {sender}: "
-      - "{display_name} | {sender} 说："
-      - "{display_name} 的 {sender} : "
+    chat_templates:           # 消息模板（按权重随机选择，权重越高被选中概率越大）
+      - "({display_name}) {sender}: ": 1
+      - "[{display_name}] {sender}: ": 1
+      - "{display_name} | {sender} 说：": 1
+      - "{display_name} 的 {sender} : ": 1
     
     others:
       forward_other_bot: false  # 是否转发官方机器人的消息
@@ -107,17 +115,70 @@ connector:
 |--------|------|
 | `admin_ids` | 拥有管理权限的 QQ 号，可执行所有管理命令 |
 | `admin_group_ids` | 管理群，群内所有成员拥有管理权限，群内消息不会转发 |
-| `group_ids` | 要监听和转发消息的群号 |
+| `group_ids` | 要监听消息的群号 |
+| `forward_group_ids` | MC 消息的转发目标群号，留空时使用 `group_ids`，可实现「监听一个群、转发到另一个群」 |
+| `notice_forward_groups` | 服务器开关机、玩家进出、成就/死亡等通知的专用转发群号，留空时使用 `forward_group_ids` |
 | `friend_is_admin` | 是否给机器人的所有好友管理权限 |
 | `custom_group_name` | 自定义群名在游戏内的显示 |
 
 #### 消息模板说明
 
-消息模板用于从 MC 转发到 QQ 的消息格式，系统会随机选择一个模板使用。
+消息模板用于从 MC 转发到 QQ 的消息格式，系统按**权重**随机选择一个模板使用（权重越高被选中概率越大）。
 
 可用变量：
 - `{display_name}` - 服务器显示名称
 - `{sender}` - 玩家名称
+
+#### 连接器收发开关
+
+每个连接器（`QQ` / `open-qq-bot` / `minecraft` / `minecraft_bridge`）都支持：
+
+| 配置项 | 说明 |
+|--------|------|
+| `enable_receive` | 是否接收其他连接器转发的消息（如 QQ 的 echo 转发不会进入此连接器） |
+| `enable_send` | 是否将此连接器的消息转发到其他连接器（作为消息来源；为 false 时本连接器收到的消息不再向其他平台转发） |
+
+---
+
+### QQ 官方机器人连接器
+
+`open-qq-bot` 连接器直连 QQ 开放平台 WebSocket 网关，可与 OneBot 版 QQ 连接器**并行使用**。
+
+```yaml
+connector:
+  open-qq-bot:
+    source_name: "OpenQQBot"  # 显示名称
+    enable: false             # 是否启用
+    enable_receive: true      # 是否接收其他连接器转发的消息
+    enable_send: true         # 是否接收广播发送的消息
+    verbose: false            # 排障日志 :: 记录每条消息的收发明细
+    connection:
+      app_id: ""              # 机器人 AppID（QQ 开放平台获取）
+      app_secret: ""          # 机器人 AppSecret
+      sandbox: false          # 是否使用沙箱环境
+      max_message_length: 2000  # 单片长度上限，超出自动分片
+    rate_limit:               # 主动消息配额（官方平台限制）
+      per_minute: 20          # 单群每分钟主动消息上限
+      per_day: 1000           # 单群每天主动消息上限
+      bot_per_minute: 30      # Bot 全局每分钟主动消息上限
+    permissions:
+      admin_ids:              # 管理员 OpenID（群内 admin/owner 角色自动视为管理员）
+        - 
+      group_ids:              # 群 OpenID 白名单（留空 = 响应所有已接入群）
+        - 
+      forward_group_ids:      # 转发目标群 OpenID（留空则使用 group_ids）
+        - 
+    chat_templates:           # 消息模板（按权重随机选择）
+      - "({display_name}) {sender}: ": 1
+```
+
+#### 使用要点
+
+1. 前往 [QQ 开放平台](https://q.qq.com/) 创建机器人，填写 `app_id` / `app_secret`
+2. **群 OpenID** 与 OneBot 的数字群号不通用，在群内发送 `/groupId` 获取
+3. `/userId @某人` 查询用户 OpenID；`/botId` 查询机器人 OpenID（调试命令不受白名单限制）
+4. 需要群主在官方后台授权「接收全量消息」，机器人才能监听群内的所有消息
+5. @机器人 触发的**被动回复**不占主动消息配额；主动消息超限会被丢弃
 
 ---
 
@@ -130,6 +191,8 @@ connector:
   minecraft:
     source_name: "Minecraft"  # 服务器显示名称
     enable: true              # 是否启用
+    enable_receive: true      # 是否接收其他连接器转发的消息
+    enable_send: true         # 是否接收广播发送的消息
     
     # 消息转发选项
     mc_achievement: true      # 转发成就消息
@@ -204,6 +267,7 @@ connector:
     source_name: "Main"       # 服务器显示名称
     enable: true              # 是否启用
     is_main_server: true      # 是否为主服务器
+    show_in_game: true        # 游戏内显示其他服务器消息 :: 关闭后其他服务器的消息不在游戏内显示，但仍转发到QQ
     
     connection:               # 连接设置
       host: 127.0.0.1         # 主机地址
@@ -224,6 +288,7 @@ connector:
 | 配置项 | 说明 |
 |--------|------|
 | `is_main_server` | 是否为主服务器，主服务器会创建 WebSocket 服务器，其他服务器连接到主服务器 |
+| `show_in_game` | 是否在游戏内显示其他服务器的消息，关闭后仅转发到 QQ 等其他平台 |
 | `ping_interval` | 心跳检测间隔，用于检测连接状态 |
 | `ping_timeout` | 心跳超时时间，超时后判定连接断开 |
 
@@ -291,6 +356,8 @@ system:
     max_java_bound: 1               # 最大 Java 版绑定数
     whitelist_add_with_bound: false # 绑定时自动添加白名单
     whitelist_remove_with_leave: true # 退群时自动移除白名单
+    player_name_pattern: ""         # 玩家名正则表达式 :: 限制绑定的玩家名格式，为空则不限制
+    bedrock_player_name_pattern: "" # 基岩版玩家名正则表达式 :: 优先于 player_name_pattern，为空则回退
 ```
 
 #### 配置项说明
@@ -301,6 +368,8 @@ system:
 | `max_java_bound` | 每个 QQ 账号最多可绑定几个 Java 版账号 |
 | `whitelist_add_with_bound` | 绑定时是否自动添加到服务器白名单 |
 | `whitelist_remove_with_leave` | 退群时是否自动从白名单移除 |
+| `player_name_pattern` | 限制绑定的玩家名格式的正则表达式，为空则不限制，如 `"^[a-zA-Z0-9_]{3,16}$"` |
+| `bedrock_player_name_pattern` | 基岩版玩家名正则表达式，优先于 `player_name_pattern`，为空则回退（基岩版允许空格） |
 
 ---
 
@@ -310,9 +379,11 @@ system:
 system:
   bound_notice:
     enable: false           # 是否启用
+    exclude_ids:            # 排除用户 :: 这些用户的消息会被完全忽略
+      - 2854196310          # Q群管家
 ```
 
-启用后，未绑定的用户发言时会收到绑定提醒。
+启用后，未绑定的用户发言时会收到绑定提醒。`exclude_ids` 可屏蔽 Q群管家等官方账号，避免误触发。
 
 ---
 
@@ -325,6 +396,24 @@ system:
 ```
 
 这是核心功能，控制所有消息转发。
+
+---
+
+### 跨平台强制广播
+
+```yaml
+system:
+  cross_broadcast:
+    enable: true            # 是否启用
+    mc_command: "mc"        # QQ端命令 :: {command_prefix}{mc_command} 消息 仅发到MC
+    qq_command: "!!qq"      # MC端命令 :: {qq_command} 消息 仅发到QQ
+    qq_forward_group_ids:   # !!qq 转发目标群号（OneBot连接器，留空则使用QQ连接器的forward_group_ids/group_ids）
+      - 
+    qq_forward_openids:     # !!qq 转发目标群 OpenID（官方连接器，与数字群号不通用）
+      - 
+```
+
+使用方法见[功能详解 - 跨平台强制广播](features.md#跨平台强制广播)。
 
 ---
 
@@ -349,7 +438,10 @@ system:
 system:
   key_words:
     enable: true            # 是否启用
+    admin_only: false       # 仅管理员可用 :: 开启后只有管理员能使用 #关键词 管理命令（添加/删除/列表等），普通成员触发关键词回复不受影响
+    forward_to_other_connector: true  # 触发关键词时是否转发到其他连接器
     max_add_time: 30        # 添加关键词的最大时间（秒）
+    cache_image: false      # 缓存图片到本地 :: 避免QQ图片链接过期导致回复图片失效
 ```
 
 使用方法：
@@ -365,11 +457,19 @@ system:
 system:
   list:
     enable: false           # 是否启用
+    merge_bridge_results: true   # 合并多服务器结果 :: 将所有服务器的结果合并成一条消息发送
+    bridge_timeout: 3            # 等待其他服务器响应的超时时间（秒）
+    colon_separator: ":"         # 列分隔符 :: 解析服务器 /list 输出时使用
+    comma_separator: ","         # 逗号分隔符 :: 解析 /list 输出中的玩家名分隔
+    use_bot_list: false          # 使用 /bot list 获取假人列表 :: Leaves/Lophine 端需要开启
+    bot_list_pattern: "\\):\\s*(.+)"  # /bot list 每行的正则匹配模式
+    use_query_protocol: false    # 使用 Query 协议 :: 绕过 RCON 1024 字节限制
+    disable_player_ip_logger: false  # 跳过 player_ip_logger 的假人识别
 ```
 
-启用后可使用 `#玩家` 或 `#list` 查询在线玩家。
+启用后可使用 `#玩家` / `#假人` / `#服务器` 查询在线玩家、假人和服务器状态。
 
-**注意**：需要配置 RCON 或使用支持的服务器版本。
+**注意**：需要配置 RCON 或 Query，开启步骤见[功能详解](features.md#玩家列表查询)。
 
 ---
 
@@ -465,6 +565,53 @@ system:
 ```
 
 定期检查长时间未登录的玩家和绑定后从未进入游戏的玩家。
+
+---
+
+### 投票系统
+
+```yaml
+system:
+  vote:
+    enable: false           # 是否启用投票系统
+    keywords:               # 全局投票关键词
+      yes:                  # 投赞成票（精确匹配）
+        - "111"
+        - "同意"
+        - "赞成"
+        - "yes"
+      no:                   # 投反对票（精确匹配）
+        - "222"
+        - "反对"
+        - "拒绝"
+        - "no"
+      delete:               # 删除投票（仅管理员，精确匹配）
+        - "删除投票"
+        - "delete_vote"
+      abstain:              # 弃票/撤回自己的投票
+        - "弃票"
+        - "撤回"
+        - "取消投票"
+        - "abstain"
+        - "withdraw"
+
+    shutdown:               # 关服投票类型
+      enable: false         # 是否启用关服投票
+      required_percentage: 1.0   # 通过所需的同意比例（0.0-1.0，1.0 表示 100%）
+      timeout: 300          # 投票超时时间（秒）
+      countdown: 10         # 通过后关服倒计时（秒）
+      extra_countdown: 0    # 存在无投票资格玩家或其他投票议程时的额外倒计时（秒）
+      keywords:
+        start:              # 发起投票关键词（精确匹配，发起人自动投赞成票）
+          - "关服"
+          - "关闭服务器"
+          - "shutdown"
+        consult:            # 征求模式关键词（模糊匹配，发起人不自动投票）
+          - "坏了坏了"
+          - "要不要关服"
+```
+
+使用方法见[功能详解 - 投票系统](features.md#投票系统)。
 
 ---
 
