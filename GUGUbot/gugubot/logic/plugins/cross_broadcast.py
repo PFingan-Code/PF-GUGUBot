@@ -75,6 +75,12 @@ class CrossBroadcastSystem(BasicSystem):
         # source_name == bridge_source：子服玩家发送，经 Bridge 转发到主服后在此被识别处理
         qq_cmd = self.config.get_keys(["system", "cross_broadcast", "qq_command"], "!!qq")
         if source_name in (mc_source, bridge_source) and text.startswith(qq_cmd):
+            # 子服本机 MC 来源直接让路给 echo -> Bridge：子服通常没有 QQ
+            # 连接器，此处若消费会短路 echo 转发路径，!!qq 永远到不了主服。
+            # 必须限定 source_name == mc_source：bridge_source 的消息已在
+            # 主服消费过，若也在子服放行给 echo，!!qq 原文会被喷进子服聊天。
+            if not self.is_main_server() and source_name == mc_source:
+                return False
             remaining = self._strip_command(broadcast_info.message, qq_cmd)
             return await self._broadcast_to_qq_connectors(broadcast_info, remaining)
 
@@ -186,6 +192,9 @@ class CrossBroadcastSystem(BasicSystem):
     ) -> bool:
         """将消息广播到所有已启用的 QQ 类连接器（OneBot 与官方 open-qq-bot）。
 
+        仅主服会走到这里：子服本机 MC 来源的消息已在 process_broadcast_info
+        的守卫处让路给 echo -> Bridge，不会进入本函数。
+
         Returns
         -------
         bool
@@ -201,9 +210,10 @@ class CrossBroadcastSystem(BasicSystem):
                 continue
             if await self._broadcast_to(broadcast_info, message, dest, target=target):
                 delivered = True
-        if not delivered:
+        if not delivered and self.is_main_server():
+            # 「无可用连接器」警告仅主服触发；子服本就不持有 QQ 连接器
             self.logger.warning(
-                "!!qq 未命中任何已启用的 QQ 类连接器，消息未投递"
+                "主服 !!qq 未命中任何已启用的 QQ 类连接器，消息未投递"
                 "（已阻止原文经 echo 泄漏到 QQ）"
             )
         return True
