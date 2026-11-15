@@ -24,6 +24,15 @@ logger = logging.getLogger("gugubot.open_qq_bot")
 # WebSocket 关闭码处理（起步指南/websocket.md 错误码表）
 RESUME_CLOSE_CODES = {None, 1000, 1001, 1006, 4008, 4009}  # 可尝试 Resume 重连
 FATAL_CLOSE_CODES = {4914, 4915}  # 机器人已下架/封禁，不可恢复
+# 不可 Resume 且不可重新 Identify 的关闭码（官方逐码表两项均为"否"）：
+# 4001/4002 参数无效、4010 应用未上线、4011 权限不足、4012 无效版本号、
+# 4013 无效 intents、4014 intents 权限不足。此类属于配置/审核问题，
+# 盲目重连无法恢复，还会耗尽 /gateway 的 session_start_limit（1000 次/天）。
+# 注意：官方页面结尾"其他错误请重新 identify"的笼统说法与逐码表自相矛盾，
+# 此处以逐码表为准。
+NON_RETRYABLE_CLOSE_CODES = {4001, 4002, 4010, 4011, 4012, 4013, 4014}
+# 其中 4013/4014 与 intents 配置直接相关，终止时提示排查方向
+INTENT_CLOSE_CODES = {4013, 4014}
 RECONNECT_BACKOFF_MAX = 60
 
 # 凭据类 HTTP 状态码：重试无意义，应停止并给出明确告警
@@ -70,6 +79,7 @@ class Gateway:
         self._stop_event = threading.Event()
         self._fatal = False
         self._reidentify = False
+        self._close_code = None
         self._backoff = 1
         self._thread = None
 
@@ -135,6 +145,15 @@ class Gateway:
         logger.info("连接关闭：code=%s msg=%s", code, msg)
         if code in FATAL_CLOSE_CODES:
             self._fatal = True
+            self._close_code = code
+        elif code in NON_RETRYABLE_CLOSE_CODES:
+            # 不可 Resume 也不可重新 Identify（官方逐码表双"否"）：记录实际
+            # 关闭码交由 run() 终止，不再静默重新 Identify 无限重连
+            self._close_code = code
+            logger.warning(
+                "关闭码 %s 不可重试（不可 Resume 也不可重新 Identify），停止网关",
+                code,
+            )
         elif code not in RESUME_CLOSE_CODES:
             self._reidentify = True
 
@@ -157,6 +176,7 @@ class Gateway:
                     )
             last_beat = now
             self._ack.clear()
+            send_at = time.monotonic()
             logger.debug("发送心跳 op=1 seq=%s（间隔 %.1fs）", self.last_seq, interval)
             try:
                 ws.send(json.dumps({"op": 1, "d": self.last_seq}))
@@ -172,7 +192,12 @@ class Gateway:
                 )
                 ws.close()
                 return
-            time.sleep(interval)
+            # ACK 到手后只补足剩余间隔：节拍从发送时刻起算，避免漂移累计
+            # （原实现 ACK 返回后再无条件 sleep(interval)，实际节拍 =
+            # interval + ACK 往返耗时）。remaining ≤ 0 时不等待直接进下一拍，
+            # stop() 请求会经由 _stop_event.wait 立即打断。
+            remaining = interval - (time.monotonic() - send_at)
+            self._stop_event.wait(max(0.0, remaining))
 
     # ---- 对外 ----
 
@@ -228,7 +253,18 @@ class Gateway:
             if self._stop:
                 break
             if self._fatal:
-                raise GatewayStopped("机器人已下架/封禁（关闭码 4914/4915）")
+                raise GatewayStopped(
+                    f"机器人已下架/封禁（关闭码 {self._close_code}）"
+                )
+            if self._close_code in NON_RETRYABLE_CLOSE_CODES:
+                hint = (
+                    "；请到 QQ 开放平台检查机器人 intent/权限配置"
+                    if self._close_code in INTENT_CLOSE_CODES else ""
+                )
+                raise GatewayStopped(
+                    f"网关关闭码 {self._close_code} 不可重试"
+                    f"（不可 Resume 也不可重新 Identify），停止重连{hint}"
+                )
             if self._reidentify:
                 self.session_id = None
                 self.last_seq = None
@@ -239,9 +275,23 @@ class Gateway:
 
     def connect(self):
         """在独立 daemon 线程中启动网关循环（非阻塞，供 connector.connect 调用）。"""
+        if self._thread and self._thread.is_alive():
+            # 旧线程可能正在退避等待或阻塞在 _get_url（token 刷新 + /gateway
+            # 各 10s 超时，最坏约 20s）：先请求停止再等待退出，避免下面把
+            # _stop 复位后旧线程复活，与新线程双写 self.ws / session_id。
+            # 旧线程若在退避 wait 中，stop_event 触发后 join 毫秒级返回。
+            self.stop()
+            self._thread.join(timeout=25)
+            if self._thread.is_alive():
+                # 失败安全：保持 _stop 状态、不清 stop_event、不启新线程，
+                # 避免旧线程稍后退出时与新线程竞争共享状态
+                logger.error("旧网关线程 25s 内未退出，跳过本次 connect() 重启")
+                return
         self._stop = False
         self._stop_event.clear()
         self._fatal = False
+        # 必须在旧线程 join 之后复位：旧线程终止时可能刚写入实际关闭码
+        self._close_code = None
         self._thread = threading.Thread(
             target=self._run_guarded, daemon=True, name="open-qq-bot-gateway"
         )
