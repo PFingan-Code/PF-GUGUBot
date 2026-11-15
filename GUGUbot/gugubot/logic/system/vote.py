@@ -7,7 +7,7 @@
 import asyncio
 import time
 import traceback
-from typing import Optional, Set, List
+from typing import Optional, Set, List, Tuple
 
 from mcdreforged.api.types import PluginServerInterface
 
@@ -1483,6 +1483,27 @@ class VoteSystem(BasicSystem):
             )
             await self._broadcast_to_all(msg)
 
+    def _qq_platform_keys(self) -> Tuple[str, ...]:
+        """返回固定顺序的 QQ 类平台键（与绑定存储的 ``source.origin`` 一致）。
+
+        OneBot 连接器（``connector.QQ``）键在前、QQ 官方机器人连接器
+        （``connector.open-qq-bot``）键在后。顺序是硬性要求：
+        ``_get_voter_ids`` 的返回结果会被取首个元素作为默认投票身份，
+        OneBot 键在前保证既有 OneBot 绑定的默认归属向后兼容。
+
+        Notes
+        -----
+        官方连接器绑定的账号是 32 位十六进制 OpenID，与 OneBot 的数字
+        QQ 号属于不相交的字符串空间，因此投票系统同时接受两类平台键，
+        不会混淆两种身份。
+        """
+        onebot_source = self.config.get_keys(["connector", "QQ", "source_name"], "QQ")
+        official_source = self.config.get_keys(
+            ["connector", "open-qq-bot", "source_name"], "OpenQQBot"
+        )
+        # 去重并保持顺序，防止用户把两个来源名配置成同一个值
+        return tuple(dict.fromkeys((onebot_source, official_source)))
+
     async def _get_eligible_voters(self) -> Set[str]:
         """获取当前有投票资格的用户 QQ 号集合。
 
@@ -1502,9 +1523,9 @@ class VoteSystem(BasicSystem):
             self.debug_log(f"[VoteSystem Debug] 在线玩家列表: {online_players}")
             self.debug_log(f"[VoteSystem Debug] 在线玩家数量: {len(online_players)}")
 
-            # 获取QQ连接器的source_name
-            qq_source = self.config.get_keys(["connector", "QQ", "source_name"], "QQ")
-            self.debug_log(f"[VoteSystem Debug] QQ source_name: {qq_source}")
+            # 收集QQ类平台键（OneBot 与官方连接器），任一键下有绑定即有资格
+            qq_sources = self._qq_platform_keys()
+            self.debug_log(f"[VoteSystem Debug] QQ 平台键: {list(qq_sources)}")
 
             # 获取每个玩家的绑定QQ
             for player_name in online_players:
@@ -1525,8 +1546,10 @@ class VoteSystem(BasicSystem):
                     return set()  # 无法获取玩家信息，返回空集合
 
                 self.debug_log(f"[VoteSystem Debug] 找到玩家对象: {player.name}")
-                # 获取该玩家的QQ账号列表
-                qq_ids = player.accounts.get(qq_source, [])
+                # 获取该玩家在所有QQ类平台键下绑定的账号
+                qq_ids = []
+                for qq_source in qq_sources:
+                    qq_ids.extend(player.accounts.get(qq_source, []))
                 self.debug_log(
                     f"[VoteSystem Debug] 玩家 '{player_name}' 绑定账号数: {len(qq_ids)}"
                 )
@@ -1567,15 +1590,17 @@ class VoteSystem(BasicSystem):
         List[str]
             QQ号列表
         """
-        # 获取QQ source_name
-        qq_source = self.config.get_keys(["connector", "QQ", "source_name"], "QQ")
+        # 收集QQ类平台键（OneBot 在前、官方连接器在后）
+        qq_sources = self._qq_platform_keys()
 
         # 从PlayerManager查询（使用sender_name作为玩家名）
         # 投票进行中新增的绑定不应影响当前投票的资格名单。
         player = self.player_manager.get_player(sender_name)
 
         if player:
-            qq_ids = player.accounts.get(qq_source, [])
+            qq_ids = []
+            for qq_source in qq_sources:
+                qq_ids.extend(player.accounts.get(qq_source, []))
             self.debug_log(
                 f"[VoteSystem Debug] 玩家 '{sender_name}' 绑定账号数: {len(qq_ids)}"
             )
@@ -1605,19 +1630,19 @@ class VoteSystem(BasicSystem):
         str, optional
             投票者的QQ号，如果无法获取则返回None
         """
-        # 获取QQ connector的source_name（用户可能自定义了名称）
-        qq_source = self.config.get_keys(["connector", "QQ", "source_name"], "QQ")
+        # 收集QQ类平台键（用户可能自定义了名称），官方连接器来源同样视为QQ身份
+        qq_sources = self._qq_platform_keys()
 
         # 获取消息的原始来源
         message_source = broadcast_info.source.origin
         sender_id = str(broadcast_info.sender_id)
 
         self.debug_log(
-            f"[VoteSystem Debug] 消息来源: {message_source}, QQ source配置: {qq_source}"
+            f"[VoteSystem Debug] 消息来源: {message_source}, QQ 平台键: {list(qq_sources)}"
         )
 
-        # 判断消息是否来自QQ connector
-        if message_source == qq_source:
+        # 判断消息是否来自QQ类连接器（OneBot 或官方机器人连接器）
+        if message_source in qq_sources:
             # 来自QQ connector，sender_id就是QQ号
             self.debug_log(
                 f"[VoteSystem Debug] ✓ 消息来自QQ connector，直接使用sender_id"

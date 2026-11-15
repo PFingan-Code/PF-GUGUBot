@@ -74,6 +74,7 @@ GUGUBot 是一个专为 MCDReforged 设计的 QQ 机器人插件，它能够：
 - **命令执行** - 远程执行服务器命令
 - **风格系统** - 多种机器人回复风格
 - **待办管理** - 群内协作管理
+- **投票系统** - 群成员共同投票决定关服等事务
 - **启动指令** - 服务器启动自动执行
 
 ---
@@ -103,9 +104,9 @@ GUGUBot 是一个专为 MCDReforged 设计的 QQ 机器人插件，它能够：
 | 组件 | 要求 |
 |------|------|
 | **MCDReforged** | ≥ 2.0.0 |
-| **Python** | ≥ 3.8 |
+| **Python** | ≥ 3.10 |
 | **Minecraft** | Java Edition / Bedrock Edition |
-| **QQ 机器人** | NapCat / LLOneBot 等 |
+| **QQ 机器人** | NapCat / LLOneBot / QQ 官方机器人 |
 
 ---
 

@@ -19,6 +19,7 @@ gugubot:
         name: "连接器"
         QQ:
             try_connect: "尝试连接到: {url}"
+            disabled: "连接器未启用（connector.QQ.enable=false），跳过启动"
             start_connect: "开始连接QQ机器人"
             received_message: "收到消息: {message}"
             error_connect: "连接错误: {error}"
@@ -30,6 +31,20 @@ gugubot:
             error_close: "关闭连接时出错: {error}"
             message_handle_failed: "消息处理失败: {error}\n{trace}"
             connect_success: "~ 连接成功 ~"
+        open-qq-bot:
+            try_connect: "尝试连接 QQ 官方机器人网关"
+            connect_success: "~ 连接成功，机器人：{username} ~"
+            closed: "QQ 官方机器人连接已关闭"
+            disabled: "连接器未启用（connector.open-qq-bot.enable=false），跳过启动"
+            not_configured: "未配置 connection.app_id/app_secret，跳过启动（QQ 开放平台获取）"
+            debug_group_id: "群 OpenID：\n{group_id}"
+            debug_group_id_c2c: "单聊场景没有群 ID。"
+            debug_user_id: "被 @ 用户 {username} 的 OpenID：\n{user_id}"
+            debug_user_id_self: "你的用户 OpenID：\n{user_id}"
+            debug_user_id_usage: "用法：/userId @某人（需 @ 到用户）"
+            debug_user_id_multi: "一次只 @ 一个用户。"
+            debug_bot_id: "机器人 OpenID：\n{bot_id}"
+            debug_bot_id_unknown: "尚未记录机器人 OpenID，请先 @机器人 发送任意消息。"
 
     system:
         general_help:

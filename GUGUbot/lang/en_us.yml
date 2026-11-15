@@ -16,8 +16,10 @@ gugubot:
         player_notice_error: "Player notice failed: {error}"
     
     connector:
+        name: "Connector"
         QQ:
             try_connect: "Trying to connect to: {url}"
+            disabled: "Connector disabled (connector.QQ.enable=false), skipping startup"
             start_connect: "Starting QQ bot connection"
             received_message: "Received message: {message}"
             error_connect: "Connection error: {error}"
@@ -29,6 +31,20 @@ gugubot:
             error_close: "Error closing connection: {error}"
             message_handle_failed: "Failed to handle message: {error}\n{trace}"
             connect_success: "~ Connected successfully ~"
+        open-qq-bot:
+            try_connect: "Connecting to QQ official bot gateway"
+            connect_success: "~ Connected successfully, bot: {username} ~"
+            closed: "QQ official bot connection closed"
+            disabled: "Connector disabled (connector.open-qq-bot.enable=false), skipping startup"
+            not_configured: "connection.app_id/app_secret not configured, skipping startup (get from QQ open platform)"
+            debug_group_id: "Group OpenID:\n{group_id}"
+            debug_group_id_c2c: "No group ID in direct messages."
+            debug_user_id: "OpenID of mentioned user {username}:\n{user_id}"
+            debug_user_id_self: "Your user OpenID:\n{user_id}"
+            debug_user_id_usage: "Usage: /userId @someone (must mention a user)"
+            debug_user_id_multi: "Mention only one user at a time."
+            debug_bot_id: "Bot OpenID:\n{bot_id}"
+            debug_bot_id_unknown: "Bot OpenID not recorded yet; @ the bot with any message first."
 
     system:
         general_help:
