@@ -49,6 +49,7 @@ try:
     from gugubot.connector.open_qq_bot import common
     from gugubot.connector.open_qq_bot.api_client import (
         ApiClient,
+        PassiveSeqExhausted,
         PartialDelivery,
         TokenManager,
     )
@@ -59,6 +60,7 @@ try:
         split_markdown,
         split_message,
     )
+    from gugubot.connector.open_qq_bot.connector import _MCDRForwardHandler
     from gugubot.connector.open_qq_bot.gateway import Gateway, GatewayStopped
     import gugubot.connector.open_qq_bot.gateway as gw
     from gugubot.connector.open_qq_bot.parser import OpenQQBotParser
@@ -68,6 +70,7 @@ try:
     )
     from gugubot.logic.plugins.cross_broadcast import CrossBroadcastSystem
     from gugubot.logic.system.bound import BoundSystem
+    from gugubot.logic.system.vote import VoteSystem
     from gugubot.utils.player_manager import Player
     from gugubot.utils.types import (
         BroadcastInfo,
@@ -75,6 +78,7 @@ try:
         Source,
         Source as Src,
     )
+    from gugubot.utils.vote_manager import Vote
 except ModuleNotFoundError as _e:  # pragma: no cover
     raise RuntimeError(
         "无法导入 gugubot 包；请按项目约定设置 PYTHONPATH=GUGUbot 后运行：\n"
@@ -82,6 +86,7 @@ except ModuleNotFoundError as _e:  # pragma: no cover
     ) from _e
 
 import asyncio
+import logging
 import tempfile
 import unittest
 import yaml
@@ -99,6 +104,24 @@ _TEMP_DIRS = []
 
 
 class FakeLogger:
+    """MCDR logger 桩。
+
+    连接器的 _MCDRForwardHandler 会把子包日志转发到
+    ``logger.log(levelno, ...)`` / ``logger.mdebug(..., no_check=True)``；
+    桩缺这两个方法时 logging 内部走 handleError，向 stderr 打
+    "Logging error" 噪音。这里记录调用，供 TestLogForwarding 断言。
+    """
+
+    def __init__(self):
+        self.log_calls = []
+        self.mdebug_calls = []
+
+    def log(self, level, msg, *args, **kwargs):
+        self.log_calls.append((level, msg))
+
+    def mdebug(self, msg, no_check=False, *args, **kwargs):
+        self.mdebug_calls.append((msg, no_check))
+
     def info(self, *a, **k):
         pass
 
@@ -592,6 +615,58 @@ class TestOutbound(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(kind, "c2c")
         self.assertIn("[图片]", content)
 
+    def test_malicious_image_url_rejected_as_placeholder(self):
+        """#3 图片 URL 注入：CQ image 段 URL 含 `)` 与伪造 mention 标签。
+
+        URL 出站时降级为 [图片] 文本（走纯文本通道），Markdown 通道不出现
+        可提前闭合的 `![图片](...)`，也不得出现活的 <qqbot-at-user/> 标签。
+        """
+        url = f"https://i/x.png) <qqbot-at-user id=\"{MEMBER_OID}\" />"
+        p = ProcessedInfo(
+            processed_message=[{"type": "image", "data": {"file": url}}],
+            _source=Source("Minecraft"), source_id="mc", sender="HAHH9527",
+        )
+        p.target = {GROUP_OID: "group"}
+        asyncio.run(self.conn.send_message(p))
+        kind, _, content, _ = self.api.sent[0]
+        self.assertEqual(kind, "text")  # 无合法图片、无真 @ → 纯文本通道
+        self.assertIn("[图片]", content)
+        self.assertNotIn("<qqbot-at-user", content)  # 无活 mention 标签
+        self.assertNotIn("![图片](", content)  # 未进 Markdown 语法
+
+    def test_image_url_rejects_backslash_and_fullwidth_space(self):
+        """反斜杠结尾（转义收尾括号吞段）与全角空格 URL 同样拒绝。"""
+        bad_urls = [
+            "https://i/x.png\\",  # 尾反斜杠可转义收尾 `)`，吞掉后续内容
+            "https://i/x\u3000.png",  # 全角空格可拆分注入片段
+        ]
+        for url in bad_urls:
+            with self.subTest(url=url):
+                self.api.sent.clear()
+                p = ProcessedInfo(
+                    processed_message=[{"type": "image", "data": {"file": url}}],
+                    _source=Source("Minecraft"), source_id="mc", sender="HAHH9527",
+                )
+                p.target = {GROUP_OID: "group"}
+                asyncio.run(self.conn.send_message(p))
+                kind, _, content, _ = self.api.sent[0]
+                self.assertEqual(kind, "text")
+                self.assertIn("[图片]", content)
+                self.assertNotIn("![图片](", content)
+
+    def test_valid_image_url_still_embedded_in_markdown(self):
+        """合法 URL（无 Markdown 语法字符）不受白名单影响，照常嵌入。"""
+        p = ProcessedInfo(
+            processed_message=[
+                {"type": "image", "data": {"file": "https://i.example/x.png"}}],
+            _source=Source("Minecraft"), source_id="mc", sender="HAHH9527",
+        )
+        p.target = {GROUP_OID: "group"}
+        asyncio.run(self.conn.send_message(p))
+        kind, _, content, _ = self.api.sent[0]
+        self.assertEqual(kind, "markdown")
+        self.assertIn("![图片](https://i.example/x.png)", content)
+
 
 class TestEventEntry(unittest.TestCase):
     def setUp(self):
@@ -778,7 +853,27 @@ class TestBoundOfficialQuit(unittest.IsolatedAsyncioTestCase):
         self._tmpdir = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmpdir.cleanup)
 
-    async def _run(self, accounts):
+    async def _run(self, accounts, monitored_groups=None, logger=None):
+        """构建 BoundSystem、写入绑定数据并投递一次退群事件。
+
+        monitored_groups / logger 供多群跳过与告警断言类用例覆写：
+        ``monitored_groups=None`` 保持默认单群（正常清理路径）。
+        """
+        bs = self._build_system(
+            monitored_groups=monitored_groups, logger=logger)
+
+        # 预置真实 PlayerManager 数据：平台键 = 连接器显示名（真实写入形态）
+        pm = bs.player_manager
+        pm._players["Steve"] = Player(
+            name="Steve",
+            java_name=["Steve"],
+            accounts={k: list(v) for k, v in accounts.items()},
+        )
+
+        handled = await bs.process_broadcast_info(self._make_quit_info())
+        return handled, pm, bs
+
+    def _build_system(self, monitored_groups=None, logger=None):
         class FakeWhitelist:
             def __init__(self):
                 self.removed = []
@@ -794,32 +889,26 @@ class TestBoundOfficialQuit(unittest.IsolatedAsyncioTestCase):
             "system": {"bound": {"whitelist_remove_with_leave": True}},
             "connector": {
                 "QQ": {"permissions": {"group_ids": [], "admin_group_ids": []}},
-                "open-qq-bot": {"permissions": {"group_ids": [GROUP_OID]}},
+                "open-qq-bot": {"permissions": {
+                    "group_ids": [GROUP_OID] if monitored_groups is None
+                    else monitored_groups}},
             },
         })
         bs = BoundSystem(fake_server, config=config)
-        bs.logger = FakeLogger()
+        bs.logger = logger or FakeLogger()
         bs.whitelist = FakeWhitelist()
         bs.enable = True
+        return bs
 
-        # 预置真实 PlayerManager 数据：平台键 = 连接器显示名（真实写入形态）
-        pm = bs.player_manager
-        pm._players["Steve"] = Player(
-            name="Steve",
-            java_name=["Steve"],
-            accounts={k: list(v) for k, v in accounts.items()},
-        )
-
-        info = BroadcastInfo(
+    def _make_quit_info(self):
+        return BroadcastInfo(
             event_type="notice", event_sub_type="group_decrease",
             message=[{"type": "text", "data": {"text": ""}}],
             raw={"group_openid": GROUP_OID, "member_openid": USER_OID},
-            server=fake_server, logger=FakeLogger(),
+            server=FakeServer(), logger=FakeLogger(),
             _source=Src("OpenQQBot"), source_id=GROUP_OID,
             sender=USER_OID, sender_id=USER_OID,
         )
-        handled = await bs.process_broadcast_info(info)
-        return handled, pm, bs
 
     async def test_official_quit_unbinds(self):
         handled, pm, bs = await self._run(accounts={"OpenQQBot": [USER_OID]})
@@ -828,6 +917,7 @@ class TestBoundOfficialQuit(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(bs.whitelist.removed, ["Steve"])  # 白名单同步移除
 
     async def test_official_quit_keeps_other_platform(self):
+        """有 FPS 平台剩余绑定：白名单保留，仅删官方账户绑定。"""
         handled, pm, bs = await self._run(
             accounts={"OpenQQBot": [USER_OID], "FPS": ["steve_fps"]})
         self.assertTrue(handled)
@@ -836,13 +926,81 @@ class TestBoundOfficialQuit(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(player.accounts.get("OpenQQBot", []), [])  # 官方账户已删
         self.assertEqual(player.accounts.get("FPS"), ["steve_fps"])
         self.assertEqual(player.java_name, ["Steve"])  # 玩家名保留
-        self.assertEqual(bs.whitelist.removed, ["Steve"])  # 白名单仍需移除
+        self.assertEqual(bs.whitelist.removed, [])  # 有剩余绑定：白名单一并保留
 
     async def test_official_quit_ignores_unbound_user(self):
         """未绑定用户退群：不产生任何清理动作。"""
         handled, pm, bs = await self._run(accounts={"OpenQQBot": ["OTHEROID"]})
         self.assertFalse(handled)
         self.assertIsNotNone(pm.get_player("Steve"))  # 不受影响
+        self.assertEqual(bs.whitelist.removed, [])
+
+    async def test_official_quit_keeps_onebot_platform(self):
+        """跨平台残留：OneBot 账户 + 官方同名账户双绑，官方退群只删官方账户。
+
+        OneBot 绑定、Player、白名单全部保留（对照组：所有平台均无剩余时
+        白名单+Player 照删，见 test_official_quit_unbinds）。
+        """
+        handled, pm, bs = await self._run(
+            accounts={"QQ": ["123456"], "OpenQQBot": [USER_OID]})
+        self.assertTrue(handled)
+        player = pm.get_player("Steve")
+        self.assertIsNotNone(player)  # Player 保留
+        self.assertEqual(player.accounts.get("OpenQQBot", []), [])  # 官方账户已删
+        self.assertEqual(player.accounts.get("QQ"), ["123456"])  # OneBot 账户保留
+        self.assertEqual(player.java_name, ["Steve"])  # 玩家名保留
+        self.assertEqual(bs.whitelist.removed, [])  # 有剩余绑定：白名单不动
+
+    class _WarnLogger(FakeLogger):
+        """记录 warning 调用的桩：断言退群跳过告警及其限频。"""
+
+        def __init__(self):
+            self.warnings = []
+
+        def warning(self, *a, **k):
+            self.warnings.append((a, k))
+
+    async def test_official_quit_multi_group_skips_cleanup(self):
+        """多群监听：退群事件无法证明退出全部监听群 → 不解绑并告警一次。"""
+        log = self._WarnLogger()
+        handled, pm, bs = await self._run(
+            accounts={"OpenQQBot": [USER_OID]},
+            monitored_groups=[GROUP_OID, "OTHERGROUP1OTHERGROUP1"],
+            logger=log,
+        )
+        self.assertTrue(handled)  # 事件被消费（跳过语义），不落回广播管线
+        player = pm.get_player("Steve")
+        self.assertIsNotNone(player)
+        self.assertEqual(player.accounts.get("OpenQQBot"), [USER_OID])  # 绑定未动
+        self.assertEqual(player.java_name, ["Steve"])
+        self.assertEqual(bs.whitelist.removed, [])
+        self.assertEqual(len(log.warnings), 1)
+        self.assertIn("跳过", log.warnings[0][0][0])
+
+    async def test_official_quit_multi_group_warn_rate_limited(self):
+        """同群 1 小时内第二次退群：告警限频，仍只 1 条。"""
+        log = self._WarnLogger()
+        bs = self._build_system(
+            monitored_groups=[GROUP_OID, "OTHERGROUP1OTHERGROUP1"], logger=log)
+        pm = bs.player_manager
+        pm._players["Steve"] = Player(
+            name="Steve", java_name=["Steve"],
+            accounts={"OpenQQBot": [USER_OID]})
+        for _ in range(2):
+            handled = await bs.process_broadcast_info(self._make_quit_info())
+            self.assertTrue(handled)
+        self.assertEqual(len(log.warnings), 1)  # 第二次限频，不再刷屏
+        self.assertIsNotNone(pm.get_player("Steve"))  # 两次均未清理
+        self.assertEqual(bs.whitelist.removed, [])
+
+    async def test_official_quit_without_monitored_groups_skips(self):
+        """group_ids 为空（全量监听形态）：无法枚举监听群 → 同样跳过清理。"""
+        handled, pm, bs = await self._run(
+            accounts={"OpenQQBot": [USER_OID]}, monitored_groups=[])
+        self.assertTrue(handled)
+        player = pm.get_player("Steve")
+        self.assertIsNotNone(player)
+        self.assertEqual(player.accounts.get("OpenQQBot"), [USER_OID])
         self.assertEqual(bs.whitelist.removed, [])
 
 
@@ -1020,8 +1178,82 @@ class TestDiagnosticLogging(unittest.TestCase):
         self.assertIn("调试命令回复已发送", text)
 
 
+class TestLogForwarding(unittest.TestCase):
+    """子包日志转发 handler：INFO+ 走 log(levelno)，DEBUG 走 mdebug(no_check=True)。
+
+    FakeLogger 补齐 .log/.mdebug 桩后，转发不再产生 "Logging error" stderr
+    噪音，且可对转发行为做断言。注意 _diag_logger 是模块级共享 logger，
+    handler 全局仅挂一个，重复构建连接器只重新指向最新实例。
+    """
+
+    def setUp(self):
+        self.diag_logger = logging.getLogger("gugubot.open_qq_bot")
+        self.conn = build_connector(default_config(verbose=True))
+
+    def test_verbose_true_debug_goes_to_mdebug(self):
+        """verbose=True：logger 级别 DEBUG，DEBUG 记录经 mdebug(no_check=True) 转发。"""
+        self.assertEqual(self.diag_logger.level, logging.DEBUG)
+        handler = self.diag_logger._mcdr_forward_handler
+        self.assertEqual(handler.level, logging.DEBUG)
+        self.conn._diag_logger.debug("verbose 调试内容")
+        self.assertEqual(len(self.conn.logger.mdebug_calls), 1)
+        msg, no_check = self.conn.logger.mdebug_calls[0]
+        self.assertIn("verbose 调试内容", msg)
+        self.assertTrue(no_check)
+        self.assertEqual(self.conn.logger.log_calls, [])
+
+    def test_info_goes_to_log_with_levelno(self):
+        """INFO 记录走 log(levelno) 转发，不经 mdebug。"""
+        self.conn._diag_logger.info("信息内容")
+        self.assertEqual(len(self.conn.logger.log_calls), 1)
+        level, msg = self.conn.logger.log_calls[0]
+        self.assertEqual(level, logging.INFO)
+        self.assertIn("信息内容", msg)
+        self.assertEqual(self.conn.logger.mdebug_calls, [])
+
+    def test_verbose_false_info_only(self):
+        """verbose=False：级别 INFO，DEBUG 被级别门拦下，只有 INFO 转发。"""
+        conn = build_connector()  # 默认无 verbose 配置
+        self.assertEqual(conn._diag_logger.level, logging.INFO)
+        handler = conn._diag_logger._mcdr_forward_handler
+        self.assertEqual(handler.level, logging.INFO)
+        conn._diag_logger.debug("被级别门拦下的调试")
+        self.assertEqual(conn.logger.mdebug_calls, [])
+        conn._diag_logger.info("放行的信息")
+        self.assertEqual(len(conn.logger.log_calls), 1)
+
+    def test_rebuild_reuses_single_handler(self):
+        """重复构建连接器不重复 attach handler，且指向最新连接器实例。"""
+        conn2 = build_connector(default_config(verbose=True))
+        forward_handlers = [
+            h for h in self.diag_logger.handlers
+            if isinstance(h, _MCDRForwardHandler)
+        ]
+        self.assertEqual(len(forward_handlers), 1)
+        self.assertIs(
+            self.diag_logger._mcdr_forward_handler,
+            conn2._diag_logger._mcdr_forward_handler,
+        )
+        # 重载（重复构建）后弱引用重定向：新连接器的日志才被转发
+        self.assertIs(
+            self.diag_logger._mcdr_forward_handler._connector_ref(), conn2)
+
+    def test_exc_info_appends_traceback_text(self):
+        """带 exc_info 的记录：转发消息附加格式化堆栈文本。"""
+        try:
+            raise ValueError("boom")
+        except ValueError:
+            self.conn._diag_logger.warning("发送失败", exc_info=True)
+        level, msg = self.conn.logger.log_calls[0]
+        self.assertEqual(level, logging.WARNING)
+        self.assertIn("发送失败", msg)
+        self.assertIn("Traceback", msg)
+        self.assertIn("ValueError: boom", msg)
+
+
 class TestSeqAccounting(unittest.TestCase):
-    """去重重试换 msg_seq 后：成功不泄漏旧名额，失败全部回退。"""
+    """msg_seq 记账：seq 严格递增不回退，未被服务端接受的 seq 精确回退；
+    被动名额耗尽（duplicate 拒绝）返回 None 供降级，本地与服务端账本对齐。"""
 
     def _client(self):
         return ApiClient(TokenManager("a", "b"))
@@ -1044,8 +1276,8 @@ class TestSeqAccounting(unittest.TestCase):
         # 被动分配（seq=1）与重试分配（seq=2）均未被服务端接受，全部回退
         self.assertEqual(client.seq._seqs.get("M", 0), 0)
 
-    def test_group_retry_success_no_leak(self):
-        """去重重试成功：一条消息只消耗一个被动名额（旧 seq 回退）。"""
+    def test_group_retry_success_ledger_aligned(self):
+        """去重重试成功：seq 严格递增不回退，本地与服务端账本对齐（消费 2 个）。"""
 
         client = self._client()
         calls = {"n": 0}
@@ -1060,7 +1292,8 @@ class TestSeqAccounting(unittest.TestCase):
         resp = client.send_group_text("G", "hi", msg_id="M")
         self.assertEqual(resp, {"id": "R"})
         self.assertEqual(calls["n"], 2)
-        self.assertEqual(client.seq._seqs.get("M", 0), 1)
+        # 基 seq=1 与重试 seq=2 均已被服务端消费：账本对齐，不回退
+        self.assertEqual(client.seq._seqs.get("M", 0), 2)
 
     def test_c2c_retry_failure_releases_seq(self):
 
@@ -1093,8 +1326,8 @@ class TestSeqAccounting(unittest.TestCase):
             client.send_c2c_text("U", "hi", msg_id="M")
         self.assertEqual(client.seq._seqs.get("M", 0), 0)
 
-    def test_c2c_retry_success_no_leak(self):
-        """去重重试成功：一条消息只消耗一个被动名额（旧 seq 回退）。"""
+    def test_c2c_retry_success_ledger_aligned(self):
+        """去重重试成功：seq 严格递增不回退，本地与服务端账本对齐（消费 2 个）。"""
 
         client = self._client()
         calls = {"n": 0}
@@ -1108,7 +1341,9 @@ class TestSeqAccounting(unittest.TestCase):
         client._call = fake_call
         resp = client.send_c2c_text("U", "hi", msg_id="M")
         self.assertEqual(resp, {"id": "R"})
-        self.assertEqual(client.seq._seqs.get("M", 0), 1)
+        self.assertEqual(calls["n"], 2)
+        # 基 seq=1 与重试 seq=2 均已被服务端消费：账本对齐，不回退
+        self.assertEqual(client.seq._seqs.get("M", 0), 2)
 
     def test_network_error_releases_seq(self):
         """N2：网络层失败统一为 status=0 的 ApiError，seq 走同一回退路径。"""
@@ -1123,8 +1358,9 @@ class TestSeqAccounting(unittest.TestCase):
             client.send_group_text("G", "hi", msg_id="M")
         self.assertEqual(client.seq._seqs.get("M", 0), 0)
 
-    def test_group_double_dup_exhaust_no_leak(self):
-        """N3：连续去重直至名额耗尽，重试分配的 seq 必须全部回退。"""
+    def test_group_double_dup_exhaust_returns_none_base_seq_kept(self):
+        """连续 duplicate 耗尽名额：首片 PassiveSeqExhausted → 返回 None
+        （主动消息降级信号，不再抛 ApiError）；基 seq 已被服务端消费不回退。"""
 
         client = self._client()
         client.seq._seqs["M"] = 3  # 预占 3 个名额（上限 5）
@@ -1133,13 +1369,13 @@ class TestSeqAccounting(unittest.TestCase):
             raise ApiError("POST", "u", 400, '{"err_code":40054005}', 40054005)
 
         client._call = fake_call
-        with self.assertRaises(ApiError):
-            client.send_group_text("G", "hi", msg_id="M")
-        # 被动分配 seq=4、重试 seq=5 均未被接受；耗尽时 retry_seqs 与初始 seq 全回退
-        self.assertEqual(client.seq._seqs.get("M", 0), 3)
+        self.assertIsNone(client.send_group_text("G", "hi", msg_id="M"))
+        # 基 seq=4 被 duplicate 拒绝（服务端已消费）不回退；重试 seq=5 名额
+        # 耗尽未发出，精确回退 → 账本停在 4
+        self.assertEqual(client.seq._seqs.get("M", 0), 4)
 
-    def test_c2c_double_dup_exhaust_no_leak(self):
-        """N3（单聊）：连续去重直至名额耗尽，不泄漏重试 seq。"""
+    def test_c2c_double_dup_exhaust_returns_none_base_seq_kept(self):
+        """连续 duplicate 耗尽名额（单聊）：返回 None 降级信号；基 seq 不回退。"""
 
         client = self._client()
         client.seq._seqs["M"] = 3
@@ -1148,9 +1384,81 @@ class TestSeqAccounting(unittest.TestCase):
             raise ApiError("POST", "u", 400, '{"err_code":40054005}', 40054005)
 
         client._call = fake_call
-        with self.assertRaises(ApiError):
-            client.send_c2c_text("U", "hi", msg_id="M")
-        self.assertEqual(client.seq._seqs.get("M", 0), 3)
+        self.assertIsNone(client.send_c2c_text("U", "hi", msg_id="M"))
+        # 基 seq=4 被 duplicate 拒绝（服务端已消费）不回退；重试 seq=5 名额
+        # 耗尽未发出，精确回退 → 账本停在 4
+        self.assertEqual(client.seq._seqs.get("M", 0), 4)
+
+    def test_retry_success_next_allocate_increments(self):
+        """换 seq 重试成功后，下一次 allocate 返回递增 seq（不复用已接受值）。"""
+
+        client = self._client()
+        calls = {"n": 0}
+
+        def fake_call(method, path, body=None, timeout=10):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise ApiError("POST", "u", 400, '{"err_code":40054005}', 40054005)
+            return {"id": "R"}
+
+        client._call = fake_call
+        client.send_group_text("G", "hi", msg_id="M")
+        # 已接受 seq=1/2，下一次分配必须跳到 3；复用旧值会再次命中去重
+        self.assertEqual(client.seq.allocate("M"), 3)
+
+    def test_release_ignores_non_top_seq(self):
+        """release 按 seq 精确释放：非栈顶忽略，栈顶生效，None 直接忽略。"""
+
+        client = self._client()
+        first = client.seq.allocate("M")  # seq=1
+        second = client.seq.allocate("M")  # seq=2（栈顶）
+        self.assertEqual((first, second), (1, 2))
+        client.seq.release("M", first)  # 非栈顶：不误放其他发送方预留的名额
+        self.assertEqual(client.seq._seqs.get("M", 0), 2)
+        client.seq.release("M", None)  # 无 seq（主动消息等）：直接忽略
+        self.assertEqual(client.seq._seqs.get("M", 0), 2)
+        client.seq.release("M", second)  # 栈顶：生效
+        self.assertEqual(client.seq._seqs.get("M", 0), 1)
+
+    def test_passive_seq_exhausted_first_chunk_returns_none_not_apierror(self):
+        """基 seq 被 duplicate 拒绝后名额耗尽：首片返回 None（降级信号）。
+
+        PassiveSeqExhausted 不是 ApiError：connector 的 ``except ApiError``
+        不得误捕它（误捕会把降级信号当错误吞掉/重复回退 seq）。
+        """
+        self.assertFalse(issubclass(PassiveSeqExhausted, ApiError))
+
+        client = self._client()
+        client.seq._seqs["M"] = 4  # 基 seq=5 是最后一个名额
+
+        def fake_call(method, path, body=None, timeout=10):
+            raise ApiError("POST", "u", 400, '{"err_code":40054005}', 40054005)
+
+        client._call = fake_call
+        self.assertIsNone(client.send_group_text("G", "hi", msg_id="M"))
+        # 基 seq=5 被 duplicate 拒绝 = 服务端已消费，不回退
+        self.assertEqual(client.seq._seqs.get("M", 0), 5)
+
+    def test_passive_seq_exhausted_midchunk_raises_partial_delivery(self):
+        """名额耗尽发生在中段：转 PartialDelivery（同一异常族语义，不混入 ApiError）。"""
+
+        client = self._client()
+        client.seq._seqs["M"] = 3
+        client.max_message_length = 10
+        calls = {"n": 0}
+
+        def fake_call(method, path, body=None, timeout=10):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return {"id": "R"}  # 首片（seq=4）成功
+            raise ApiError("POST", "u", 400, '{"err_code":40054005}', 40054005)
+
+        client._call = fake_call
+        with self.assertRaises(PartialDelivery) as ctx:
+            client.send_group_text("G", "z" * 20, msg_id="M")
+        self.assertEqual((ctx.exception.sent, ctx.exception.remaining), (1, 1))
+        # 第二片基 seq=5 被 duplicate 拒绝 = 服务端已消费，不回退
+        self.assertEqual(client.seq._seqs.get("M", 0), 5)
 
 
 class TestChunking(unittest.TestCase):
@@ -1409,6 +1717,98 @@ class TestGatewayResilience(unittest.TestCase):
             g.run()
         ws_cls.assert_not_called()
 
+    def test_connect_joins_stale_thread_before_restart(self):
+        """connect join：旧网关线程存活时先 stop+join 再启新线程，不双写状态。"""
+        import threading
+        from unittest import mock
+
+        g = self._gateway(lambda: "wss://example")
+        # 旧线程阻塞在网关自身的 stop_event 上（模拟退避等待/阻塞在 _get_url）
+        old = threading.Thread(target=g._stop_event.wait, args=(30,), daemon=True)
+        g._thread = old
+        old.start()
+        self.assertTrue(g.alive)
+
+        # 新线程 run() 的重连等待改桩：wait 返回 True 视为收到停止请求，
+        # 新线程一拍即退，只验证线程交接与「仅一个活跃循环」
+        g._stop_event.wait = lambda timeout=None: True
+        g._heartbeat_loop = lambda ws: None  # 心跳线程桩：本用例不涉及心跳
+
+        with mock.patch.object(gw.websocket, "WebSocketApp") as ws_cls:
+            g.connect()
+            self.assertIsNot(g._thread, old)
+            self.assertFalse(old.is_alive())  # 旧线程已被 join 退出
+            new_thread = g._thread
+            new_thread.join(timeout=5)
+            self.assertFalse(new_thread.is_alive())  # 新循环也正常结束
+            self.assertEqual(ws_cls.call_count, 1)  # 仅新线程建连一次
+
+    def test_connect_join_timeout_fails_safe(self):
+        """join 超时分支：旧线程超时未退出 → 记 ERROR，不启新线程，_stop 保持。"""
+        from unittest import mock
+
+        g = self._gateway(lambda: "wss://example")
+
+        class StuckThread:
+            def is_alive(self):
+                return True
+
+            def join(self, timeout=None):
+                pass  # 模拟旧线程阻塞在 _get_url，25s 内未退出
+
+        stuck = StuckThread()
+        g._thread = stuck
+        with mock.patch.object(gw.websocket, "WebSocketApp") as ws_cls:
+            g.connect()
+        self.assertIs(g._thread, stuck)  # 未启动新线程
+        self.assertTrue(g._stop)  # 保持停止状态（不清 stop_event、不复位标志）
+        ws_cls.assert_not_called()
+
+    def test_close_code_4014_stops_with_intent_hint(self):
+        """4014（intents 权限不足）：记录关闭码并终止，消息含码与 intent 提示。"""
+        from unittest import mock
+
+        g = self._gateway(lambda: "wss://example")
+        g._on_close(None, 4014, "invalid intents")
+        self.assertEqual(g._close_code, 4014)
+        g._heartbeat_loop = lambda ws: None  # 心跳线程桩：本用例不涉及心跳
+        with mock.patch.object(gw.websocket, "WebSocketApp"):
+            with self.assertRaises(GatewayStopped) as ctx:
+                g.run()  # 不得静默重新 Identify 无限重连
+        self.assertIn("4014", str(ctx.exception))
+        self.assertIn("intent", str(ctx.exception))
+
+    def test_close_code_4002_stops_without_intent_hint(self):
+        """4002（参数无效）：同样终止，但消息不含 intent 排查提示。"""
+        from unittest import mock
+
+        g = self._gateway(lambda: "wss://example")
+        g._on_close(None, 4002, "invalid params")
+        self.assertEqual(g._close_code, 4002)
+        self.assertFalse(g._reidentify)
+        g._heartbeat_loop = lambda ws: None
+        with mock.patch.object(gw.websocket, "WebSocketApp"):
+            with self.assertRaises(GatewayStopped) as ctx:
+                g.run()
+        self.assertIn("4002", str(ctx.exception))
+        self.assertNotIn("intent", str(ctx.exception))
+
+    def test_close_code_4008_4009_keep_resume_reconnect(self):
+        """4008/4009 仍是可重连码：不终止、不记录终止码、session 保持（Resume）。"""
+        g = self._gateway(lambda: "wss://example")
+        g._on_close(None, 4008, "rate limited")
+        g._on_close(None, 4009, "session timeout")
+        self.assertIsNone(g._close_code)
+        self.assertFalse(g._reidentify)  # 走 Resume 保 session，而非重新 Identify
+        g.stop()
+        g.run()  # 不抛 GatewayStopped：可重试码不终止重连循环
+
+        # 既有行为保持：未知码（非 RESUME 集）仍走重新 Identify
+        g2 = self._gateway(lambda: "wss://example")
+        g2._on_close(None, 4999, "unknown")
+        self.assertTrue(g2._reidentify)
+        self.assertIsNone(g2._close_code)
+
 
 class FakeGatewayWS:
     """网关 WS 桩：记录 send/close，可按需在发送后触发 ACK。"""
@@ -1483,6 +1883,60 @@ class TestGatewayHeartbeat(unittest.TestCase):
         self.assertTrue(ws.closed)
         self.assertIn("心跳 ACK 超过 0.2s 未返回", logs.output[0])
         self.assertIn("正常间隔 0.2s", logs.output[0])
+
+    def test_ack_delay_does_not_drift_beat_interval(self):
+        """心跳基准：ACK 往返延迟不累计进节拍，相邻两拍间隔 ≈ interval。
+
+        节拍从发送时刻起算（剩余间隔补足等待），而非 ACK 返回后再睡满
+        interval（后者实际节拍 = interval + 延迟，逐拍漂移累计）。
+        """
+        import types
+        from unittest import mock
+
+        interval = 1.0
+        clock = {"t": 0.0}
+
+        def fake_monotonic():
+            return clock["t"]
+
+        g = self._gateway()
+        g._heartbeat_interval = interval
+        g._hello.set()
+        g._ready.set()
+
+        sends = []
+
+        def on_send(ws):
+            sends.append(clock["t"])
+            if len(sends) >= 2:
+                ws.keep_running = False  # 两拍后退出循环
+
+        ws = FakeGatewayWS(on_send=on_send)
+
+        def fake_ack_wait(timeout=None):
+            clock["t"] += 0.1 * interval  # 模拟 ACK 往返耗时
+            return True
+
+        def fake_stop_wait(timeout=None):
+            clock["t"] += timeout or 0.0  # 补足剩余间隔的等待推进假时钟
+            return False
+
+        g._ack.wait = fake_ack_wait
+        g._stop_event.wait = fake_stop_wait
+
+        # 只替换 gateway 命名空间里的 time 引用（不全局 patch time.monotonic）：
+        # 其他线程（如残留的心跳守护线程经 threading 内部计时）不受影响
+        fake_time = types.SimpleNamespace(monotonic=fake_monotonic)
+        with mock.patch.object(gw, "time", fake_time), \
+                self.assertLogs("gugubot.open_qq_bot", level="DEBUG") as logs:
+            g._heartbeat_loop(ws)
+
+        self.assertEqual(len(sends), 2)
+        # 实际节拍 = interval（含 0.1×interval 的 ACK 延迟被补足吸收）
+        self.assertAlmostEqual(sends[1] - sends[0], interval, places=6)
+        self.assertNotEqual(sends[1] - sends[0], interval + 0.1 * interval)
+        # 间隔未超 1.5×interval：不触发漂移 WARNING
+        self.assertFalse(any("WARNING" in m for m in logs.output))
 
 
 class TestCrossBroadcastQQRouting(unittest.IsolatedAsyncioTestCase):
@@ -1569,6 +2023,177 @@ class TestCrossBroadcastQQRouting(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(handled)
         self.assertEqual(len(sent), 1)
         self.assertEqual(sent[0][0], ("OpenQQBot",))
+
+
+class TestCrossBroadcastSubServerGuard(unittest.IsolatedAsyncioTestCase):
+    """子服守卫：子服本机 MC 来源的 !!qq 让路给 echo→Bridge，不在子服消费。
+
+    子服通常不持有 QQ 连接器：此处若消费会短路 echo 转发路径，!!qq 永远
+    到不了主服。bridge 来源（已在主服消费过）在子服不放行，避免 !!qq 原文
+    被喷进子服聊天。
+    """
+
+    def _build(self, is_main=True):
+        class FakeConnector:
+            def __init__(self, source, enable):
+                self.source = source
+                self.enable = enable
+                self.enable_send = True
+
+        class FakeManager:
+            def __init__(self, connectors):
+                self.connectors = connectors
+
+            def get_connector(self, source):
+                return next(
+                    (c for c in self.connectors if c.source == source), None)
+
+        connectors = [
+            FakeConnector("QQ", True),
+            FakeConnector("OpenQQBot", True),
+        ]
+        config = FakeConfig({
+            "system": {"cross_broadcast": {
+                "enable": True,
+                "qq_forward_group_ids": [],
+                "qq_forward_openids": [],
+            }},
+            "connector": {
+                "QQ": {"source_name": "QQ"},
+                "open-qq-bot": {"source_name": "OpenQQBot"},
+                "minecraft": {"source_name": "Minecraft"},
+                "minecraft_bridge": {"source_name": "Bridge",
+                                     "is_main_server": is_main},
+            },
+            "GUGUBot": {"command_prefix": "#"},
+        })
+        system = CrossBroadcastSystem(config=config)
+        system.system_manager = type(
+            "SM", (), {"connector_manager": FakeManager(connectors)}
+        )()
+        system.logger = FakeLogger()
+        return system
+
+    def _info(self, source_origin):
+        return BroadcastInfo(
+            event_type="message", event_sub_type="group",
+            message=[{"type": "text", "data": {"text": "!!qq 大家好"}}],
+            raw=None, server=FakeServer(), logger=FakeLogger(),
+            _source=Src(source_origin), source_id="mc",
+            sender="Steve", sender_id="steve",
+        )
+
+    async def _process(self, system, info):
+        calls = []
+
+        async def spy_forward(broadcast_info, message, **kw):
+            calls.append((broadcast_info.source.origin, message))
+            return True
+
+        system._broadcast_to_qq_connectors = spy_forward
+        handled = await system.process_broadcast_info(info)
+        return handled, calls
+
+    async def test_sub_server_mc_source_not_consumed(self):
+        """子服 MC 来源 !!qq：守卫让路（返回 False），不进入 QQ 投递。"""
+        system = self._build(is_main=False)
+        handled, calls = await self._process(system, self._info("Minecraft"))
+        self.assertFalse(handled)  # 落回 echo → Bridge 转发到主服
+        self.assertEqual(calls, [])
+
+    async def test_sub_server_bridge_source_still_consumed(self):
+        """子服收到 bridge 转发的 !!qq：不放行给 echo，仍被消费防原文泄漏。"""
+        system = self._build(is_main=False)
+        handled, calls = await self._process(system, self._info("Bridge"))
+        self.assertTrue(handled)
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0][0], "Bridge")
+
+    async def test_main_server_mc_source_still_consumed(self):
+        """主服 MC 来源 !!qq：照常消费并投递（防 !!qq 原文经 echo 泄漏）。"""
+        system = self._build(is_main=True)
+        handled, calls = await self._process(system, self._info("Minecraft"))
+        self.assertTrue(handled)
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0][0], "Minecraft")
+
+
+class TestVotePlatformKeys(unittest.IsolatedAsyncioTestCase):
+    """投票平台键：官方连接器（OpenQQBot source）绑定与 OneBot 绑定同具资格。
+
+    官方绑定账号是 32 位 OpenID，与 OneBot 数字 QQ 号属不相交字符串空间，
+    两个平台键下的绑定都计入资格集合，OpenID 可直接作为投票者身份。
+    """
+
+    OFFICIAL_OID = "D" * 32
+
+    async def asyncSetUp(self):
+        import tempfile
+
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmpdir.cleanup)
+
+    def _build(self, accounts):
+        fake_server = FakeServer()
+        fake_server.data_folder = self._tmpdir.name
+        config = FakeConfig({
+            "system": {"vote": {"enable": False}},
+            "connector": {
+                "QQ": {"source_name": "QQ"},
+                "open-qq-bot": {"source_name": "OpenQQBot"},
+            },
+            "GUGUBot": {"show_message_in_console": False},
+        })
+        system = VoteSystem(fake_server, config)
+        system.logger = FakeLogger()
+        system.player_manager._players["Steve"] = Player(
+            name="Steve", java_name=["Steve"],
+            accounts=dict(accounts))
+        # online_player_api 桩：返回固定的在线玩家列表
+        system._get_online_players = lambda: ["Steve"]
+        return system
+
+    async def test_official_bound_player_eligible(self):
+        """经官方连接器（OpenQQBot source）绑定的玩家出现在资格集合。"""
+        system = self._build({"OpenQQBot": [self.OFFICIAL_OID]})
+        eligible = await system._get_eligible_voters()
+        self.assertEqual(eligible, {self.OFFICIAL_OID})
+
+    async def test_onebot_bound_player_eligible_unchanged(self):
+        """OneBot 绑定玩家路径不变（既有行为回归保护）。"""
+        system = self._build({"QQ": ["123456"]})
+        eligible = await system._get_eligible_voters()
+        self.assertEqual(eligible, {"123456"})
+
+    async def test_official_openid_casts_valid_vote(self):
+        """OpenID 作为投票者身份：从官方来源消息解析身份并投出有效票。"""
+        system = self._build({"OpenQQBot": [self.OFFICIAL_OID]})
+        eligible = await system._get_eligible_voters()
+        info = BroadcastInfo(
+            event_type="message", event_sub_type="group",
+            message=[{"type": "text", "data": {"text": "111"}}],
+            raw=None, server=FakeServer(), logger=FakeLogger(),
+            _source=Src("OpenQQBot"), source_id=GROUP_OID,
+            sender="官方用户", sender_id=self.OFFICIAL_OID,
+        )
+        voter_id = await system._get_voter_id_from_broadcast(info)
+        self.assertEqual(voter_id, self.OFFICIAL_OID)
+        vote = Vote(
+            vote_id="v1", vote_type="shutdown", initiator="Steve",
+            initiator_id=self.OFFICIAL_OID, eligible_voters=eligible,
+            required_percentage=1.0,
+        )
+        success, is_new_vote, is_same_vote = vote.cast_vote(voter_id, True)
+        self.assertTrue(success)
+        self.assertEqual(vote.yes_votes, {self.OFFICIAL_OID})
+
+    async def test_platform_keys_order_and_dedup(self):
+        """平台键：OneBot 在前（默认投票身份向后兼容），重名配置去重。"""
+        system = self._build({})
+        self.assertEqual(system._qq_platform_keys(), ("QQ", "OpenQQBot"))
+        # 用户把两个来源名配成同一个值：去重，不产生重复资格键
+        system.config["connector"]["open-qq-bot"]["source_name"] = "QQ"
+        self.assertEqual(system._qq_platform_keys(), ("QQ",))
 
 
 class TestQQConnectorEnableGuard(unittest.TestCase):
