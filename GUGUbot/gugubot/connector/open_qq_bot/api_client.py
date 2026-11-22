@@ -243,7 +243,10 @@ class ApiClient:
                                         i + 1, len(chunks))
                     if i > 0:
                         # 已有分片送达：整体降级重发会重复，显式抛错告警
-                        raise PartialDelivery(i, len(chunks) - i)
+                        # （显式因果链：allocate 耗尽或 seqs 预留超界，
+                        # 供调用方区分「非过期导致的部分送达」）
+                        raise PartialDelivery(i, len(chunks) - i) \
+                            from PassiveSeqExhausted(msg_id)
                     return None  # 一片未发：调用方可整体降级为主动消息
             elif event_id:
                 body["event_id"] = event_id
@@ -300,7 +303,11 @@ class ApiClient:
                     self.logger.warning("分片 %s/%s 因被动回复次数耗尽未发送",
                                         i + 1, len(chunks))
                     if i > 0:
-                        raise PartialDelivery(i, len(chunks) - i)
+                        # 已有分片送达：整体降级重发会重复，显式抛错告警
+                        # （显式因果链：allocate 耗尽或 seqs 预留超界，
+                        # 供调用方区分「非过期导致的部分送达」）
+                        raise PartialDelivery(i, len(chunks) - i) \
+                            from PassiveSeqExhausted(msg_id)
                     return None
             try:
                 last_resp = self._post_group_message(group_openid, body, msg_id=msg_id)
@@ -372,7 +379,9 @@ class ApiClient:
                     self.logger.warning("分片 %s/%s 因被动回复次数耗尽未发送",
                                         i + 1, len(chunks))
                     if i > 0:
-                        raise PartialDelivery(i, len(chunks) - i)
+                        # 显式因果链：名额耗尽（非过期）导致的部分送达
+                        raise PartialDelivery(i, len(chunks) - i) \
+                            from PassiveSeqExhausted(msg_id)
                     return None
             try:
                 last_resp = self._post_c2c_message(user_openid, body, msg_id=msg_id)

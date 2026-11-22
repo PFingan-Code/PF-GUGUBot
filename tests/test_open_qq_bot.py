@@ -639,6 +639,35 @@ class TestOutbound(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(passive, ["A" * 10])  # 仅首片走被动
         self.assertEqual(active, ["A" * 10, "A" * 10])  # 后缀主动补发
 
+    def test_suffix_resend_failure_does_not_escape(self):
+        """评审修复：补发自身失败不得逃逸出 _send_sync（否则多目标广播
+        半途而废、异常上抛到异步调用方）。"""
+        client = ApiClient(TokenManager("a", "b"))
+        client.max_message_length = 10
+        self.conn.max_message_length = 10
+        passive, active = [], []
+
+        def fake_call(method, path, body=None, timeout=10):
+            if body.get("msg_id"):
+                if not passive:
+                    passive.append(body["content"])
+                    return {"id": "R"}
+                raise ApiError("POST", "u", 400, '{"err_code":40034005}', 40034005)
+            active.append(body["content"])  # 补发通道：直接网络失败
+            raise ApiError("POST", "u", 0, "connection reset", None, None)
+
+        client._call = fake_call
+        self.conn.api = client
+        p = ProcessedInfo(
+            processed_message=[{"type": "text", "data": {"text": "A" * 30}}],
+            _source=Source("OpenQQBot"), source_id=GROUP_OID,
+            sender="bot", raw=group_event()["d"],
+        )
+        p.target = {GROUP_OID: "group"}
+        asyncio.run(self.conn.send_message(p))  # 不得抛出
+        self.assertEqual(passive, ["A" * 10])  # 首片被动送达
+        self.assertEqual(active, ["A" * 10])  # 补发首片失败即中止，不继续
+
     def test_passive_exhausted_falls_back_to_active(self):
         """SeqManager 次数耗尽时 send_* 返回 None 而非抛错：必须降级，不得静默丢弃。"""
         def exhausted_send(g, c, msg_id=None, event_id=None, reference=None, seqs=None):
@@ -1859,6 +1888,27 @@ class TestChunking(unittest.TestCase):
             client.send_group_text("G", "z" * 20, msg_id="M")
         self.assertEqual(ctx.exception.sent, 1)
         self.assertEqual(ctx.exception.remaining, 1)
+        self.assertEqual(len(sent), 1)
+        # 名额耗尽（非过期）的显式因果链：调用方可与 ERR_PASSIVE_EXPIRED 区分
+        self.assertIsInstance(ctx.exception.__cause__, PassiveSeqExhausted)
+
+    def test_api_partial_delivery_seqs_overrun_causes_chain(self):
+        """seqs 预留块小于分片数（防御路径）：超界片按名额耗尽处理，
+        PartialDelivery 显式因果链为 PassiveSeqExhausted。"""
+        client = self._client()
+        sent = []
+
+        def fake_call(method, path, body=None, timeout=10):
+            sent.append(body["content"])
+            return {"id": "R"}
+
+        client._call = fake_call
+        client.max_message_length = 10
+        # 仅预留 1 个 seq，内容切 3 片 → 第二片起超界
+        with self.assertRaises(PartialDelivery) as ctx:
+            client.send_group_text("G", "z" * 30, msg_id="M", seqs=[1])
+        self.assertEqual((ctx.exception.sent, ctx.exception.remaining), (1, 2))
+        self.assertIsInstance(ctx.exception.__cause__, PassiveSeqExhausted)
         self.assertEqual(len(sent), 1)
 
     def test_group_text_midchunk_apierror_partial(self):

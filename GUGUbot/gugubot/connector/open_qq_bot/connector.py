@@ -741,11 +741,22 @@ class OpenQQBotConnector(BasicConnector):
                         f"{self.log_prefix} 被动锚点中途失效，剩余 {len(suffix)} 片"
                         f"转主动消息补发到 {target_id}"
                     )
-                    for chunk in suffix:
-                        if target_images or has_mention:
-                            self.api.send_group_markdown(target_id, chunk)
-                        else:
-                            self.api.send_group_text(target_id, chunk)
+                    for idx, chunk in enumerate(suffix):
+                        try:
+                            if target_images or has_mention:
+                                self.api.send_group_markdown(target_id, chunk)
+                            else:
+                                self.api.send_group_text(target_id, chunk)
+                        except Exception as send_err:
+                            # 补发失败不得逃逸出本处理器（同级 handler 不拦截
+                            # handler 内新抛的异常）：中止补发并告警，其余目标
+                            # 照常投递——降级路径不得比主路径更脆
+                            self.logger.warning(
+                                f"{self.log_prefix} 后缀补发到 {target_id} 失败，"
+                                f"自第 {e.sent + idx + 1} 片起剩余 "
+                                f"{len(suffix) - idx} 片未送达：{send_err}"
+                            )
+                            break
                 elif expired:
                     self.logger.warning(
                         f"{self.log_prefix} 主动消息配额不足（{target_id}），"
