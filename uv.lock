@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = ">=3.10"
 
 [[package]]
@@ -433,7 +433,7 @@ wheels = [
 
 [[package]]
 name = "pf-gugubot"
-version = "2.2.5a4"
+version = "2.2.5"
 source = { virtual = "." }
 dependencies = [
     { name = "mcdreforged" },
