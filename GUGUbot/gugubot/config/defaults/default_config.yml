@@ -57,6 +57,32 @@ connector:
       forward_other_bot: false       # 转发官方机器人回复
       change_group_card: true       # 是否修改群员群名片 :: 绑定ID时自动修改群名片为游戏名
 
+  open-qq-bot: # QQ官方机器人连接器 :: 直连 QQ 开放平台 WebSocket 网关（与 OneBot 版 QQ 连接器并行使用）
+    source_name: "OpenQQBot" # 显示名称
+    enable: false # 是否启用 :: 需先在 QQ 开放平台创建机器人并填写 connection.app_id/app_secret
+    enable_receive: true # 是否接收转发 :: 其他 connector 的 echo 转发时不转发到此 connector
+    enable_send: true # 是否发送 :: 广播时是否向此 connector 发送
+    verbose: false # 排障日志 :: 记录每条入站消息内容、出站目标/被动或主动/发送结果与 HTTP 明细（默认关闭）
+    connection:
+      app_id: "" # 机器人 AppID（QQ 开放平台 q.qq.com）
+      app_secret: "" # 机器人 AppSecret
+      sandbox: false # 是否使用沙箱环境
+      max_message_length: 2000 # 单片长度上限 :: 超出自动分片（官方 40054007 超限报错）
+    rate_limit: # 主动消息配额 :: 官方限制 单群20条/分钟、1000条/天、Bot全局30~60条/分钟（被动回复不占配额；超限丢弃并告警）
+      per_minute: 20
+      per_day: 1000
+      bot_per_minute: 30 # Bot 全局限速 :: 所有群合计的主动消息条/分钟（防止多群广播触发平台级限流）
+    permissions:
+      admin_ids: # 管理员 OpenID :: 另：群内角色为 admin/owner 的成员自动视为管理员（群内发 /userId @某人 获取）
+        -
+      group_ids: # 群 OpenID 白名单 :: 要监听的群（留空=响应所有已接入群；需群主授权「接收全量消息」；群内发 /groupId 获取，调试命令不受白名单限制；退群自动解绑仅在配置单个监听群时生效，多群或未配置监听群时跳过清理）
+        -
+      forward_group_ids: # 转发目标群 OpenID :: MC消息转发到这些群（留空则使用group_ids）
+        -
+    chat_templates: # MC到QQ的聊天消息模板 :: 转发消息时根据权重随机选择模板
+      - "({display_name}) {sender}: ": 1
+      - "[{display_name}] {sender}: ": 1
+
   minecraft: # Minecraft连接器
     source_name: "Minecraft" # 服务器显示名称 :: 如果是主服务器，会显示这个名称
     enable: true # 是否启用
@@ -136,7 +162,7 @@ system:
     max_java_bound: 1
 
     whitelist_add_with_bound: false   # 绑定ID自动绑定服务器白名单
-    whitelist_remove_with_leave: true   # 退群时移除白名单
+    whitelist_remove_with_leave: true   # 退群时移除白名单（仅在官方连接器配置单个监听群时随退群解绑生效，多群或未配置监听群时跳过清理）
 
     player_name_pattern: ""   # 玩家名正则表达式 :: 限制绑定的玩家名格式，为空则不限制
     # 示例: "^[a-zA-Z0-9_]{3,16}$" (3-16位字母数字下划线)
@@ -156,7 +182,9 @@ system:
     enable: true
     mc_command: "mc"    # QQ 端命令：{command_prefix}{mc_command} 消息
     qq_command: "!!qq"  # MC 端命令：{qq_command} 消息
-    qq_forward_group_ids: # !!qq 转发目标群号 :: 留空则使用 QQ connector 的 forward_group_ids/group_ids
+    qq_forward_group_ids: # !!qq 转发目标群号 :: OneBot 连接器（数字群号），留空则使用 QQ connector 的 forward_group_ids/group_ids
+      -
+    qq_forward_openids: # !!qq 转发目标群 OpenID :: open-qq-bot 官方连接器（32位 OpenID，群内发 /groupId 获取；与数字群号不通用），留空则使用官方 connector 的 forward_group_ids/group_ids
       -
 
   execute: # 命令执行系统

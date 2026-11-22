@@ -10,6 +10,7 @@ from gugubot.connector import (
     BridgeConnector,
     ConnectorManager,
     MCConnector,
+    OpenQQBotConnector,
     QQWebSocketConnector,
     TestConnector,
 )
@@ -107,6 +108,11 @@ async def on_load(server: PluginServerInterface, _) -> None:
 
     if is_main_server:
         connectors.append(QQWebSocketConnector(server, gugubot_config))
+        # QQ 官方机器人连接器（enable=false 或未配置凭证时 connect() 直接跳过）
+        # 与 OneBot 同约定：仅主服注册。多服共享同一组凭证会建立多个网关
+        # 会话并以 shard [0, 1] 重复接收同一批事件，造成重复广播/重复命令；
+        # 且 BoundSystem 只在主服创建，子服无法处理绑定命令
+        connectors.append(OpenQQBotConnector(server, gugubot_config))
 
     for connector in connectors:
         await connector_manager.register_connector(connector)

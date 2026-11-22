@@ -161,6 +161,12 @@ class QQWebSocketConnector(BasicConnector):
 
     async def connect(self) -> None:
         """Establish the WebSocket connection to the QQ (OneBot) server."""
+        if not self.enable:
+            self.logger.info(
+                f"{self.log_prefix} {self.server.tr('gugubot.connector.QQ.disabled')}"
+            )
+            return
+
         self.logger.info(
             f"{self.log_prefix} {self.server.tr('gugubot.connector.QQ.try_connect', url=self.url)}"
         )
