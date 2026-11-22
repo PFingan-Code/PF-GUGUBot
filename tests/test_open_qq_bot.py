@@ -295,7 +295,7 @@ class TestParser(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(info.source_id, GROUP_OID)
         self.assertTrue(info.is_admin)  # member_role=owner
         self.assertEqual(info._source.origin, "OpenQQBot")
-        # @机器人 自身的渲染前缀被剥离（M-7），@ 普通用户保留 @昵称
+        # @机器人 自身的渲染前缀被剥离（M-7）
         self.assertEqual(info.message[0]["data"]["text"], "你好")
 
     async def test_whitelist_filter(self):
@@ -386,15 +386,89 @@ class TestParser(unittest.IsolatedAsyncioTestCase):
         info = await self.parser.parse(event)
         self.assertEqual(info.message[0]["data"]["text"], "@林晚晴")
 
-    async def test_at_other_user_prefix_not_stripped(self):
-        """@ 普通用户（非机器人）不剥离前缀。"""
+    async def test_at_other_user_becomes_at_segment(self):
+        """@ 普通用户产出 at 段（OpenID + 昵称），游戏内才能渲染高亮/点击@。"""
         event = group_event(
             content=f"<@{MEMBER_OID}> #hello",
             mentions=[{"member_openid": MEMBER_OID, "id": MEMBER_OID,
                        "username": "一梦", "bot": False}],
         )
         info = await self.parser.parse(event)
-        self.assertEqual(info.message[0]["data"]["text"], "@一梦 #hello")
+        self.assertEqual(
+            info.message[0],
+            {"type": "at", "data": {"qq": MEMBER_OID, "name": "一梦"}},
+        )
+        self.assertEqual(info.message[1]["data"]["text"], " #hello")
+
+    async def test_at_segment_keeps_order_between_text(self):
+        """@ 段按 content 中的位置插入，前后文本不被压平。"""
+        event = group_event(
+            content=f"看 <@{MEMBER_OID}> 打游戏",
+            mentions=[{"member_openid": MEMBER_OID, "id": MEMBER_OID,
+                       "username": "一梦", "bot": False}],
+        )
+        info = await self.parser.parse(event)
+        self.assertEqual([s["type"] for s in info.message],
+                         ["text", "at", "text"])
+        self.assertEqual(info.message[0]["data"]["text"], "看 ")
+        self.assertEqual(info.message[1]["data"]["qq"], MEMBER_OID)
+        self.assertEqual(info.message[2]["data"]["text"], " 打游戏")
+
+    async def test_at_display_prefers_group_nickname(self):
+        """群聊显示兜底优先用群内昵称（member_nickname），再退回全局昵称。"""
+        event = group_event(
+            content=f"<@{MEMBER_OID}> hi",
+            mentions=[{"member_openid": MEMBER_OID, "id": MEMBER_OID,
+                       "username": "一梦", "member_nickname": "群名片一梦",
+                       "bot": False}],
+        )
+        info = await self.parser.parse(event)
+        self.assertEqual(info.message[0]["data"]["name"], "群名片一梦")
+
+    async def test_at_bot_not_emitted_as_segment(self):
+        """@机器人 不产 at 段：否则 bound 系统会把机器人当成绑定目标。"""
+        event = group_event(
+            content=f"<@{BOT_OID}> #绑定 Steve <@{MEMBER_OID}>",
+            mentions=[
+                {"member_openid": BOT_OID, "id": BOT_OID,
+                 "username": "林晚晴", "bot": True},
+                {"member_openid": MEMBER_OID, "id": MEMBER_OID,
+                 "username": "一梦", "bot": False},
+            ],
+        )
+        info = await self.parser.parse(event)
+        self.assertEqual([s["type"] for s in info.message], ["text", "at"])
+        self.assertEqual(info.message[0]["data"]["text"], "#绑定 Steve ")
+        self.assertEqual(info.message[1]["data"]["qq"], MEMBER_OID)
+
+    async def test_hand_typed_at_tag_not_misidentified(self):
+        """手打的 <@xxx> 不在 mentions 中，必须原样保留为文本。"""
+        event = group_event(content=f"<@{MEMBER_OID}> 只是打字")
+        info = await self.parser.parse(event)
+        self.assertEqual([s["type"] for s in info.message], ["text"])
+        self.assertEqual(info.message[0]["data"]["text"],
+                         f"<@{MEMBER_OID}> 只是打字")
+
+    async def test_hand_typed_at_text_not_misidentified(self):
+        """手打的 @昵称 纯文本不产 at 段。"""
+        event = group_event(content="@一梦 只是打字")
+        info = await self.parser.parse(event)
+        self.assertEqual([s["type"] for s in info.message], ["text"])
+        self.assertEqual(info.message[0]["data"]["text"], "@一梦 只是打字")
+
+    async def test_at_all_requires_scope_all(self):
+        """<@all> 只有 mentions 标记 scope=all 时才视为 @全体成员。"""
+        real = group_event(
+            content="<@all> 集合",
+            mentions=[{"scope": "all", "bot": False}],
+        )
+        info = await self.parser.parse(real)
+        self.assertEqual([s["type"] for s in info.message], ["text"])
+        self.assertEqual(info.message[0]["data"]["text"], "@全体成员 集合")
+
+        fake = group_event(content="<@all> 集合")
+        info = await self.parser.parse(fake)
+        self.assertEqual(info.message[0]["data"]["text"], "<@all> 集合")
 
     async def test_c2c_event(self):
         event = {"t": "C2C_MESSAGE_CREATE", "d": {
