@@ -20,6 +20,7 @@ import asyncio
 import logging
 import random
 import re
+import time
 import traceback
 import weakref
 from typing import Optional
@@ -39,6 +40,7 @@ from gugubot.connector.open_qq_bot.common import (
     PassiveMsgPool,
     QuotaManager,
     at_user_tag,
+    random_send_delay,
     split_markdown,
     split_message,
 )
@@ -742,8 +744,17 @@ class OpenQQBotConnector(BasicConnector):
                         f"转主动消息补发到 {target_id}"
                     )
                     for idx, chunk in enumerate(suffix):
+                        # 各片已是预切分结果（ApiClient 内部再切必为单片，
+                        # 其片间限速不会触发）：在此显式限速，与其他多片
+                        # 发送路径的突发保护保持一致
+                        if idx > 0:
+                            time.sleep(random_send_delay())
                         try:
-                            if target_images or has_mention:
+                            if target_type == "private":
+                                # 单聊走 C2C 端点，与主发送路径一致；
+                                # 复用群端点会必然报错且浪费已预留配额
+                                self.api.send_c2c_text(target_id, chunk)
+                            elif target_images or has_mention:
                                 self.api.send_group_markdown(target_id, chunk)
                             else:
                                 self.api.send_group_text(target_id, chunk)

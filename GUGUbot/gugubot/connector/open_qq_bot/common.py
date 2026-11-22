@@ -263,6 +263,7 @@ class PassiveMsgPool:
             if not entries:
                 return None
             self._prune(entries, now)
+            self._discard_if_empty(group)
             for entry in entries:
                 if entry["expire_at"] - now < require_ttl:
                     continue  # 寿命不足，留给更小的发送
@@ -283,6 +284,7 @@ class PassiveMsgPool:
                 if entry["msg_id"] == msg_id:
                     if self._seq.used(msg_id) >= PASSIVE_REPLY_MAX:
                         self._entries[group].remove(entry)
+                        self._discard_if_empty(group)
                     return
 
     def invalidate(self, group, msg_id):
@@ -291,12 +293,18 @@ class PassiveMsgPool:
             for entry in list(self._entries.get(group) or []):
                 if entry["msg_id"] == msg_id:
                     self._entries[group].remove(entry)
+                    self._discard_if_empty(group)
                     return
 
     def snapshot(self, group):
         """返回池内 msg_id 列表（最旧在前），供诊断与测试使用。"""
         with self._lock:
             return [e["msg_id"] for e in self._entries.get(group) or []]
+
+    def _discard_if_empty(self, group):
+        """组的条目已清空时移除该组键，避免 ``_entries`` 随历史群只增不减。"""
+        if not self._entries.get(group):
+            self._entries.pop(group, None)
 
     def _prune(self, entries, now):
         """移出过期或用尽的条目（原地操作，调用方持锁）。"""
