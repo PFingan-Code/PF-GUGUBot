@@ -76,6 +76,10 @@ class McMessageBuilder(BasicBuilder):
                 return RText("")
 
             player_name = _get_player_name(qq_id)
+            # 未绑定到游戏玩家的账号：优先用来源平台附带的昵称，
+            # 避免把 32 位 OpenID 之类的原始账号直接显示在游戏内
+            if player_name == qq_id and data.get("name"):
+                player_name = str(data["name"])
             # If the player name is all, do not create hover text and click event
             if player_name.strip() == "all":
                 return RText(f"[@{player_name}]", color=RColor.aqua)
