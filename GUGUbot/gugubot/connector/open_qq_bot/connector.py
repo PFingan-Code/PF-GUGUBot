@@ -6,12 +6,14 @@ GUGUBot 的 connector 管线，与 OneBot 版 QQWebSocketConnector 并行使用�
 - 入站：gateway 线程收到事件 → 去重/过滤 → ``server.schedule_task``
   交给 :class:`OpenQQBotParser` → BroadcastInfo → 既有系统管线
 - 出站：``send_message(ProcessedInfo)`` → 段数组转官方文本/Markdown
-  （含跨源前缀、颜色码剥离、@/图片转换）→ ``asyncio.to_thread`` 调 API
+  （含跨源前缀、颜色码剥离、@/图片转换）→ ``asyncio.to_thread`` 调 API；
+  同源命令回复/群消息池优先用 msg_id 被动回复，无可用锚点走主动消息
+- @ 标签仅 Markdown 通道渲染
 
 与 OneBot 版的关键差异（官方平台限制）：
-- 出站均为主动消息，受频控（单群 20 条/分钟、1000 条/天），无配额管理前
-  不适合做高流量的 MC→QQ 全量聊天同步
-- @ 标签仅 Markdown 通道渲染；被动回复有 5 分钟/5 次窗口（SeqManager 管理）
+- 主动消息受频控（单群 20 条/分钟、1000 条/天），配额由 QuotaManager 管理
+- 被动回复有 5 分钟/每条 5 次窗口（SeqManager 严格递增 msg_seq）；池用
+  5 分钟 -10 秒的保守本地窗口，过期/超次即降级主动消息
 """
 
 import asyncio
@@ -34,6 +36,7 @@ from gugubot.connector.open_qq_bot.common import (
     INTENTS,
     ApiError,
     DedupSet,
+    PassiveMsgPool,
     QuotaManager,
     at_user_tag,
     split_markdown,
@@ -194,6 +197,20 @@ class OpenQQBotConnector(BasicConnector):
             self.tokens, sandbox=self.sandbox, max_message_length=self.max_message_length
         )
         self.dedup = DedupSet()
+        # 群消息被动回复池：MC→QQ 广播优先复用最近群消息的 msg_id，
+        # 省下主动配额。本地窗口 290 秒（5 分钟 -10 秒），过期/超次即淘汰
+        self.passive_pool = None
+        pool_enabled = config.get_keys(
+            ["connector", self.SECTION, "passive_pool", "enable"], True
+        )
+        if pool_enabled:
+            try:
+                pool_size = int(config.get_keys(
+                    ["connector", self.SECTION, "passive_pool", "max_per_group"], 10
+                ))
+            except (TypeError, ValueError):
+                pool_size = 10
+            self.passive_pool = PassiveMsgPool(self.api.seq, max_per_group=pool_size)
         self.gateway = Gateway(
             gateway_url_getter=self.api.gateway_url,
             token_getter=self.tokens.get,
@@ -261,6 +278,22 @@ class OpenQQBotConnector(BasicConnector):
             f"{self.server.tr('gugubot.connector.open-qq-bot.connect_success', username=username)}"
         )
 
+    def _record_passive_anchor(self, t: str, d: dict) -> None:
+        """记录群消息 msg_id 到被动回复池（去重之后、调试命令拦截之前）。
+
+        调试命令消息也记录：其 msg_id 仍可用于被动回复，调试回复消耗的
+        一次额度由 SeqManager 统一记账，不会与池重复计数。
+        """
+        if self.passive_pool is None:
+            return
+        if t not in ("GROUP_MESSAGE_CREATE", "GROUP_AT_MESSAGE_CREATE"):
+            return
+        group = d.get("group_openid")
+        msg_id = d.get("id")
+        if not group or not msg_id:
+            return
+        self.passive_pool.record(str(group), str(msg_id))
+
     def _on_gateway_event(self, t: str, d: dict, event_id: Optional[str]) -> None:
         """网关线程回调：去重/过滤后调度到 MCDR 事件循环。"""
         if not self.enable:
@@ -288,6 +321,7 @@ class OpenQQBotConnector(BasicConnector):
             any(u.get("bot") for u in d.get("mentions") or []),
         )
         # 记录机器人自身 OpenID；拦截 /groupId /userId /botId（不进广播管线）
+        self._record_passive_anchor(t, d)
         self._learn_bot_openid(d)
         if self._try_debug_command(t, d):
             return
@@ -301,6 +335,7 @@ class OpenQQBotConnector(BasicConnector):
         if not self.enable:
             return
         d = raw.get("d") or {}
+        self._record_passive_anchor(raw.get("t"), d)
         self._learn_bot_openid(d)
         if self._try_debug_command(raw.get("t"), d):
             return
@@ -601,14 +636,17 @@ class OpenQQBotConnector(BasicConnector):
                 if target_images:
                     target_plain = f"{target_plain}\n[图片]" if target_plain else "[图片]"
                     target_images = []
-            # 被动回复锚点：仅当目标与触发消息同一会话时使用（5 分钟/5 次窗口）
+            # 被动回复锚点：优先同源事件（命令回复），其次取本群被动消息池
             anchor_id = self._reply_anchor(processed_info, target_id)
+            needed = self._chunk_count(target_type, target_plain, target_images,
+                                       has_mention)
+            pooled_anchor = None
+            if anchor_id is None and target_type == "group" and self.passive_pool:
+                anchor_id = self.passive_pool.acquire(target_id, needed)
+                pooled_anchor = anchor_id
             # 主动消息配额（官方：单群 20 条/分钟、1000 条/天、Bot 全局 30~60
             # 条/分钟）；被动回复不占配额；分片按实际 API 请求数记账
-            if anchor_id is None and not self.quota.allow_many(
-                target_id,
-                self._chunk_count(target_type, target_plain, target_images, has_mention),
-            ):
+            if anchor_id is None and not self.quota.allow_many(target_id, needed):
                 self.logger.warning(
                     f"{self.log_prefix} 主动消息配额已用尽（{target_id}: "
                     f"{self.per_minute}/分钟、{self.per_day}/天），丢弃本条"
@@ -617,7 +655,8 @@ class OpenQQBotConnector(BasicConnector):
             self._diag(
                 "%s 发送 → %s（%s，msg_id=%s）：%r",
                 self.log_prefix, target_id,
-                "被动" if anchor_id else "主动", anchor_id, target_plain[:120],
+                "被动(池)" if pooled_anchor else ("被动" if anchor_id else "主动"),
+                anchor_id, target_plain[:120],
             )
             try:
                 if target_type == "private":
@@ -627,6 +666,8 @@ class OpenQQBotConnector(BasicConnector):
                         if not (anchor_id and e.has_code(*ERR_PASSIVE_EXPIRED)):
                             raise
                         sent = True
+                        if anchor_id and self.passive_pool:
+                            self.passive_pool.invalidate(target_id, anchor_id)
                         self._send_active_fallback(target_id, target_type, target_plain, target_images)
                 elif target_images or has_mention:
                     content = self._markdown_content(target_plain, target_images)
@@ -636,6 +677,8 @@ class OpenQQBotConnector(BasicConnector):
                         if not (anchor_id and e.has_code(*ERR_PASSIVE_EXPIRED)):
                             raise
                         sent = True
+                        if anchor_id and self.passive_pool:
+                            self.passive_pool.invalidate(target_id, anchor_id)
                         # 降级传纯文本 + 图片列表，由 _send_active_fallback
                         # 统一拼装 Markdown（避免图片 URL 重复追加）
                         self._send_active_fallback(target_id, target_type, target_plain, target_images)
@@ -646,10 +689,14 @@ class OpenQQBotConnector(BasicConnector):
                         if not (anchor_id and e.has_code(*ERR_PASSIVE_EXPIRED)):
                             raise
                         sent = True
+                        if anchor_id and self.passive_pool:
+                            self.passive_pool.invalidate(target_id, anchor_id)
                         self._send_active_fallback(target_id, target_type, target_plain, target_images)
                 if sent is None and anchor_id:
                     # send_* 在一片未发出时返回 None（SeqManager 上限）而非抛错，
                     # 此时消息未发出：降级为主动消息，避免静默丢失
+                    if anchor_id and self.passive_pool:
+                        self.passive_pool.invalidate(target_id, anchor_id)
                     self.logger.info(
                         f"{self.log_prefix} 被动回复次数耗尽，降级为主动消息发送到 {target_id}"
                     )
@@ -666,6 +713,9 @@ class OpenQQBotConnector(BasicConnector):
                 self.logger.warning(
                     f"{self.log_prefix} 发送到 {target_id} 失败（{code}）：{e}"
                 )
+            finally:
+                if pooled_anchor:
+                    self.passive_pool.release(target_id, pooled_anchor, needed)
 
     def _resolve_targets(self, processed_info: ProcessedInfo) -> dict:
         """解析投递目标。

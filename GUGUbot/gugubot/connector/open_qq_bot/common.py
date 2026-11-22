@@ -1,4 +1,4 @@
-"""open-qq-bot 连接器公共工具：错误码、限流、去重、分片、@ 标签。
+"""open-qq-bot 连接器公共工具：错误码、限流、去重、分片、@ 标签、被动消息池。
 
 行为与 QQ 开放平台官方文档对齐。
 """
@@ -12,7 +12,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
-from collections import OrderedDict
+from collections import OrderedDict, deque
 from pathlib import Path
 
 logger = logging.getLogger("gugubot.open_qq_bot")
@@ -20,6 +20,10 @@ logger = logging.getLogger("gugubot.open_qq_bot")
 # 被动消息规则（消息/group-messages-post.md）：有效时间 5 分钟，每个 msg_id 最多回复 5 次
 PASSIVE_REPLY_MAX = 5
 PASSIVE_REPLY_TTL = 10 * 60  # 稍大于 5 分钟窗口，便于清理过期记录
+
+# 被动消息池：本地保守取 5 分钟 -10 秒，避免链路延迟导致发送时过期
+PASSIVE_POOL_TTL = 5 * 60 - 10
+PASSIVE_POOL_MAX_PER_GROUP = 10
 
 # 订阅事件位掩码（协议常量，固定写在代码里，不开放配置）：
 #   (1 << 25) GROUP_AND_C2C_EVENT   群聊 / 单聊消息
@@ -143,6 +147,14 @@ class SeqManager:
             self._prune()
             return seq
 
+    def used(self, msg_id):
+        """读取 msg_id 已分配（含未回退预留）的 msg_seq 数量，不分配、不清理。
+
+        被动消息池用它计算剩余回复次数，避免另记一份额度造成双重计数。
+        """
+        with self._lock:
+            return int(self._seqs.get(msg_id, 0))
+
     def release(self, msg_id, seq):
         """精确释放 msg_id 的指定 msg_seq 名额（发送失败回退用）。
 
@@ -163,6 +175,103 @@ class SeqManager:
         for k in expired:
             self._seqs.pop(k, None)
             self._seen_at.pop(k, None)
+
+
+class PassiveMsgPool:
+    """群消息 msg_id 被动回复池。
+
+    MC→QQ 广播没有同源事件 raw，原本只能走主动消息。本池记录最近收到的
+    群消息 msg_id，出站时优先复用其中可用的 msg_id 以被动回复方式发送，
+    减少主动配额消耗。
+
+    - 每群最多 ``max_per_group`` 条，超过时淘汰最旧（左端）
+    - 选**最旧且可用**的一条：过期（``expire_at <= now``）或已用完
+      （``SeqManager.used(msg_id) >= PASSIVE_REPLY_MAX``）时移出池
+    - ``pending`` 是进行中发送预留的次数，防止并发发送超额；发送结束由
+      ``release()`` 释放（异常路径由调用方 try/finally 保证）
+    - 只管理"用哪个 msg_id"，msg_seq 始终由 :class:`SeqManager` 分配
+    """
+
+    def __init__(self, seq_manager, ttl=PASSIVE_POOL_TTL,
+                 max_per_group=PASSIVE_POOL_MAX_PER_GROUP):
+        self._seq = seq_manager
+        self.ttl = max(1, int(ttl))
+        self.max_per_group = max(1, int(max_per_group))
+        self._entries = {}  # group_openid -> deque([{msg_id, expire_at, pending}])
+        self._lock = threading.Lock()
+
+    def record(self, group, msg_id, now=None):
+        """登记一条群消息 msg_id（幂等），记录其过期时刻。"""
+        if not group or not msg_id:
+            return
+        now = time.time() if now is None else now
+        with self._lock:
+            entries = self._entries.setdefault(group, deque())
+            self._prune(entries, now)
+            if any(e["msg_id"] == msg_id for e in entries):
+                return
+            entries.append({
+                "msg_id": msg_id,
+                "expire_at": now + self.ttl,
+                "pending": 0,
+            })
+            while len(entries) > self.max_per_group:
+                entries.popleft()
+
+    def acquire(self, group, needed, now=None):
+        """取最旧的可用 msg_id，并为本次发送预留 ``needed`` 次回复额度。
+
+        Returns
+        -------
+        str or None
+            可用的 msg_id；池为空、全部过期/用尽或余额不足时返回 None。
+        """
+        needed = max(1, int(needed))
+        now = time.time() if now is None else now
+        with self._lock:
+            entries = self._entries.get(group)
+            if not entries:
+                return None
+            self._prune(entries, now)
+            for entry in entries:
+                remaining = PASSIVE_REPLY_MAX - self._seq.used(entry["msg_id"]) \
+                    - entry["pending"]
+                if remaining >= needed:
+                    entry["pending"] += needed
+                    return entry["msg_id"]
+            return None
+
+    def release(self, group, msg_id, needed):
+        """释放预留；若该 msg_id 额度已用尽则移出池。"""
+        needed = max(1, int(needed))
+        with self._lock:
+            for entry in list(self._entries.get(group) or []):
+                if entry["msg_id"] == msg_id:
+                    entry["pending"] = max(0, entry["pending"] - needed)
+                    if self._seq.used(msg_id) >= PASSIVE_REPLY_MAX:
+                        self._entries[group].remove(entry)
+                    return
+
+    def invalidate(self, group, msg_id):
+        """被动回复过期/超次：立即把该 msg_id 移出池。"""
+        with self._lock:
+            for entry in list(self._entries.get(group) or []):
+                if entry["msg_id"] == msg_id:
+                    self._entries[group].remove(entry)
+                    return
+
+    def snapshot(self, group):
+        """返回池内 msg_id 列表（最旧在前），供诊断与测试使用。"""
+        with self._lock:
+            return [e["msg_id"] for e in self._entries.get(group) or []]
+
+    def _prune(self, entries, now):
+        """移出过期或用尽的条目（原地操作，调用方持锁）。"""
+        for entry in list(entries):
+            expired = entry["expire_at"] <= now
+            exhausted = self._seq.used(entry["msg_id"]) >= PASSIVE_REPLY_MAX
+            if expired or exhausted:
+                entries.remove(entry)
 
 
 class DedupSet:

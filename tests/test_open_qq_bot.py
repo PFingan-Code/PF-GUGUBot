@@ -56,7 +56,9 @@ try:
     from gugubot.connector.open_qq_bot.common import (
         INTENTS,
         ApiError,
+        PassiveMsgPool,
         QuotaManager,
+        SeqManager,
         split_markdown,
         split_message,
     )
@@ -740,6 +742,171 @@ class TestOutbound(unittest.IsolatedAsyncioTestCase):
         kind, _, content, _ = self.api.sent[0]
         self.assertEqual(kind, "markdown")
         self.assertIn("![图片](https://i.example/x.png)", content)
+
+
+class TestPassiveMsgPool(unittest.IsolatedAsyncioTestCase):
+    """群 msg_id 被动回复池：入站登记、最旧优先、额度/过期、出站优先与降级。"""
+
+    def setUp(self):
+        self.conn = build_connector()
+        FakeServer.scheduled.clear()
+        # 保留真实 SeqManager（池按它计算剩余额度），仅把 HTTP 层换成记录桩
+        self._seq = self.conn.api.seq
+        fake = FakeApi()
+        fake.seq = self._seq
+        self.conn.api = fake
+
+    class SeqAwareApi(FakeApi):
+        """模拟真实 api_client 的被动回复 seq 分配（含耗尽返回 None）。"""
+
+        def send_group_text(self, g, c, msg_id=None, event_id=None, reference=None):
+            if msg_id and self.seq.allocate(msg_id) is None:
+                return None
+            return super().send_group_text(g, c, msg_id, event_id, reference)
+
+    @staticmethod
+    def _mc_to_group(text="hi"):
+        p = ProcessedInfo(
+            processed_message=[{"type": "text", "data": {"text": text}}],
+            _source=Source("Minecraft"), source_id="mc", sender="Steve",
+        )
+        p.target = {GROUP_OID: "group"}
+        return p
+
+    def test_inbound_group_event_records_msg_id(self):
+        self.conn._on_gateway_event(
+            "GROUP_MESSAGE_CREATE", group_event(msg_id="ANCHOR")["d"], None)
+        self.assertEqual(self.conn.passive_pool.snapshot(GROUP_OID), ["ANCHOR"])
+        drain_scheduled(run=False)
+
+    def test_inbound_c2c_not_recorded(self):
+        self.conn._on_gateway_event("C2C_MESSAGE_CREATE", {
+            "id": "C1", "author": {"user_openid": USER_OID, "id": USER_OID},
+            "content": "hi",
+        }, None)
+        self.assertEqual(self.conn.passive_pool.snapshot(GROUP_OID), [])
+        drain_scheduled(run=False)
+
+    def test_cap_evicts_oldest_and_acquire_oldest_first(self):
+        pool = PassiveMsgPool(SeqManager())
+        for i in range(10):
+            pool.record(GROUP_OID, f"M{i}", now=1000 + i)
+        self.assertEqual(pool.snapshot(GROUP_OID), [f"M{i}" for i in range(10)])
+        pool.record(GROUP_OID, "M10", now=1010)
+        self.assertEqual(len(pool.snapshot(GROUP_OID)), 10)
+        self.assertEqual(pool.snapshot(GROUP_OID)[0], "M1")
+        self.assertEqual(pool.acquire(GROUP_OID, 1, now=1010), "M1")
+
+    def test_expired_entries_removed_at_send_time(self):
+        pool = PassiveMsgPool(SeqManager())
+        pool.record(GROUP_OID, "OLD", now=0)       # expire_at = 290
+        pool.record(GROUP_OID, "NEW", now=1000)
+        self.assertEqual(pool.acquire(GROUP_OID, 1, now=1000), "NEW")
+        self.assertEqual(pool.snapshot(GROUP_OID), ["NEW"])
+        self.assertIsNone(pool.acquire(GROUP_OID, 1, now=1300))
+        self.assertEqual(pool.snapshot(GROUP_OID), [])
+
+    def test_exhausted_removed_and_insufficient_skipped(self):
+        seq = SeqManager()
+        pool = PassiveMsgPool(seq)
+        for _ in range(5):
+            seq.allocate("M0")
+        pool.record(GROUP_OID, "M0", now=1000)
+        pool.record(GROUP_OID, "M1", now=1001)
+        # 已用完的 M0 登记时即被清理
+        self.assertEqual(pool.snapshot(GROUP_OID), ["M1"])
+        for _ in range(4):
+            seq.allocate("M1")
+        pool.record(GROUP_OID, "M2", now=1002)
+        # M1 只剩 1 次，本次需要 2 次 → 跳过但保留给更小的消息
+        self.assertEqual(pool.acquire(GROUP_OID, 2, now=1002), "M2")
+        self.assertEqual(pool.snapshot(GROUP_OID), ["M1", "M2"])
+
+    def test_pending_reservations_prevent_oversubscribe(self):
+        pool = PassiveMsgPool(SeqManager())
+        pool.record(GROUP_OID, "M0", now=1000)
+        self.assertEqual(pool.acquire(GROUP_OID, 3, now=1000), "M0")
+        self.assertIsNone(pool.acquire(GROUP_OID, 3, now=1000))
+        pool.release(GROUP_OID, "M0", 3)
+        self.assertEqual(pool.acquire(GROUP_OID, 3, now=1000), "M0")
+
+    async def test_mc_broadcast_uses_pool_without_active_quota(self):
+        api = self.SeqAwareApi()
+        api.seq = self._seq
+        self.conn.api = api
+        self.conn._on_gateway_event(
+            "GROUP_MESSAGE_CREATE", group_event(msg_id="ANCHOR")["d"], None)
+        drain_scheduled(run=False)
+        await self.conn.send_message(self._mc_to_group())
+        kind, group, _, msg_id = self.conn.api.sent[0]
+        self.assertEqual((kind, group, msg_id), ("text", GROUP_OID, "ANCHOR"))
+        self.assertEqual(self.conn.api.seq.used("ANCHOR"), 1)
+        self.assertNotIn(GROUP_OID, self.conn.quota._state)
+
+    async def test_pool_empty_uses_active_message(self):
+        await self.conn.send_message(self._mc_to_group())
+        self.assertIsNone(self.conn.api.sent[0][3])
+        self.assertIn(GROUP_OID, self.conn.quota._state)
+
+    async def test_seq_increments_then_exhausted_falls_back_active(self):
+        api = self.SeqAwareApi()
+        api.seq = self._seq
+        self.conn.api = api
+        self.conn.passive_pool.record(GROUP_OID, "ANCHOR")
+        for i in range(5):
+            await self.conn.send_message(self._mc_to_group(f"m{i}"))
+        self.assertEqual(self.conn.api.seq.used("ANCHOR"), 5)
+        self.assertEqual([s[3] for s in self.conn.api.sent], ["ANCHOR"] * 5)
+        self.assertEqual(self.conn.passive_pool.snapshot(GROUP_OID), [])
+        await self.conn.send_message(self._mc_to_group("m5"))
+        self.assertIsNone(self.conn.api.sent[-1][3])
+
+    async def test_passive_expiry_invalidates_and_falls_back_active(self):
+        class ExpiringApi(FakeApi):
+            def send_group_text(self, g, c, msg_id=None, event_id=None, reference=None):
+                if msg_id:
+                    raise ApiError("POST", "u", 400, "expired", err_code=40034005)
+                return super().send_group_text(g, c, msg_id, event_id, reference)
+
+        api = ExpiringApi()
+        api.seq = self._seq
+        self.conn.api = api
+        self.conn.passive_pool.record(GROUP_OID, "ANCHOR")
+        await self.conn.send_message(self._mc_to_group())
+        self.assertEqual(self.conn.passive_pool.snapshot(GROUP_OID), [])
+        self.assertEqual([s[3] for s in self.conn.api.sent], [None])
+
+    async def test_seq_exhaustion_invalidates_and_falls_back_active(self):
+        class ExhaustedApi(FakeApi):
+            def send_group_text(self, g, c, msg_id=None, event_id=None, reference=None):
+                if msg_id:
+                    return None
+                return super().send_group_text(g, c, msg_id, event_id, reference)
+
+        api = ExhaustedApi()
+        api.seq = self._seq
+        self.conn.api = api
+        self.conn.passive_pool.record(GROUP_OID, "ANCHOR")
+        await self.conn.send_message(self._mc_to_group())
+        self.assertEqual(self.conn.passive_pool.snapshot(GROUP_OID), [])
+        self.assertEqual([s[3] for s in self.conn.api.sent], [None])
+
+    def test_debug_reply_shares_seq_budget(self):
+        self.conn.passive_pool.record(GROUP_OID, "ANCHOR")
+        self.conn.api.seq.allocate("ANCHOR")  # 调试回复消耗一次（api_client 记账）
+        self.assertEqual(self.conn.api.seq.used("ANCHOR"), 1)
+        self.assertIsNone(self.conn.passive_pool.acquire(GROUP_OID, 5))
+        self.assertEqual(self.conn.passive_pool.acquire(GROUP_OID, 4), "ANCHOR")
+
+    async def test_pool_disabled_uses_active_message(self):
+        conn = build_connector(default_config(passive_pool={"enable": False}))
+        conn.api = FakeApi()
+        conn._on_gateway_event(
+            "GROUP_MESSAGE_CREATE", group_event(msg_id="ANCHOR")["d"], None)
+        drain_scheduled(run=False)
+        self.assertIsNone(conn.passive_pool)
+        await conn.send_message(self._mc_to_group())
+        self.assertIsNone(conn.api.sent[0][3])
 
 
 class TestEventEntry(unittest.TestCase):
