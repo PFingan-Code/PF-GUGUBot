@@ -200,7 +200,7 @@ class ApiClient:
         return seq
 
     def send_group_text(self, group_openid, content, msg_id=None,
-                        event_id=None, reference=None):
+                        event_id=None, reference=None, seqs=None):
         """发送群文本（自动分片，片间随机 0.5~1.5s 限速）。
 
         返回最后一个成功响应（含消息 id，可记录用于「撤回」）；
@@ -215,6 +215,11 @@ class ApiClient:
         reference : str, optional
             引用回复的 message_id（来自入站事件 message_scene.ext 的 msg_idx），
             仅随第一片发送。
+        seqs : list[int], optional
+            :meth:`SeqManager.reserve` 预分配的整块 msg_seq（被动消息池
+            路径），按序消费，替代逐片 allocate——预留即占用，并发发送
+            不再重复计数或被抢占。此时失败回退由调用方负责，本方法不做
+            基 seq 回退。
         """
         chunks = split_message(content, self.max_message_length)
         last_resp = None
@@ -224,7 +229,15 @@ class ApiClient:
                 body["message_reference"] = {"message_id": reference}
             base_seq = None  # 本片基 seq：由 send_* 管理，_post_* 只管重试 seq
             if msg_id:
-                base_seq = self._alloc_passive(body, msg_id)
+                if seqs is not None:
+                    if i >= len(seqs):
+                        base_seq = None  # 分片数超出预留：按名额耗尽处理
+                    else:
+                        base_seq = seqs[i]
+                        body["msg_id"] = msg_id
+                        body["msg_seq"] = base_seq
+                else:
+                    base_seq = self._alloc_passive(body, msg_id)
                 if base_seq is None:
                     self.logger.warning("分片 %s/%s 因被动回复次数耗尽未发送",
                                         i + 1, len(chunks))
@@ -246,7 +259,9 @@ class ApiClient:
                 return None  # 一片未发：调用方可整体降级为主动消息
             except ApiError as e:
                 # 非 duplicate 失败：本片基 seq 未被服务端接受，精确回退防泄漏
-                self._release_seqs(msg_id, [base_seq])
+                # （seqs 预留块的回退归调用方，见 seqs 参数说明）
+                if seqs is None:
+                    self._release_seqs(msg_id, [base_seq])
                 if i > 0:
                     raise PartialDelivery(i, len(chunks) - i) from e
                 raise
@@ -254,12 +269,14 @@ class ApiClient:
                 time.sleep(random_send_delay())
         return last_resp
 
-    def send_group_markdown(self, group_openid, content, msg_id=None, reference=None):
+    def send_group_markdown(self, group_openid, content, msg_id=None, reference=None,
+                            seqs=None):
         """msg_type=2 自定义 Markdown（群聊已开放全部机器人，无需申请模板）。
 
         @ 标签（<qqbot-at-user/> 等）仅在此通道渲染。超长内容自动分片，
         分片边界不切断 @ 标签 / 图片 / URL。返回值与部分失败语义同
-        :meth:`send_group_text`。
+        :meth:`send_group_text`；``seqs`` 参数语义亦同（被动消息池的
+        预分配整块 msg_seq，按序消费、失败回退归调用方）。
         可能的错误：304036/40034127=无 Markdown 权限；40034124=参数错误。
         """
         chunks = split_markdown(content, self.max_message_length)
@@ -270,7 +287,15 @@ class ApiClient:
                 body["message_reference"] = {"message_id": reference}
             base_seq = None  # 本片基 seq：由 send_* 管理，_post_* 只管重试 seq
             if msg_id:
-                base_seq = self._alloc_passive(body, msg_id)
+                if seqs is not None:
+                    if i >= len(seqs):
+                        base_seq = None  # 分片数超出预留：按名额耗尽处理
+                    else:
+                        base_seq = seqs[i]
+                        body["msg_id"] = msg_id
+                        body["msg_seq"] = base_seq
+                else:
+                    base_seq = self._alloc_passive(body, msg_id)
                 if base_seq is None:
                     self.logger.warning("分片 %s/%s 因被动回复次数耗尽未发送",
                                         i + 1, len(chunks))
@@ -289,7 +314,9 @@ class ApiClient:
                 return None
             except ApiError as e:
                 # 非 duplicate 失败：本片基 seq 未被服务端接受，精确回退防泄漏
-                self._release_seqs(msg_id, [base_seq])
+                # （seqs 预留块的回退归调用方，见 seqs 参数说明）
+                if seqs is None:
+                    self._release_seqs(msg_id, [base_seq])
                 if i > 0:
                     raise PartialDelivery(i, len(chunks) - i) from e
                 raise

@@ -20,6 +20,10 @@ logger = logging.getLogger("gugubot.open_qq_bot")
 # 被动消息规则（消息/group-messages-post.md）：有效时间 5 分钟，每个 msg_id 最多回复 5 次
 PASSIVE_REPLY_MAX = 5
 PASSIVE_REPLY_TTL = 10 * 60  # 稍大于 5 分钟窗口，便于清理过期记录
+# 锚点寿命门槛估算：单片发送耗时上界（片间限速 0.5~1.5s + HTTP 往返）
+# 与链路抖动余量，见 PassiveMsgPool.acquire
+PASSIVE_CHUNK_SECONDS = 2.0
+PASSIVE_CHUNK_SLACK = 5.0
 
 # 被动消息池：本地保守取 5 分钟 -10 秒，避免链路延迟导致发送时过期
 PASSIVE_POOL_TTL = 5 * 60 - 10
@@ -155,6 +159,24 @@ class SeqManager:
         with self._lock:
             return int(self._seqs.get(msg_id, 0))
 
+    def reserve(self, msg_id, count):
+        """为 msg_id 原子预留 ``count`` 个连续 msg_seq；不足时返回 None。
+
+        预留即分配：返回的升序 seq 列表已计入 :meth:`used`，其他回复
+        路径（:meth:`allocate` / 去重重试）只能使用剩余名额——一次获取
+        的整块名额不会被并发发送抢占，也不再与已分配部分重复计数。
+        调用方按序消费即可，失败不回退（被动窗口仅 5 次/5 分钟，回退
+        收益低且需维护栈顶一致性，见 :meth:`release` 的约束）。
+        """
+        with self._lock:
+            used = int(self._seqs.get(msg_id, 0))
+            if PASSIVE_REPLY_MAX - used < count:
+                return None
+            self._seqs[msg_id] = used + count
+            self._seen_at[msg_id] = time.time()
+            self._prune()
+            return list(range(used + 1, used + count + 1))
+
     def release(self, msg_id, seq):
         """精确释放 msg_id 的指定 msg_seq 名额（发送失败回退用）。
 
@@ -186,10 +208,12 @@ class PassiveMsgPool:
 
     - 每群最多 ``max_per_group`` 条，超过时淘汰最旧（左端）
     - 选**最旧且可用**的一条：过期（``expire_at <= now``）或已用完
-      （``SeqManager.used(msg_id) >= PASSIVE_REPLY_MAX``）时移出池
-    - ``pending`` 是进行中发送预留的次数，防止并发发送超额；发送结束由
-      ``release()`` 释放（异常路径由调用方 try/finally 保证）
-    - 只管理"用哪个 msg_id"，msg_seq 始终由 :class:`SeqManager` 分配
+      （``SeqManager.used(msg_id) >= PASSIVE_REPLY_MAX``）时移出池；
+      剩余寿命不足以发完全部分片的锚点跳过（见 ``acquire``）
+    - 额度通过 :meth:`SeqManager.reserve` 原子预留：预留即分配、计入
+      ``used``，对同源回复/去重重试具约束力，也不与已分配部分重复计数；
+      失败不回退（5 次/5 分钟的小窗口内，回退收益低于栈顶一致性成本）
+    - 只管理"用哪个 msg_id 及其整块名额"，发送时由调用方按序消费
     """
 
     def __init__(self, seq_manager, ttl=PASSIVE_POOL_TTL,
@@ -197,7 +221,7 @@ class PassiveMsgPool:
         self._seq = seq_manager
         self.ttl = max(1, int(ttl))
         self.max_per_group = max(1, int(max_per_group))
-        self._entries = {}  # group_openid -> deque([{msg_id, expire_at, pending}])
+        self._entries = {}  # group_openid -> deque([{msg_id, expire_at}])
         self._lock = threading.Lock()
 
     def record(self, group, msg_id, now=None):
@@ -213,41 +237,50 @@ class PassiveMsgPool:
             entries.append({
                 "msg_id": msg_id,
                 "expire_at": now + self.ttl,
-                "pending": 0,
             })
             while len(entries) > self.max_per_group:
                 entries.popleft()
 
     def acquire(self, group, needed, now=None):
-        """取最旧的可用 msg_id，并为本次发送预留 ``needed`` 次回复额度。
+        """取最旧可用的 msg_id，并原子预留 ``needed`` 个 msg_seq。
+
+        除过期/用尽外，剩余寿命不足以覆盖分片计划耗时（片间限速 +
+        链路余量，见 :data:`PASSIVE_CHUNK_SLACK`）的锚点也会跳过，
+        避免发送中途跨过 5 分钟被动窗口导致尾部分片失效。
 
         Returns
         -------
-        str or None
-            可用的 msg_id；池为空、全部过期/用尽或余额不足时返回 None。
+        tuple(str, list[int]) or None
+            ``(msg_id, seqs)``；池为空、全部过期/用尽/寿命不足或余额
+            不足时返回 None。
         """
         needed = max(1, int(needed))
         now = time.time() if now is None else now
+        require_ttl = PASSIVE_CHUNK_SLACK \
+            + PASSIVE_CHUNK_SECONDS * max(0, needed - 1)
         with self._lock:
             entries = self._entries.get(group)
             if not entries:
                 return None
             self._prune(entries, now)
             for entry in entries:
-                remaining = PASSIVE_REPLY_MAX - self._seq.used(entry["msg_id"]) \
-                    - entry["pending"]
-                if remaining >= needed:
-                    entry["pending"] += needed
-                    return entry["msg_id"]
+                if entry["expire_at"] - now < require_ttl:
+                    continue  # 寿命不足，留给更小的发送
+                seqs = self._seq.reserve(entry["msg_id"], needed)
+                if seqs is None:
+                    continue  # 与其他回复路径竞争落败，试下一条
+                return entry["msg_id"], seqs
             return None
 
-    def release(self, group, msg_id, needed):
-        """释放预留；若该 msg_id 额度已用尽则移出池。"""
-        needed = max(1, int(needed))
+    def release(self, group, msg_id):
+        """发送结束的池清理：额度已用尽时立即移出该条目。
+
+        预留块不回退（见类文档）；本方法只做及时淘汰，正常的过期/用尽
+        淘汰仍由 :meth:`_prune` 兜底。
+        """
         with self._lock:
             for entry in list(self._entries.get(group) or []):
                 if entry["msg_id"] == msg_id:
-                    entry["pending"] = max(0, entry["pending"] - needed)
                     if self._seq.used(msg_id) >= PASSIVE_REPLY_MAX:
                         self._entries[group].remove(entry)
                     return

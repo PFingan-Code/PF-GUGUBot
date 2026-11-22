@@ -586,20 +586,28 @@ class OpenQQBotConnector(BasicConnector):
             content += "\n\n" + "\n\n".join(f"![图片]({url})" for url in images)
         return content
 
+    def _plan_chunks(self, target_type: str, plain: str, images: list,
+                     has_mention: bool = False) -> list:
+        """按 ApiClient 相同规则切分出实际分片列表。
+
+        与 :meth:`ApiClient.send_group_text` / ``send_group_markdown``
+        的分片逻辑严格一致，供分片数预估与后缀补发复用。
+        """
+        if target_type == "private" or not (images or has_mention):
+            return split_message(plain or "", self.max_message_length)
+        return split_markdown(
+            self._markdown_content(plain or "", images or []),
+            self.max_message_length,
+        )
+
     def _chunk_count(self, target_type: str, plain: str, images: list,
                      has_mention: bool = False) -> int:
         """预估本次发送将产生的 API 分片数（与 ApiClient 分片逻辑一致）。
 
         供主动消息配额按实际请求数记账（一次分片发送 ≠ 一个 API 请求）。
         """
-        if target_type == "private":
-            return max(1, len(split_message(plain or "", self.max_message_length)))
-        if images or has_mention:
-            return max(1, len(split_markdown(
-                self._markdown_content(plain or "", images or []),
-                self.max_message_length,
-            )))
-        return max(1, len(split_message(plain or "", self.max_message_length)))
+        return max(1, len(self._plan_chunks(target_type, plain, images,
+                                            has_mention)))
 
     def _send_sync(self, processed_info: ProcessedInfo) -> None:
         """阻塞发送实现（由 send_message 通过 asyncio.to_thread 调用）。"""
@@ -636,14 +644,19 @@ class OpenQQBotConnector(BasicConnector):
                 if target_images:
                     target_plain = f"{target_plain}\n[图片]" if target_plain else "[图片]"
                     target_images = []
-            # 被动回复锚点：优先同源事件（命令回复），其次取本群被动消息池
+            # 被动回复锚点：优先同源事件（命令回复），其次取本群被动消息池。
+            # 池路径一次性原子预留整块 msg_seq（预留即分配，对其他回复路径
+            # 具约束力，也不与已分配部分重复计数）
             anchor_id = self._reply_anchor(processed_info, target_id)
             needed = self._chunk_count(target_type, target_plain, target_images,
                                        has_mention)
             pooled_anchor = None
+            pooled_seqs = None
             if anchor_id is None and target_type == "group" and self.passive_pool:
-                anchor_id = self.passive_pool.acquire(target_id, needed)
-                pooled_anchor = anchor_id
+                pooled = self.passive_pool.acquire(target_id, needed)
+                if pooled:
+                    anchor_id, pooled_seqs = pooled
+                    pooled_anchor = anchor_id
             # 主动消息配额（官方：单群 20 条/分钟、1000 条/天、Bot 全局 30~60
             # 条/分钟）；被动回复不占配额；分片按实际 API 请求数记账
             if anchor_id is None and not self.quota.allow_many(target_id, needed):
@@ -672,7 +685,9 @@ class OpenQQBotConnector(BasicConnector):
                 elif target_images or has_mention:
                     content = self._markdown_content(target_plain, target_images)
                     try:
-                        sent = self.api.send_group_markdown(target_id, content, msg_id=anchor_id)
+                        sent = self.api.send_group_markdown(target_id, content,
+                                                            msg_id=anchor_id,
+                                                            seqs=pooled_seqs)
                     except ApiError as e:
                         if not (anchor_id and e.has_code(*ERR_PASSIVE_EXPIRED)):
                             raise
@@ -684,7 +699,9 @@ class OpenQQBotConnector(BasicConnector):
                         self._send_active_fallback(target_id, target_type, target_plain, target_images)
                 else:
                     try:
-                        sent = self.api.send_group_text(target_id, target_plain, msg_id=anchor_id)
+                        sent = self.api.send_group_text(target_id, target_plain,
+                                                        msg_id=anchor_id,
+                                                        seqs=pooled_seqs)
                     except ApiError as e:
                         if not (anchor_id and e.has_code(*ERR_PASSIVE_EXPIRED)):
                             raise
@@ -703,11 +720,37 @@ class OpenQQBotConnector(BasicConnector):
                     self._send_active_fallback(target_id, target_type, target_plain, target_images)
                 self._diag("%s 发送成功 → %s", self.log_prefix, target_id)
             except PartialDelivery as e:
-                # 分片部分送达：整体降级重发会重复已送达内容，显式告警部分丢失
+                # 分片部分送达：整体降级重发会重复已送达内容；仅当失败原因
+                # 是被动锚点中途失效（ERR_PASSIVE_EXPIRED）时，未发送尾部
+                # 尚未送达，按主动消息补发后缀（配额允许时）
+                cause = e.__cause__
+                expired = isinstance(cause, ApiError) \
+                    and cause.has_code(*ERR_PASSIVE_EXPIRED)
+                if expired and anchor_id and self.passive_pool:
+                    self.passive_pool.invalidate(target_id, anchor_id)
                 self.logger.warning(
                     f"{self.log_prefix} 发送到 {target_id} 部分送达："
-                    f"{e.sent} 片成功，{e.remaining} 片未发出，剩余内容已丢弃"
+                    f"{e.sent} 片成功，{e.remaining} 片未发出"
+                    + ("（被动锚点失效）" if expired else "，剩余内容已丢弃")
                 )
+                if expired and self.quota.allow_many(target_id, e.remaining):
+                    chunks = self._plan_chunks(target_type, target_plain,
+                                               target_images, has_mention)
+                    suffix = chunks[e.sent:]
+                    self.logger.info(
+                        f"{self.log_prefix} 被动锚点中途失效，剩余 {len(suffix)} 片"
+                        f"转主动消息补发到 {target_id}"
+                    )
+                    for chunk in suffix:
+                        if target_images or has_mention:
+                            self.api.send_group_markdown(target_id, chunk)
+                        else:
+                            self.api.send_group_text(target_id, chunk)
+                elif expired:
+                    self.logger.warning(
+                        f"{self.log_prefix} 主动消息配额不足（{target_id}），"
+                        f"剩余 {e.remaining} 片丢弃"
+                    )
             except Exception as e:
                 code = getattr(e, "err_code", None) or getattr(e, "api_code", "?")
                 self.logger.warning(
@@ -715,7 +758,8 @@ class OpenQQBotConnector(BasicConnector):
                 )
             finally:
                 if pooled_anchor:
-                    self.passive_pool.release(target_id, pooled_anchor, needed)
+                    # 预留块不回退（见 PassiveMsgPool）；仅及时淘汰已用尽条目
+                    self.passive_pool.release(target_id, pooled_anchor)
 
     def _resolve_targets(self, processed_info: ProcessedInfo) -> dict:
         """解析投递目标。

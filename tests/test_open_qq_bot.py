@@ -190,11 +190,12 @@ class FakeApi:
     def __init__(self):
         self.sent = []
 
-    def send_group_text(self, g, c, msg_id=None, event_id=None, reference=None):
+    def send_group_text(self, g, c, msg_id=None, event_id=None, reference=None,
+                        seqs=None):
         self.sent.append(("text", g, c, msg_id))
         return {"id": "RID"}
 
-    def send_group_markdown(self, g, c, msg_id=None, reference=None):
+    def send_group_markdown(self, g, c, msg_id=None, reference=None, seqs=None):
         self.sent.append(("markdown", g, c, msg_id))
         return {"id": "RID"}
 
@@ -595,7 +596,7 @@ class TestOutbound(unittest.IsolatedAsyncioTestCase):
 
     def test_passive_expired_falls_back_to_active(self):
 
-        def failing_send(g, c, msg_id=None, event_id=None, reference=None):
+        def failing_send(g, c, msg_id=None, event_id=None, reference=None, seqs=None):
             if msg_id:  # 带锚点（被动）时模拟窗口失效
                 raise ApiError("POST", "u", 400, '{"err_code":40034005}', 40034005)
             self.api.sent.append(("text", g, c, msg_id))
@@ -610,10 +611,11 @@ class TestOutbound(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(self.api.sent), 1)  # 降级为主动消息成功
         self.assertIsNone(self.api.sent[0][3])
 
-    def test_midchunk_passive_expiry_no_duplicate_resend(self):
-        """N1（端到端）：分片中途被动过期 → 仅告警，不整体降级重发已送达片。"""
+    def test_midchunk_passive_expiry_resends_suffix_actively(self):
+        """N1（端到端）：分片中途被动过期 → 已送达片不重复，剩余片转主动补发。"""
         client = ApiClient(TokenManager("a", "b"))
         client.max_message_length = 10
+        self.conn.max_message_length = 10  # 与 ApiClient 保持同源分片长度（生产构造即一致）
         passive, active = [], []
 
         def fake_call(method, path, body=None, timeout=10):
@@ -622,7 +624,7 @@ class TestOutbound(unittest.IsolatedAsyncioTestCase):
                     passive.append(body["content"])
                     return {"id": "R"}
                 raise ApiError("POST", "u", 400, '{"err_code":40034005}', 40034005)
-            active.append(body["content"])  # 主动降级（不应发生）
+            active.append(body["content"])  # 主动通道：未送达后缀补发
             return {"id": "R"}
 
         client._call = fake_call
@@ -634,12 +636,12 @@ class TestOutbound(unittest.IsolatedAsyncioTestCase):
         )
         p.target = {GROUP_OID: "group"}
         asyncio.run(self.conn.send_message(p))
-        self.assertEqual(passive, ["A" * 10])  # 仅首片送达
-        self.assertEqual(active, [])  # 中途失败抛 PartialDelivery，无整体重发
+        self.assertEqual(passive, ["A" * 10])  # 仅首片走被动
+        self.assertEqual(active, ["A" * 10, "A" * 10])  # 后缀主动补发
 
     def test_passive_exhausted_falls_back_to_active(self):
         """SeqManager 次数耗尽时 send_* 返回 None 而非抛错：必须降级，不得静默丢弃。"""
-        def exhausted_send(g, c, msg_id=None, event_id=None, reference=None):
+        def exhausted_send(g, c, msg_id=None, event_id=None, reference=None, seqs=None):
             if msg_id:
                 return None  # 被动回复次数耗尽（5 次上限）
             self.api.sent.append(("text", g, c, msg_id))
@@ -657,7 +659,7 @@ class TestOutbound(unittest.IsolatedAsyncioTestCase):
     def test_passive_expired_markdown_fallback_no_duplicate_images(self):
         """M-1：Markdown 被动回复过期降级时，图片 URL 不得重复追加。"""
 
-        def failing_markdown(g, c, msg_id=None, reference=None):
+        def failing_markdown(g, c, msg_id=None, reference=None, seqs=None):
             if msg_id:  # 带锚点（被动）时模拟窗口失效
                 raise ApiError("POST", "u", 400, '{"err_code":40034005}', 40034005)
             self.api.sent.append(("markdown", g, c, msg_id))
@@ -759,8 +761,10 @@ class TestPassiveMsgPool(unittest.IsolatedAsyncioTestCase):
     class SeqAwareApi(FakeApi):
         """模拟真实 api_client 的被动回复 seq 分配（含耗尽返回 None）。"""
 
-        def send_group_text(self, g, c, msg_id=None, event_id=None, reference=None):
-            if msg_id and self.seq.allocate(msg_id) is None:
+        def send_group_text(self, g, c, msg_id=None, event_id=None, reference=None,
+                            seqs=None):
+            # 池路径的整块名额已由 SeqManager.reserve 预分配，不再 allocate
+            if msg_id and seqs is None and self.seq.allocate(msg_id) is None:
                 return None
             return super().send_group_text(g, c, msg_id, event_id, reference)
 
@@ -795,13 +799,13 @@ class TestPassiveMsgPool(unittest.IsolatedAsyncioTestCase):
         pool.record(GROUP_OID, "M10", now=1010)
         self.assertEqual(len(pool.snapshot(GROUP_OID)), 10)
         self.assertEqual(pool.snapshot(GROUP_OID)[0], "M1")
-        self.assertEqual(pool.acquire(GROUP_OID, 1, now=1010), "M1")
+        self.assertEqual(pool.acquire(GROUP_OID, 1, now=1010), ("M1", [1]))
 
     def test_expired_entries_removed_at_send_time(self):
         pool = PassiveMsgPool(SeqManager())
         pool.record(GROUP_OID, "OLD", now=0)       # expire_at = 290
         pool.record(GROUP_OID, "NEW", now=1000)
-        self.assertEqual(pool.acquire(GROUP_OID, 1, now=1000), "NEW")
+        self.assertEqual(pool.acquire(GROUP_OID, 1, now=1000)[0], "NEW")
         self.assertEqual(pool.snapshot(GROUP_OID), ["NEW"])
         self.assertIsNone(pool.acquire(GROUP_OID, 1, now=1300))
         self.assertEqual(pool.snapshot(GROUP_OID), [])
@@ -819,16 +823,63 @@ class TestPassiveMsgPool(unittest.IsolatedAsyncioTestCase):
             seq.allocate("M1")
         pool.record(GROUP_OID, "M2", now=1002)
         # M1 只剩 1 次，本次需要 2 次 → 跳过但保留给更小的消息
-        self.assertEqual(pool.acquire(GROUP_OID, 2, now=1002), "M2")
+        self.assertEqual(pool.acquire(GROUP_OID, 2, now=1002), ("M2", [1, 2]))
         self.assertEqual(pool.snapshot(GROUP_OID), ["M1", "M2"])
 
-    def test_pending_reservations_prevent_oversubscribe(self):
-        pool = PassiveMsgPool(SeqManager())
+    def test_reservation_is_atomic_allocation_not_double_counted(self):
+        """评审修复 #1：预留即分配，并发获取按 used 精确看到剩余名额。
+
+        旧实现把「已分配（used）」与「池内预留（pending）」同时扣除：
+        两片发送预留并分配 2 个 seq 后，第二个两片发送本应看到 3 个剩余
+        名额，实际只看到 1 个而误降级走主动配额。
+        """
+        seq = SeqManager()
+        pool = PassiveMsgPool(seq)
         pool.record(GROUP_OID, "M0", now=1000)
-        self.assertEqual(pool.acquire(GROUP_OID, 3, now=1000), "M0")
-        self.assertIsNone(pool.acquire(GROUP_OID, 3, now=1000))
-        pool.release(GROUP_OID, "M0", 3)
-        self.assertEqual(pool.acquire(GROUP_OID, 3, now=1000), "M0")
+        msg_id, seqs = pool.acquire(GROUP_OID, 2, now=1000)
+        self.assertEqual((msg_id, seqs), ("M0", [1, 2]))
+        self.assertEqual(seq.used("M0"), 2)
+        # 第二个两片发送：精确看到剩余 3 个名额并连续预留
+        msg_id, seqs = pool.acquire(GROUP_OID, 2, now=1000)
+        self.assertEqual((msg_id, seqs), ("M0", [3, 4]))
+        self.assertIsNone(pool.acquire(GROUP_OID, 2, now=1000))  # 仅剩 1 个
+
+    def test_reservation_binds_against_same_source_replies(self):
+        """评审修复 #3：整块预留对同源回复/去重重试具约束力。"""
+        seq = SeqManager()
+        pool = PassiveMsgPool(seq)
+        pool.record(GROUP_OID, "M0", now=1000)
+        _, seqs = pool.acquire(GROUP_OID, 3, now=1000)
+        self.assertEqual(seqs, [1, 2, 3])
+        # 同源命令回复只能在整块之上分配剩余名额，无法挤占已预留的块
+        self.assertEqual(seq.allocate("M0"), 4)
+        self.assertEqual(seq.allocate("M0"), 5)
+        self.assertIsNone(seq.allocate("M0"))
+        self.assertEqual(seqs, [1, 2, 3])  # 预留块不受影响，按序消费即可
+
+    def test_acquire_skips_anchor_without_lifetime_for_chunks(self):
+        """评审修复 #2：剩余寿命不足以发完全部分片的锚点跳过，留给更小消息。"""
+        seq = SeqManager()
+        pool = PassiveMsgPool(seq)
+        pool.record(GROUP_OID, "OLD", now=1000)    # expire_at = 1290
+        # 3 片 → 门槛 5s 余量 + 2s×2 片间 = 9s；剩余寿命仅 3s → 跳过
+        self.assertIsNone(pool.acquire(GROUP_OID, 3, now=1287))
+        # 1 片门槛 5s 同样不足
+        self.assertIsNone(pool.acquire(GROUP_OID, 1, now=1287))
+        # 未过期不淘汰，留给寿命窗口内的小消息/新锚点
+        self.assertEqual(pool.snapshot(GROUP_OID), ["OLD"])
+        pool.record(GROUP_OID, "NEW", now=1288)    # expire_at = 1578
+        self.assertEqual(pool.acquire(GROUP_OID, 3, now=1288)[0], "NEW")
+
+    def test_send_end_evicts_exhausted_entry(self):
+        seq = SeqManager()
+        pool = PassiveMsgPool(seq)
+        pool.record(GROUP_OID, "M0", now=1000)
+        _, seqs = pool.acquire(GROUP_OID, 5, now=1000)
+        self.assertEqual(seqs, [1, 2, 3, 4, 5])
+        pool.release(GROUP_OID, "M0")
+        self.assertEqual(pool.snapshot(GROUP_OID), [])  # 额度用尽即淘汰
+        pool.release(GROUP_OID, "M0")  # 幂等：再次释放无害
 
     async def test_mc_broadcast_uses_pool_without_active_quota(self):
         api = self.SeqAwareApi()
@@ -863,7 +914,8 @@ class TestPassiveMsgPool(unittest.IsolatedAsyncioTestCase):
 
     async def test_passive_expiry_invalidates_and_falls_back_active(self):
         class ExpiringApi(FakeApi):
-            def send_group_text(self, g, c, msg_id=None, event_id=None, reference=None):
+            def send_group_text(self, g, c, msg_id=None, event_id=None, reference=None,
+                                seqs=None):
                 if msg_id:
                     raise ApiError("POST", "u", 400, "expired", err_code=40034005)
                 return super().send_group_text(g, c, msg_id, event_id, reference)
@@ -878,7 +930,8 @@ class TestPassiveMsgPool(unittest.IsolatedAsyncioTestCase):
 
     async def test_seq_exhaustion_invalidates_and_falls_back_active(self):
         class ExhaustedApi(FakeApi):
-            def send_group_text(self, g, c, msg_id=None, event_id=None, reference=None):
+            def send_group_text(self, g, c, msg_id=None, event_id=None, reference=None,
+                                seqs=None):
                 if msg_id:
                     return None
                 return super().send_group_text(g, c, msg_id, event_id, reference)
@@ -896,7 +949,8 @@ class TestPassiveMsgPool(unittest.IsolatedAsyncioTestCase):
         self.conn.api.seq.allocate("ANCHOR")  # 调试回复消耗一次（api_client 记账）
         self.assertEqual(self.conn.api.seq.used("ANCHOR"), 1)
         self.assertIsNone(self.conn.passive_pool.acquire(GROUP_OID, 5))
-        self.assertEqual(self.conn.passive_pool.acquire(GROUP_OID, 4), "ANCHOR")
+        self.assertEqual(self.conn.passive_pool.acquire(GROUP_OID, 4),
+                         ("ANCHOR", [2, 3, 4, 5]))
 
     async def test_pool_disabled_uses_active_message(self):
         conn = build_connector(default_config(passive_pool={"enable": False}))
@@ -1035,11 +1089,12 @@ class TestNoticeAndUnbind(unittest.IsolatedAsyncioTestCase):
         sent = []
 
         class OneShotApi(FakeApi):
-            def send_group_text(self, g, c, msg_id=None, event_id=None, reference=None):
+            def send_group_text(self, g, c, msg_id=None, event_id=None, reference=None,
+                                seqs=None):
                 sent.append(("text", g, msg_id))
                 return {"id": "R"}
 
-            def send_group_markdown(self, g, c, msg_id=None, reference=None):
+            def send_group_markdown(self, g, c, msg_id=None, reference=None, seqs=None):
                 sent.append(("markdown", g, msg_id))
                 return {"id": "R"}
 
