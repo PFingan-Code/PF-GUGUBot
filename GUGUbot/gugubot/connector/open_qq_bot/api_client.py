@@ -62,6 +62,30 @@ class PassiveSeqExhausted(RuntimeError):
         self.msg_id = msg_id
 
 
+class _ReservedSeqCursor:
+    """预留 msg_seq 块游标：按序产出块内未使用的 seq，耗尽返回 None。
+
+    池化被动回复的**基 seq 与去重重试 seq 共享同一游标**：去重重试消费
+    块内下一个预留位而不是跳到整块之上，后续分片因此不会拿到比已发
+    retry 更小的预留值——一次发送实际用掉的 msg_seq 严格递增（Qodo PR
+    评审「Pooled replies lose sequence order」）。
+    """
+
+    __slots__ = ("_seqs", "_pos")
+
+    def __init__(self, seqs):
+        self._seqs = list(seqs or [])
+        self._pos = 0
+
+    def next(self):
+        """产出下一个未使用的预留 seq；块已耗尽时返回 None。"""
+        if self._pos >= len(self._seqs):
+            return None
+        seq = self._seqs[self._pos]
+        self._pos += 1
+        return seq
+
+
 class TokenManager:
     """access_token 管理：到期前 60 秒自动刷新（官方建议，旧 token 短暂有效）。
 
@@ -129,7 +153,7 @@ class ApiClient:
         for seq in reversed(seqs or []):
             self.seq.release(msg_id, seq)
 
-    def _post_group_message(self, group_openid, body, msg_id=None):
+    def _post_group_message(self, group_openid, body, msg_id=None, retry_seq=None):
         """POST 单片群消息；命中 40054005 时换一个 msg_seq 重试（最多 2 次）。
 
         msg_seq 记账（所有权：本方法只负责**去重重试 seq** 的预留与清理，
@@ -139,25 +163,38 @@ class ApiClient:
         本次预留未被服务端接受，倒序精确回退防泄漏；名额耗尽抛
         :class:`PassiveSeqExhausted`（基 seq 不回退：duplicate 拒绝 =
         服务端已消费该 seq）。
+
+        Parameters
+        ----------
+        retry_seq : callable, optional
+            池化路径的去重重试 seq 来源（零参数调用，返回预留块内下一个
+            未使用 seq，块耗尽返回 None）。提供时重试 seq 与基 seq 同源，
+            已发 msg_seq 严格递增，且本方法不做任何回退——预留块归调用方
+            所有；缺省时经 ``SeqManager.allocate`` 在整块之上分配（逐片
+            分配路径），保持原有回退策略。
         """
         retry_seqs = []  # 去重重试额外分配的 msg_seq（栈，失败时倒序回退）
+        pooled_block = retry_seq is not None
         while True:
             try:
                 return self._call("POST", f"/v2/groups/{group_openid}/messages", body)
             except ApiError as e:
                 if e.has_code(ERR_DUPLICATED) and msg_id and len(retry_seqs) < 2:
-                    new_seq = self.seq.allocate(msg_id)
+                    new_seq = retry_seq() if pooled_block else self.seq.allocate(msg_id)
                     if new_seq is None:
                         # 名额耗尽且服务端刚拒绝 duplicate：倒序回退本次预留
-                        # 的 retry seq；基 seq 不回退（见 PassiveSeqExhausted）
-                        self._release_seqs(msg_id, retry_seqs)
+                        # 的 retry seq（池路径预留块归调用方，不在此回退）；
+                        # 基 seq 不回退（见 PassiveSeqExhausted）
+                        if not pooled_block:
+                            self._release_seqs(msg_id, retry_seqs)
                         raise PassiveSeqExhausted(msg_id) from e
                     body["msg_seq"] = new_seq
                     retry_seqs.append(new_seq)
                     self.logger.warning("群消息被去重，换 msg_seq=%s 重试", new_seq)
                     continue
-                if retry_seqs:
+                if retry_seqs and not pooled_block:
                     # 换 seq 重试仍失败：本次预留未被服务端接受，倒序精确回退
+                    # （池路径预留块的回退归调用方）
                     self._release_seqs(msg_id, retry_seqs)
                 if e.has_code(*ERR_PASSIVE_EXPIRED):
                     self.logger.warning("被动回复窗口失效（msg_id 过期或超次）：%s", e)
@@ -217,11 +254,13 @@ class ApiClient:
             仅随第一片发送。
         seqs : list[int], optional
             :meth:`SeqManager.reserve` 预分配的整块 msg_seq（被动消息池
-            路径），按序消费，替代逐片 allocate——预留即占用，并发发送
-            不再重复计数或被抢占。此时失败回退由调用方负责，本方法不做
-            基 seq 回退。
+            路径），经与去重重试共享的游标按序消费，替代逐片 allocate——
+            预留即占用，并发发送不再重复计数或被抢占；去重重试消费块内
+            下一个未使用 seq，已发 msg_seq 严格递增（不跳到整块之上）。
+            此时失败回退由调用方负责，本方法不做基 seq 回退。
         """
         chunks = split_message(content, self.max_message_length)
+        cursor = _ReservedSeqCursor(seqs) if seqs is not None else None
         last_resp = None
         for i, chunk in enumerate(chunks):
             body = {"msg_type": 0, "content": chunk}
@@ -229,11 +268,11 @@ class ApiClient:
                 body["message_reference"] = {"message_id": reference}
             base_seq = None  # 本片基 seq：由 send_* 管理，_post_* 只管重试 seq
             if msg_id:
-                if seqs is not None:
-                    if i >= len(seqs):
-                        base_seq = None  # 分片数超出预留：按名额耗尽处理
-                    else:
-                        base_seq = seqs[i]
+                if cursor is not None:
+                    # 预留块按序消费；后续名额可能已被前片去重重试占用，
+                    # 由游标统一保证已发 msg_seq 严格递增
+                    base_seq = cursor.next()
+                    if base_seq is not None:
                         body["msg_id"] = msg_id
                         body["msg_seq"] = base_seq
                 else:
@@ -251,7 +290,10 @@ class ApiClient:
             elif event_id:
                 body["event_id"] = event_id
             try:
-                last_resp = self._post_group_message(group_openid, body, msg_id=msg_id)
+                last_resp = self._post_group_message(
+                    group_openid, body, msg_id=msg_id,
+                    retry_seq=cursor.next if cursor is not None else None,
+                )
             except PassiveSeqExhausted as e:
                 # 名额耗尽且服务端刚拒绝 duplicate：基 seq 已被服务端消费，
                 # 不回退（回退会复发持续 40054005）；按「一片未发」返回 None
@@ -279,10 +321,12 @@ class ApiClient:
         @ 标签（<qqbot-at-user/> 等）仅在此通道渲染。超长内容自动分片，
         分片边界不切断 @ 标签 / 图片 / URL。返回值与部分失败语义同
         :meth:`send_group_text`；``seqs`` 参数语义亦同（被动消息池的
-        预分配整块 msg_seq，按序消费、失败回退归调用方）。
+        预分配整块 msg_seq，经与去重重试共享的游标按序消费、失败回退
+        归调用方，已发 msg_seq 严格递增）。
         可能的错误：304036/40034127=无 Markdown 权限；40034124=参数错误。
         """
         chunks = split_markdown(content, self.max_message_length)
+        cursor = _ReservedSeqCursor(seqs) if seqs is not None else None
         last_resp = None
         for i, chunk in enumerate(chunks):
             body = {"msg_type": 2, "markdown": {"content": chunk}}
@@ -290,11 +334,11 @@ class ApiClient:
                 body["message_reference"] = {"message_id": reference}
             base_seq = None  # 本片基 seq：由 send_* 管理，_post_* 只管重试 seq
             if msg_id:
-                if seqs is not None:
-                    if i >= len(seqs):
-                        base_seq = None  # 分片数超出预留：按名额耗尽处理
-                    else:
-                        base_seq = seqs[i]
+                if cursor is not None:
+                    # 预留块按序消费；后续名额可能已被前片去重重试占用，
+                    # 由游标统一保证已发 msg_seq 严格递增
+                    base_seq = cursor.next()
+                    if base_seq is not None:
                         body["msg_id"] = msg_id
                         body["msg_seq"] = base_seq
                 else:
@@ -310,7 +354,10 @@ class ApiClient:
                             from PassiveSeqExhausted(msg_id)
                     return None
             try:
-                last_resp = self._post_group_message(group_openid, body, msg_id=msg_id)
+                last_resp = self._post_group_message(
+                    group_openid, body, msg_id=msg_id,
+                    retry_seq=cursor.next if cursor is not None else None,
+                )
             except PassiveSeqExhausted as e:
                 # 名额耗尽且服务端刚拒绝 duplicate：基 seq 已被服务端消费，
                 # 不回退（回退会复发持续 40054005）；按「一片未发」返回 None

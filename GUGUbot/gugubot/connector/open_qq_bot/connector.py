@@ -30,6 +30,7 @@ from gugubot.connector.basic_connector import BasicConnector
 from gugubot.connector.open_qq_bot.api_client import (
     ApiClient,
     PartialDelivery,
+    PassiveSeqExhausted,
     TokenManager,
 )
 from gugubot.connector.open_qq_bot.common import (
@@ -722,26 +723,32 @@ class OpenQQBotConnector(BasicConnector):
                     self._send_active_fallback(target_id, target_type, target_plain, target_images)
                 self._diag("%s 发送成功 → %s", self.log_prefix, target_id)
             except PartialDelivery as e:
-                # 分片部分送达：整体降级重发会重复已送达内容；仅当失败原因
-                # 是被动锚点中途失效（ERR_PASSIVE_EXPIRED）时，未发送尾部
-                # 尚未送达，按主动消息补发后缀（配额允许时）
+                # 分片部分送达：整体降级重发会重复已送达内容；失败原因是
+                # 被动锚点中途失效（ERR_PASSIVE_EXPIRED）或预留名额耗尽
+                # （PassiveSeqExhausted，含去重重试吃掉预留块的尾片）时，
+                # 未发送尾部从未被动送达，可安全地按主动消息补发后缀
+                # （配额允许时），不得静默丢弃
                 cause = e.__cause__
                 expired = isinstance(cause, ApiError) \
                     and cause.has_code(*ERR_PASSIVE_EXPIRED)
+                exhausted = isinstance(cause, PassiveSeqExhausted)
+                resend = expired or exhausted
                 if expired and anchor_id and self.passive_pool:
                     self.passive_pool.invalidate(target_id, anchor_id)
                 self.logger.warning(
                     f"{self.log_prefix} 发送到 {target_id} 部分送达："
                     f"{e.sent} 片成功，{e.remaining} 片未发出"
-                    + ("（被动锚点失效）" if expired else "，剩余内容已丢弃")
+                    + ("（被动锚点失效）" if expired
+                       else ("（被动名额耗尽）" if exhausted
+                             else "，剩余内容已丢弃"))
                 )
-                if expired and self.quota.allow_many(target_id, e.remaining):
+                if resend and self.quota.allow_many(target_id, e.remaining):
                     chunks = self._plan_chunks(target_type, target_plain,
                                                target_images, has_mention)
                     suffix = chunks[e.sent:]
                     self.logger.info(
-                        f"{self.log_prefix} 被动锚点中途失效，剩余 {len(suffix)} 片"
-                        f"转主动消息补发到 {target_id}"
+                        f"{self.log_prefix} 被动通道中断（锚点失效或名额耗尽），"
+                        f"剩余 {len(suffix)} 片转主动消息补发到 {target_id}"
                     )
                     for idx, chunk in enumerate(suffix):
                         # 各片已是预切分结果（ApiClient 内部再切必为单片，
@@ -768,7 +775,7 @@ class OpenQQBotConnector(BasicConnector):
                                 f"{len(suffix) - idx} 片未送达：{send_err}"
                             )
                             break
-                elif expired:
+                elif resend:
                     self.logger.warning(
                         f"{self.log_prefix} 主动消息配额不足（{target_id}），"
                         f"剩余 {e.remaining} 片丢弃"

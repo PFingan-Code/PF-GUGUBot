@@ -93,6 +93,7 @@ import tempfile
 import unittest
 import yaml
 from pathlib import Path
+from unittest import mock
 
 REPO = Path(__file__).resolve().parent.parent
 GROUP_OID = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
@@ -667,6 +668,48 @@ class TestOutbound(unittest.IsolatedAsyncioTestCase):
         asyncio.run(self.conn.send_message(p))  # 不得抛出
         self.assertEqual(passive, ["A" * 10])  # 首片被动送达
         self.assertEqual(active, ["A" * 10])  # 补发首片失败即中止，不继续
+
+    def test_pooled_block_exhausted_by_dup_retry_resends_suffix(self):
+        """端到端（Qodo「Pooled replies lose sequence order」）：池化广播首片
+        被去重，重试消费块内下一个预留位（而非跳到整块之上），后续分片
+        按序用完剩余预留，被挤占的尾片转主动消息补发——线上被动 seq 严格
+        递增，不重复已送达内容，也不静默丢弃尾片。
+
+        跨源前缀 "[Minecraft] HAHH9527: " + 20 个 A 共 42 字符 →
+        max_message_length=10 切 5 片，池按分片数整块预留 [1..5]。
+        """
+        client = ApiClient(TokenManager("a", "b"))
+        client.max_message_length = 10
+        self.conn.max_message_length = 10  # 与 ApiClient 保持同源分片长度
+        passive, active = [], []
+
+        def fake_call(method, path, body=None, timeout=10):
+            if body.get("msg_id"):  # 被动通道：首片（seq=1）去重，块内换 seq=2 重试
+                passive.append(body["msg_seq"])
+                if len(passive) == 1:
+                    raise ApiError("POST", "u", 400, '{"err_code":40054005}', 40054005)
+                return {"id": "R"}
+            active.append(body["content"])  # 主动通道：被挤占的尾片补发
+            return {"id": "R"}
+
+        client._call = fake_call
+        self.conn.api = client
+        self.conn.passive_pool.record(GROUP_OID, "ANCHOR")
+        p = ProcessedInfo(
+            processed_message=[{"type": "text", "data": {"text": "A" * 20}}],
+            _source=Source("Minecraft"), source_id="mc", sender="HAHH9527",
+        )
+        p.target = {GROUP_OID: "group"}
+        with mock.patch(
+            "gugubot.connector.open_qq_bot.api_client.random_send_delay",
+            lambda: 0,
+        ):
+            asyncio.run(self.conn.send_message(p))  # 不得抛出
+        # 首片以块内重试 seq=2 送达（而非块上的 6），后续分片 3..5 严格递增
+        self.assertEqual(passive, [1, 2, 3, 4, 5])
+        self.assertEqual(active, ["AA"])  # 尾片主动补发，内容不重复
+        # 额度用尽（used=5）：发送结束即淘汰条目
+        self.assertEqual(self.conn.passive_pool.snapshot(GROUP_OID), [])
 
     def test_passive_exhausted_falls_back_to_active(self):
         """SeqManager 次数耗尽时 send_* 返回 None 而非抛错：必须降级，不得静默丢弃。"""
@@ -1784,6 +1827,69 @@ class TestSeqAccounting(unittest.TestCase):
         self.assertEqual((ctx.exception.sent, ctx.exception.remaining), (1, 1))
         # 第二片基 seq=5 被 duplicate 拒绝 = 服务端已消费，不回退
         self.assertEqual(client.seq._seqs.get("M", 0), 5)
+
+    def test_pooled_dup_retry_consumes_next_reserved_seq(self):
+        """Qodo「Pooled replies lose sequence order」：池化多片发送首片被
+        去重拒绝时，重试消费块内下一个预留 seq（而非跳到整块之上），
+        后续分片不再拿到比已发 retry 更小的预留值。
+
+        旧行为：预留 [1,2]，首片 seq=1 去重 → 重试 allocate 到块上的 3，
+        第二片仍用预留的 2 → 线上 seq 顺序 3→2，违反严格递增。
+        """
+        client = self._client()
+        calls = []
+
+        def fake_call(method, path, body=None, timeout=10):
+            calls.append(body["msg_seq"])
+            if len(calls) == 1:  # 首片（seq=1）被去重拒绝
+                raise ApiError("POST", "u", 400, '{"err_code":40054005}', 40054005)
+            return {"id": "R"}
+
+        client._call = fake_call
+        client.max_message_length = 10
+        # 按池化流程先整块预留（预留即分配，used=2）
+        self.assertEqual(client.seq.reserve("M", 2), [1, 2])
+        with mock.patch(
+            "gugubot.connector.open_qq_bot.api_client.random_send_delay",
+            lambda: 0,
+        ):
+            with self.assertRaises(PartialDelivery) as ctx:
+                client.send_group_text("G", "z" * 20, msg_id="M", seqs=[1, 2])
+        # 首片以块内重试 seq=2 送达（绝无块上的 3），第二片无名额未发
+        self.assertEqual(calls, [1, 2])
+        self.assertEqual((ctx.exception.sent, ctx.exception.remaining), (1, 1))
+        self.assertIsInstance(ctx.exception.__cause__, PassiveSeqExhausted)
+        # 预留即分配：账本保持整块计数，不回退
+        self.assertEqual(client.seq._seqs.get("M", 0), 2)
+
+    def test_pooled_dup_retry_keeps_strictly_increasing_order(self):
+        """3 片预留块首片去重：线上已发 msg_seq 仍严格递增 [1→2→3]，
+        尾片名额耗尽转 PartialDelivery（因果链 PassiveSeqExhausted），
+        由调用方对未发后缀主动补发。"""
+        client = self._client()
+        calls = []
+
+        def fake_call(method, path, body=None, timeout=10):
+            calls.append(body["msg_seq"])
+            if len(calls) == 1:  # 首片（seq=1）被去重拒绝
+                raise ApiError("POST", "u", 400, '{"err_code":40054005}', 40054005)
+            return {"id": "R"}
+
+        client._call = fake_call
+        client.max_message_length = 10
+        # 按池化流程先整块预留（预留即分配，used=3）
+        self.assertEqual(client.seq.reserve("M", 3), [1, 2, 3])
+        with mock.patch(
+            "gugubot.connector.open_qq_bot.api_client.random_send_delay",
+            lambda: 0,
+        ):
+            with self.assertRaises(PartialDelivery) as ctx:
+                client.send_group_text("G", "z" * 30, msg_id="M", seqs=[1, 2, 3])
+        # 线上顺序：首片重试 seq=2 → 第二片 seq=3，严格递增
+        self.assertEqual(calls, [1, 2, 3])
+        self.assertEqual((ctx.exception.sent, ctx.exception.remaining), (2, 1))
+        self.assertIsInstance(ctx.exception.__cause__, PassiveSeqExhausted)
+        self.assertEqual(client.seq._seqs.get("M", 0), 3)
 
 
 class TestChunking(unittest.TestCase):
