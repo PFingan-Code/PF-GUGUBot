@@ -875,11 +875,12 @@ class TestPassiveMsgPool(unittest.IsolatedAsyncioTestCase):
 
     def test_expired_entries_removed_at_send_time(self):
         pool = PassiveMsgPool(SeqManager())
-        pool.record(GROUP_OID, "OLD", now=0)       # expire_at = 290
-        pool.record(GROUP_OID, "NEW", now=1000)
-        self.assertEqual(pool.acquire(GROUP_OID, 1, now=1000)[0], "NEW")
+        ttl = common.PASSIVE_POOL_TTL
+        pool.record(GROUP_OID, "OLD", now=0)        # expire_at = ttl
+        pool.record(GROUP_OID, "NEW", now=ttl + 10)  # expire_at = 2*ttl + 10
+        self.assertEqual(pool.acquire(GROUP_OID, 1, now=ttl + 10)[0], "NEW")
         self.assertEqual(pool.snapshot(GROUP_OID), ["NEW"])
-        self.assertIsNone(pool.acquire(GROUP_OID, 1, now=1300))
+        self.assertIsNone(pool.acquire(GROUP_OID, 1, now=2 * ttl + 11))
         self.assertEqual(pool.snapshot(GROUP_OID), [])
 
     def test_exhausted_removed_and_insufficient_skipped(self):
@@ -933,15 +934,17 @@ class TestPassiveMsgPool(unittest.IsolatedAsyncioTestCase):
         """评审修复 #2：剩余寿命不足以发完全部分片的锚点跳过，留给更小消息。"""
         seq = SeqManager()
         pool = PassiveMsgPool(seq)
-        pool.record(GROUP_OID, "OLD", now=1000)    # expire_at = 1290
+        ttl = common.PASSIVE_POOL_TTL
+        pool.record(GROUP_OID, "OLD", now=1000)    # expire_at = 1000 + ttl
+        near_end = 1000 + ttl - 3                  # 剩余寿命仅 3s
         # 3 片 → 门槛 5s 余量 + 2s×2 片间 = 9s；剩余寿命仅 3s → 跳过
-        self.assertIsNone(pool.acquire(GROUP_OID, 3, now=1287))
+        self.assertIsNone(pool.acquire(GROUP_OID, 3, now=near_end))
         # 1 片门槛 5s 同样不足
-        self.assertIsNone(pool.acquire(GROUP_OID, 1, now=1287))
+        self.assertIsNone(pool.acquire(GROUP_OID, 1, now=near_end))
         # 未过期不淘汰，留给寿命窗口内的小消息/新锚点
         self.assertEqual(pool.snapshot(GROUP_OID), ["OLD"])
-        pool.record(GROUP_OID, "NEW", now=1288)    # expire_at = 1578
-        self.assertEqual(pool.acquire(GROUP_OID, 3, now=1288)[0], "NEW")
+        pool.record(GROUP_OID, "NEW", now=near_end + 1)
+        self.assertEqual(pool.acquire(GROUP_OID, 3, now=near_end + 1)[0], "NEW")
 
     def test_send_end_evicts_exhausted_entry(self):
         seq = SeqManager()

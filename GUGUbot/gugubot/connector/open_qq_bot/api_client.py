@@ -21,6 +21,7 @@ from pathlib import Path
 from gugubot.connector.open_qq_bot.common import (
     ERR_DUPLICATED,
     ERR_PASSIVE_EXPIRED,
+    PASSIVE_REPLY_MAX,
     ApiError,
     SeqManager,
     http_json,
@@ -124,14 +125,18 @@ class ApiClient:
         是否使用沙箱环境。
     max_message_length : int
         文本消息分片长度上限（官方 40054007 超限报错）。
+    passive_reply_max : int
+        同一 msg_id 被动回复次数上限（官方默认 5 次；机器人开发者
+        （机器人账号的管理员）为该群群主或管理员时可达 50 次）。
     """
 
     def __init__(self, tokens: TokenManager, sandbox: bool = False,
-                 max_message_length: int = 2000):
+                 max_message_length: int = 2000,
+                 passive_reply_max: int = PASSIVE_REPLY_MAX):
         self.tokens = tokens
         self.api_base = SANDBOX_API_BASE if sandbox else API_BASE
         self.max_message_length = max_message_length
-        self.seq = SeqManager()
+        self.seq = SeqManager(passive_reply_max)
         self.logger = logging.getLogger("gugubot.open_qq_bot")
 
     def _call(self, method, path, body=None, timeout=10):

@@ -12,8 +12,10 @@ GUGUBot 的 connector 管线，与 OneBot 版 QQWebSocketConnector 并行使用�
 
 与 OneBot 版的关键差异（官方平台限制）：
 - 主动消息受频控（单群 20 条/分钟、1000 条/天），配额由 QuotaManager 管理
-- 被动回复有 5 分钟/每条 5 次窗口（SeqManager 严格递增 msg_seq）；池用
-  5 分钟 -10 秒的保守本地窗口，过期/超次即降级主动消息
+- 被动回复有 60 分钟/每条 5 次（机器人开发者（机器人账号的管理员）为该群
+  群主或管理员时可达 50 次，见 passive_reply_max 配置）窗口（SeqManager
+  严格递增 msg_seq）；池用 60 分钟 -1 分钟的保守本地窗口，过期/超次即
+  降级主动消息
 """
 
 import asyncio
@@ -183,6 +185,15 @@ class OpenQQBotConnector(BasicConnector):
         self.bot_per_minute = config.get_keys(
             ["connector", self.SECTION, "rate_limit", "bot_per_minute"], 30
         )
+        # 被动回复次数上限：同一 msg_id 最多被动回复次数（官方默认 5 次，
+        # 有效期 60 分钟；机器人开发者（机器人账号的管理员）为该群群主或
+        # 管理员时可达 50 次）
+        try:
+            self.passive_reply_max = max(1, int(config.get_keys(
+                ["connector", self.SECTION, "passive_reply_max"], 5
+            )))
+        except (TypeError, ValueError):
+            self.passive_reply_max = 5
         try:
             quota_path = Path(server.get_data_folder()) / "open_qq_bot_quota.json"
         except Exception:
@@ -197,11 +208,12 @@ class OpenQQBotConnector(BasicConnector):
 
         self.tokens = TokenManager(self.app_id, self.app_secret)
         self.api = ApiClient(
-            self.tokens, sandbox=self.sandbox, max_message_length=self.max_message_length
+            self.tokens, sandbox=self.sandbox, max_message_length=self.max_message_length,
+            passive_reply_max=self.passive_reply_max,
         )
         self.dedup = DedupSet()
         # 群消息被动回复池：MC→QQ 广播优先复用最近群消息的 msg_id，
-        # 省下主动配额。本地窗口 290 秒（5 分钟 -10 秒），过期/超次即淘汰
+        # 省下主动配额。本地窗口 3540 秒（60 分钟 -1 分钟），过期/超次即淘汰
         self.passive_pool = None
         pool_enabled = config.get_keys(
             ["connector", self.SECTION, "passive_pool", "enable"], True

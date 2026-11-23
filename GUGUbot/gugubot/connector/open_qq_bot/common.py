@@ -17,16 +17,17 @@ from pathlib import Path
 
 logger = logging.getLogger("gugubot.open_qq_bot")
 
-# 被动消息规则（消息/group-messages-post.md）：有效时间 5 分钟，每个 msg_id 最多回复 5 次
+# 被动消息规则（消息/group-messages-post.md）：有效时间 60 分钟，每个 msg_id
+# 最多回复 5 次；机器人开发者（机器人账号的管理员）为该群群主或管理员时最多 50 次
 PASSIVE_REPLY_MAX = 5
-PASSIVE_REPLY_TTL = 10 * 60  # 稍大于 5 分钟窗口，便于清理过期记录
+PASSIVE_REPLY_TTL = 70 * 60  # 稍大于 60 分钟窗口，便于清理过期记录
 # 锚点寿命门槛估算：单片发送耗时上界（片间限速 0.5~1.5s + HTTP 往返）
 # 与链路抖动余量，见 PassiveMsgPool.acquire
 PASSIVE_CHUNK_SECONDS = 2.0
 PASSIVE_CHUNK_SLACK = 5.0
 
-# 被动消息池：本地保守取 5 分钟 -10 秒，避免链路延迟导致发送时过期
-PASSIVE_POOL_TTL = 5 * 60 - 10
+# 被动消息池：本地保守取 60 分钟 -1 分钟，避免链路延迟导致发送时过期
+PASSIVE_POOL_TTL = 60 * 60 - 60
 PASSIVE_POOL_MAX_PER_GROUP = 10
 
 # 订阅事件位掩码（协议常量，固定写在代码里，不开放配置）：
@@ -131,10 +132,13 @@ class SeqManager:
     """被动回复 msg_seq 分配器。
 
     官方规则（消息/group-messages-post.md）：相同 msg_id + msg_seq 会被去重
-    拒绝（40054005）；同一 msg_id 被动回复最多 5 次、5 分钟内有效。
+    拒绝（40054005）；同一 msg_id 被动回复默认最多 5 次、60 分钟内有效——
+    机器人开发者（机器人账号的管理员）为该群群主或管理员时可达 50 次，
+    经 ``reply_max`` 配置。
     """
 
-    def __init__(self):
+    def __init__(self, reply_max=PASSIVE_REPLY_MAX):
+        self.reply_max = max(1, int(reply_max))
         self._seqs = {}
         self._seen_at = {}
         self._lock = threading.Lock()
@@ -143,8 +147,8 @@ class SeqManager:
         """为 msg_id 分配下一个可用 msg_seq；超限返回 None。"""
         with self._lock:
             seq = self._seqs.get(msg_id, 0) + 1
-            if seq > PASSIVE_REPLY_MAX:
-                logger.warning("msg_id=%s 被动回复已达 %s 次上限，跳过", msg_id, PASSIVE_REPLY_MAX)
+            if seq > self.reply_max:
+                logger.warning("msg_id=%s 被动回复已达 %s 次上限，跳过", msg_id, self.reply_max)
                 return None
             self._seqs[msg_id] = seq
             self._seen_at[msg_id] = time.time()
@@ -165,12 +169,12 @@ class SeqManager:
         预留即分配：返回的升序 seq 列表已计入 :meth:`used`，其他回复
         路径（:meth:`allocate` / 去重重试）只能使用剩余名额——一次获取
         的整块名额不会被并发发送抢占，也不再与已分配部分重复计数。
-        调用方按序消费即可，失败不回退（被动窗口仅 5 次/5 分钟，回退
+        调用方按序消费即可，失败不回退（被动窗口默认 5 次/60 分钟，回退
         收益低且需维护栈顶一致性，见 :meth:`release` 的约束）。
         """
         with self._lock:
             used = int(self._seqs.get(msg_id, 0))
-            if PASSIVE_REPLY_MAX - used < count:
+            if self.reply_max - used < count:
                 return None
             self._seqs[msg_id] = used + count
             self._seen_at[msg_id] = time.time()
@@ -208,11 +212,11 @@ class PassiveMsgPool:
 
     - 每群最多 ``max_per_group`` 条，超过时淘汰最旧（左端）
     - 选**最旧且可用**的一条：过期（``expire_at <= now``）或已用完
-      （``SeqManager.used(msg_id) >= PASSIVE_REPLY_MAX``）时移出池；
+      （``SeqManager.used(msg_id) >= seq.reply_max``）时移出池；
       剩余寿命不足以发完全部分片的锚点跳过（见 ``acquire``）
     - 额度通过 :meth:`SeqManager.reserve` 原子预留：预留即分配、计入
       ``used``，对同源回复/去重重试具约束力，也不与已分配部分重复计数；
-      失败不回退（5 次/5 分钟的小窗口内，回退收益低于栈顶一致性成本）
+      失败不回退（默认 5 次/60 分钟的小窗口内，回退收益低于栈顶一致性成本）
     - 只管理"用哪个 msg_id 及其整块名额"，发送时由调用方按序消费
     """
 
@@ -246,7 +250,7 @@ class PassiveMsgPool:
 
         除过期/用尽外，剩余寿命不足以覆盖分片计划耗时（片间限速 +
         链路余量，见 :data:`PASSIVE_CHUNK_SLACK`）的锚点也会跳过，
-        避免发送中途跨过 5 分钟被动窗口导致尾部分片失效。
+        避免发送中途跨过 60 分钟被动窗口导致尾部分片失效。
 
         Returns
         -------
@@ -282,7 +286,7 @@ class PassiveMsgPool:
         with self._lock:
             for entry in list(self._entries.get(group) or []):
                 if entry["msg_id"] == msg_id:
-                    if self._seq.used(msg_id) >= PASSIVE_REPLY_MAX:
+                    if self._seq.used(msg_id) >= self._seq.reply_max:
                         self._entries[group].remove(entry)
                         self._discard_if_empty(group)
                     return
@@ -310,7 +314,7 @@ class PassiveMsgPool:
         """移出过期或用尽的条目（原地操作，调用方持锁）。"""
         for entry in list(entries):
             expired = entry["expire_at"] <= now
-            exhausted = self._seq.used(entry["msg_id"]) >= PASSIVE_REPLY_MAX
+            exhausted = self._seq.used(entry["msg_id"]) >= self._seq.reply_max
             if expired or exhausted:
                 entries.remove(entry)
 
@@ -436,7 +440,7 @@ class QuotaManager:
 
     官方限制（消息/group-messages-post.md）：单群 20 条/分钟、1000 条/天；
     Bot 维度 30~60 条/分钟。仅统计**主动消息**——被动回复（带 msg_id 锚点）
-    不占分钟/天配额，由 :class:`SeqManager` 单独管理 5 次/5 分钟窗口。
+    不占分钟/天配额，由 :class:`SeqManager` 单独管理次数/60 分钟窗口。
 
     key 级状态持久化为 JSON（按 key 记录当日计数与分钟滑动窗口），
     重启不重置当日计数，避免配额被重启绕过；Bot 全局分钟窗口为进程内
