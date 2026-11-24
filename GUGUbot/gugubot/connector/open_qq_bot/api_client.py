@@ -173,10 +173,13 @@ class ApiClient:
         ----------
         retry_seq : callable, optional
             池化路径的去重重试 seq 来源（零参数调用，返回预留块内下一个
-            未使用 seq，块耗尽返回 None）。提供时重试 seq 与基 seq 同源，
-            已发 msg_seq 严格递增，且本方法不做任何回退——预留块归调用方
-            所有；缺省时经 ``SeqManager.allocate`` 在整块之上分配（逐片
-            分配路径），保持原有回退策略。
+            未使用 seq，块耗尽返回 None）。块耗尽只代表本次预留用完，
+            并非锚点失效：此时转经 ``SeqManager.allocate`` 原子申请块上
+            额外序号，仅当总次数（``reply_max``）也耗尽才抛
+            :class:`PassiveSeqExhausted`。提供时已发 msg_seq 严格递增，
+            且本方法不做任何回退——预留块归调用方所有；缺省时同样经
+            ``SeqManager.allocate`` 分配（逐片分配路径），保持原有回退
+            策略。
         """
         retry_seqs = []  # 去重重试额外分配的 msg_seq（栈，失败时倒序回退）
         pooled_block = retry_seq is not None
@@ -185,10 +188,15 @@ class ApiClient:
                 return self._call("POST", f"/v2/groups/{group_openid}/messages", body)
             except ApiError as e:
                 if e.has_code(ERR_DUPLICATED) and msg_id and len(retry_seqs) < 2:
-                    new_seq = retry_seq() if pooled_block else self.seq.allocate(msg_id)
+                    new_seq = retry_seq() if pooled_block else None
                     if new_seq is None:
-                        # 名额耗尽且服务端刚拒绝 duplicate：倒序回退本次预留
-                        # 的 retry seq（池路径预留块归调用方，不在此回退）；
+                        # 预留块耗尽（或缺省路径）：向 SeqManager 原子申请
+                        # 块上额外序号（allocate 返回值恒大于块内任何 seq，
+                        # 严格递增不破坏）
+                        new_seq = self.seq.allocate(msg_id)
+                    if new_seq is None:
+                        # 总次数也耗尽且服务端刚拒绝 duplicate：倒序回退本次
+                        # 预留的 retry seq（池路径预留块归调用方，不在此回退）；
                         # 基 seq 不回退（见 PassiveSeqExhausted）
                         if not pooled_block:
                             self._release_seqs(msg_id, retry_seqs)
@@ -260,9 +268,11 @@ class ApiClient:
         seqs : list[int], optional
             :meth:`SeqManager.reserve` 预分配的整块 msg_seq（被动消息池
             路径），经与去重重试共享的游标按序消费，替代逐片 allocate——
-            预留即占用，并发发送不再重复计数或被抢占；去重重试消费块内
-            下一个未使用 seq，已发 msg_seq 严格递增（不跳到整块之上）。
-            此时失败回退由调用方负责，本方法不做基 seq 回退。
+            预留即占用，并发发送不再重复计数或被抢占；本片基 seq 与
+            去重重试先消费块内未使用 seq，块耗尽后申请块上额外序号
+            （allocate 恒大于已发任何 seq，严格递增不破坏），仅当总
+            次数（reply_max）也耗尽才按名额耗尽处理。此时失败回退由
+            调用方负责，本方法不做基 seq 回退。
         """
         chunks = split_message(content, self.max_message_length)
         cursor = _ReservedSeqCursor(seqs) if seqs is not None else None
@@ -277,6 +287,12 @@ class ApiClient:
                     # 预留块按序消费；后续名额可能已被前片去重重试占用，
                     # 由游标统一保证已发 msg_seq 严格递增
                     base_seq = cursor.next()
+                    if base_seq is None:
+                        # 块耗尽（含被前片去重重试挤占）≠ 名额耗尽：向
+                        # SeqManager 申请块上额外序号（allocate 返回值恒
+                        # 大于已发任何 seq，严格递增不破坏）；总次数也
+                        # 耗尽才按名额耗尽处理
+                        base_seq = self.seq.allocate(msg_id)
                     if base_seq is not None:
                         body["msg_id"] = msg_id
                         body["msg_seq"] = base_seq
@@ -287,8 +303,8 @@ class ApiClient:
                                         i + 1, len(chunks))
                     if i > 0:
                         # 已有分片送达：整体降级重发会重复，显式抛错告警
-                        # （显式因果链：allocate 耗尽或 seqs 预留超界，
-                        # 供调用方区分「非过期导致的部分送达」）
+                        # （显式因果链：总名额已耗尽，供调用方区分
+                        # 「非过期导致的部分送达」）
                         raise PartialDelivery(i, len(chunks) - i) \
                             from PassiveSeqExhausted(msg_id)
                     return None  # 一片未发：调用方可整体降级为主动消息
@@ -327,7 +343,8 @@ class ApiClient:
         分片边界不切断 @ 标签 / 图片 / URL。返回值与部分失败语义同
         :meth:`send_group_text`；``seqs`` 参数语义亦同（被动消息池的
         预分配整块 msg_seq，经与去重重试共享的游标按序消费、失败回退
-        归调用方，已发 msg_seq 严格递增）。
+        归调用方，已发 msg_seq 严格递增；块耗尽后申请块上额外序号，
+        仅当总次数也耗尽才按名额耗尽处理）。
         可能的错误：304036/40034127=无 Markdown 权限；40034124=参数错误。
         """
         chunks = split_markdown(content, self.max_message_length)
@@ -343,6 +360,12 @@ class ApiClient:
                     # 预留块按序消费；后续名额可能已被前片去重重试占用，
                     # 由游标统一保证已发 msg_seq 严格递增
                     base_seq = cursor.next()
+                    if base_seq is None:
+                        # 块耗尽（含被前片去重重试挤占）≠ 名额耗尽：向
+                        # SeqManager 申请块上额外序号（allocate 返回值恒
+                        # 大于已发任何 seq，严格递增不破坏）；总次数也
+                        # 耗尽才按名额耗尽处理
+                        base_seq = self.seq.allocate(msg_id)
                     if base_seq is not None:
                         body["msg_id"] = msg_id
                         body["msg_seq"] = base_seq
@@ -353,8 +376,8 @@ class ApiClient:
                                         i + 1, len(chunks))
                     if i > 0:
                         # 已有分片送达：整体降级重发会重复，显式抛错告警
-                        # （显式因果链：allocate 耗尽或 seqs 预留超界，
-                        # 供调用方区分「非过期导致的部分送达」）
+                        # （显式因果链：总名额已耗尽，供调用方区分
+                        # 「非过期导致的部分送达」）
                         raise PartialDelivery(i, len(chunks) - i) \
                             from PassiveSeqExhausted(msg_id)
                     return None
