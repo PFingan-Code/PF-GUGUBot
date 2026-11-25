@@ -2,8 +2,18 @@ name: Sync README.md
 
 on:
   push:
+    branches:
+      - '**'
     paths:
       - README.md
+      - .github/workflows/sync-readme.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   sync-readme:
@@ -11,7 +21,7 @@ jobs:
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         ref: ${{ github.ref_name }}
 
@@ -25,5 +35,11 @@ jobs:
           echo "No changes to commit"
         else
           git commit -m "Sync README.md from root to GUGUbot"
-          git push
+          for attempt in 1 2 3; do
+            git pull --rebase origin "$GITHUB_REF_NAME"
+            if git push origin "HEAD:$GITHUB_REF"; then
+              exit 0
+            fi
+          done
+          exit 1
         fi

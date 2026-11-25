@@ -2,19 +2,26 @@ name: Sync config_default.yml
 
 on:
   push:
+    branches:
+      - '**'
     paths:
       - GUGUbot/gugubot/config/defaults/default_config.yml
+      - .github/workflows/sync-default-config.yml
 
 permissions:
   contents: write
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
-  sync-readme:
+  sync-config:
     runs-on: ubuntu-latest
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         ref: ${{ github.ref_name }}
 
@@ -28,5 +35,11 @@ jobs:
           echo "No changes to commit"
         else
           git commit -m "Sync config_default.yml from GUGUbot/gugubot/config/defaults to root"
-          git push
+          for attempt in 1 2 3; do
+            git pull --rebase origin "$GITHUB_REF_NAME"
+            if git push origin "HEAD:$GITHUB_REF"; then
+              exit 0
+            fi
+          done
+          exit 1
         fi
