@@ -1,4 +1,4 @@
-"""open-qq-bot 连接器公共工具：错误码、限流、去重、分片、@ 标签。
+"""open-qq-bot 连接器公共工具：错误码、限流、去重、分片、@ 标签、被动消息池。
 
 行为与 QQ 开放平台官方文档对齐。
 """
@@ -12,14 +12,23 @@ import threading
 import time
 import urllib.error
 import urllib.request
-from collections import OrderedDict
+from collections import OrderedDict, deque
 from pathlib import Path
 
 logger = logging.getLogger("gugubot.open_qq_bot")
 
-# 被动消息规则（消息/group-messages-post.md）：有效时间 5 分钟，每个 msg_id 最多回复 5 次
+# 被动消息规则（消息/group-messages-post.md）：有效时间 60 分钟，每个 msg_id
+# 最多回复 5 次；机器人开发者（机器人账号的管理员）为该群群主或管理员时最多 50 次
 PASSIVE_REPLY_MAX = 5
-PASSIVE_REPLY_TTL = 10 * 60  # 稍大于 5 分钟窗口，便于清理过期记录
+PASSIVE_REPLY_TTL = 70 * 60  # 稍大于 60 分钟窗口，便于清理过期记录
+# 锚点寿命门槛估算：单片发送耗时上界（片间限速 0.5~1.5s + HTTP 往返）
+# 与链路抖动余量，见 PassiveMsgPool.acquire
+PASSIVE_CHUNK_SECONDS = 2.0
+PASSIVE_CHUNK_SLACK = 5.0
+
+# 被动消息池：本地保守取 60 分钟 -1 分钟，避免链路延迟导致发送时过期
+PASSIVE_POOL_TTL = 60 * 60 - 60
+PASSIVE_POOL_MAX_PER_GROUP = 10
 
 # 订阅事件位掩码（协议常量，固定写在代码里，不开放配置）：
 #   (1 << 25) GROUP_AND_C2C_EVENT   群聊 / 单聊消息
@@ -123,10 +132,13 @@ class SeqManager:
     """被动回复 msg_seq 分配器。
 
     官方规则（消息/group-messages-post.md）：相同 msg_id + msg_seq 会被去重
-    拒绝（40054005）；同一 msg_id 被动回复最多 5 次、5 分钟内有效。
+    拒绝（40054005）；同一 msg_id 被动回复默认最多 5 次、60 分钟内有效——
+    机器人开发者（机器人账号的管理员）为该群群主或管理员时可达 50 次，
+    经 ``reply_max`` 配置。
     """
 
-    def __init__(self):
+    def __init__(self, reply_max=PASSIVE_REPLY_MAX):
+        self.reply_max = max(1, int(reply_max))
         self._seqs = {}
         self._seen_at = {}
         self._lock = threading.Lock()
@@ -135,13 +147,39 @@ class SeqManager:
         """为 msg_id 分配下一个可用 msg_seq；超限返回 None。"""
         with self._lock:
             seq = self._seqs.get(msg_id, 0) + 1
-            if seq > PASSIVE_REPLY_MAX:
-                logger.warning("msg_id=%s 被动回复已达 %s 次上限，跳过", msg_id, PASSIVE_REPLY_MAX)
+            if seq > self.reply_max:
+                logger.warning("msg_id=%s 被动回复已达 %s 次上限，跳过", msg_id, self.reply_max)
                 return None
             self._seqs[msg_id] = seq
             self._seen_at[msg_id] = time.time()
             self._prune()
             return seq
+
+    def used(self, msg_id):
+        """读取 msg_id 已分配（含未回退预留）的 msg_seq 数量，不分配、不清理。
+
+        被动消息池用它计算剩余回复次数，避免另记一份额度造成双重计数。
+        """
+        with self._lock:
+            return int(self._seqs.get(msg_id, 0))
+
+    def reserve(self, msg_id, count):
+        """为 msg_id 原子预留 ``count`` 个连续 msg_seq；不足时返回 None。
+
+        预留即分配：返回的升序 seq 列表已计入 :meth:`used`，其他回复
+        路径（:meth:`allocate` / 去重重试）只能使用剩余名额——一次获取
+        的整块名额不会被并发发送抢占，也不再与已分配部分重复计数。
+        调用方按序消费即可，失败不回退（被动窗口默认 5 次/60 分钟，回退
+        收益低且需维护栈顶一致性，见 :meth:`release` 的约束）。
+        """
+        with self._lock:
+            used = int(self._seqs.get(msg_id, 0))
+            if self.reply_max - used < count:
+                return None
+            self._seqs[msg_id] = used + count
+            self._seen_at[msg_id] = time.time()
+            self._prune()
+            return list(range(used + 1, used + count + 1))
 
     def release(self, msg_id, seq):
         """精确释放 msg_id 的指定 msg_seq 名额（发送失败回退用）。
@@ -163,6 +201,122 @@ class SeqManager:
         for k in expired:
             self._seqs.pop(k, None)
             self._seen_at.pop(k, None)
+
+
+class PassiveMsgPool:
+    """群消息 msg_id 被动回复池。
+
+    MC→QQ 广播没有同源事件 raw，原本只能走主动消息。本池记录最近收到的
+    群消息 msg_id，出站时优先复用其中可用的 msg_id 以被动回复方式发送，
+    减少主动配额消耗。
+
+    - 每群最多 ``max_per_group`` 条，超过时淘汰最旧（左端）
+    - 选**最旧且可用**的一条：过期（``expire_at <= now``）或已用完
+      （``SeqManager.used(msg_id) >= seq.reply_max``）时移出池；
+      剩余寿命不足以发完全部分片的锚点跳过（见 ``acquire``）
+    - 额度通过 :meth:`SeqManager.reserve` 原子预留：预留即分配、计入
+      ``used``，对同源回复/去重重试具约束力，也不与已分配部分重复计数；
+      失败不回退（默认 5 次/60 分钟的小窗口内，回退收益低于栈顶一致性成本）
+    - 只管理"用哪个 msg_id 及其整块名额"，发送时由调用方按序消费
+    """
+
+    def __init__(self, seq_manager, ttl=PASSIVE_POOL_TTL,
+                 max_per_group=PASSIVE_POOL_MAX_PER_GROUP):
+        self._seq = seq_manager
+        self.ttl = max(1, int(ttl))
+        self.max_per_group = max(1, int(max_per_group))
+        self._entries = {}  # group_openid -> deque([{msg_id, expire_at}])
+        self._lock = threading.Lock()
+
+    def record(self, group, msg_id, now=None):
+        """登记一条群消息 msg_id（幂等），记录其过期时刻。"""
+        if not group or not msg_id:
+            return
+        now = time.time() if now is None else now
+        with self._lock:
+            entries = self._entries.setdefault(group, deque())
+            self._prune(entries, now)
+            if any(e["msg_id"] == msg_id for e in entries):
+                return
+            entries.append({
+                "msg_id": msg_id,
+                "expire_at": now + self.ttl,
+            })
+            while len(entries) > self.max_per_group:
+                entries.popleft()
+
+    def acquire(self, group, needed, now=None):
+        """取最旧可用的 msg_id，并原子预留 ``needed`` 个 msg_seq。
+
+        除过期/用尽外，剩余寿命不足以覆盖分片计划耗时（片间限速 +
+        链路余量，见 :data:`PASSIVE_CHUNK_SLACK`）的锚点也会跳过，
+        避免发送中途跨过 60 分钟被动窗口导致尾部分片失效。
+
+        Returns
+        -------
+        tuple(str, list[int]) or None
+            ``(msg_id, seqs)``；池为空、全部过期/用尽/寿命不足或余额
+            不足时返回 None。
+        """
+        needed = max(1, int(needed))
+        now = time.time() if now is None else now
+        require_ttl = PASSIVE_CHUNK_SLACK \
+            + PASSIVE_CHUNK_SECONDS * max(0, needed - 1)
+        with self._lock:
+            entries = self._entries.get(group)
+            if not entries:
+                return None
+            self._prune(entries, now)
+            self._discard_if_empty(group)
+            for entry in entries:
+                if entry["expire_at"] - now < require_ttl:
+                    continue  # 寿命不足，留给更小的发送
+                seqs = self._seq.reserve(entry["msg_id"], needed)
+                if seqs is None:
+                    continue  # 与其他回复路径竞争落败，试下一条
+                return entry["msg_id"], seqs
+            return None
+
+    def release(self, group, msg_id):
+        """发送结束的池清理：额度已用尽时立即移出该条目。
+
+        预留块不回退（见类文档）；本方法只做及时淘汰，正常的过期/用尽
+        淘汰仍由 :meth:`_prune` 兜底。
+        """
+        with self._lock:
+            for entry in list(self._entries.get(group) or []):
+                if entry["msg_id"] == msg_id:
+                    if self._seq.used(msg_id) >= self._seq.reply_max:
+                        self._entries[group].remove(entry)
+                        self._discard_if_empty(group)
+                    return
+
+    def invalidate(self, group, msg_id):
+        """被动回复过期/超次：立即把该 msg_id 移出池。"""
+        with self._lock:
+            for entry in list(self._entries.get(group) or []):
+                if entry["msg_id"] == msg_id:
+                    self._entries[group].remove(entry)
+                    self._discard_if_empty(group)
+                    return
+
+    def snapshot(self, group):
+        """返回池内 msg_id 列表（最旧在前），供诊断与测试使用。"""
+        with self._lock:
+            return [e["msg_id"] for e in self._entries.get(group) or []]
+
+    def _discard_if_empty(self, group):
+        """组的条目已清空时移除该组键，避免 ``_entries`` 随历史群只增不减。"""
+        if not self._entries.get(group):
+            self._entries.pop(group, None)
+
+    def _prune(self, entries, now):
+        """移出过期或用尽的条目（原地操作，调用方持锁）。"""
+        for entry in list(entries):
+            expired = entry["expire_at"] <= now
+            exhausted = self._seq.used(entry["msg_id"]) >= self._seq.reply_max
+            if expired or exhausted:
+                entries.remove(entry)
 
 
 class DedupSet:
@@ -286,7 +440,7 @@ class QuotaManager:
 
     官方限制（消息/group-messages-post.md）：单群 20 条/分钟、1000 条/天；
     Bot 维度 30~60 条/分钟。仅统计**主动消息**——被动回复（带 msg_id 锚点）
-    不占分钟/天配额，由 :class:`SeqManager` 单独管理 5 次/5 分钟窗口。
+    不占分钟/天配额，由 :class:`SeqManager` 单独管理次数/60 分钟窗口。
 
     key 级状态持久化为 JSON（按 key 记录当日计数与分钟滑动窗口），
     重启不重置当日计数，避免配额被重启绕过；Bot 全局分钟窗口为进程内

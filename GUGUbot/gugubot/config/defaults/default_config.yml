@@ -72,6 +72,10 @@ connector:
       per_minute: 20
       per_day: 1000
       bot_per_minute: 30 # Bot 全局限速 :: 所有群合计的主动消息条/分钟（防止多群广播触发平台级限流）
+    passive_reply_max: 5 # 被动回复次数上限 :: 同一消息(msg_id)最多被动回复次数（官方默认 5 次，被动消息有效期 60 分钟；机器人开发者（机器人账号的管理员）为该群群主或管理员时可改为 50）
+    passive_pool: # 被动消息池 :: MC→QQ 群消息优先复用最近群消息的 msg_id 被动回复（不占主动配额）
+      enable: true # 是否启用 :: 关闭后仅停用群广播的池化锚点（同源命令回复仍为被动回复）
+      max_per_group: 10 # 每群保留的 msg_id 数量 :: 最旧优先，用完/过期即移出
     permissions:
       admin_ids: # 管理员 OpenID :: 另：群内角色为 admin/owner 的成员自动视为管理员（群内发 /userId @某人 获取）
         -
