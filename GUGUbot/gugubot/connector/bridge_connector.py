@@ -37,7 +37,7 @@ class BridgeConnector(BasicConnector):
 
         self._connect_count = 0
         self._client_id = f"{source_name}_{int(time.time() * 1000)}"
-        self._is_reconnecting = False  # guards against concurrent reconnect threads
+        self._is_reconnecting = False
 
         self.is_main_server = config.get_keys(
             ["connector", "minecraft_bridge", "is_main_server"], True
@@ -98,11 +98,8 @@ class BridgeConnector(BasicConnector):
     def _connect_to_server(self) -> None:
         """Connect to the main bridge server as a client."""
         if self.ws_client:
-            try:
-                if self.ws_client.is_connected():
-                    self.ws_client.disconnect(timeout=1)
-            except Exception:
-                pass
+            old_client = self.ws_client
+            old_client.disconnect(timeout=1)
 
         self._connect_count += 1
 
@@ -123,7 +120,7 @@ class BridgeConnector(BasicConnector):
         )
 
         self.ws_client.connect(
-            reconnect=self.reconnect,
+            reconnect=0,
             ping_interval=self.ping_interval,
             ping_timeout=self.ping_timeout,
             use_ssl=self.use_ssl,
@@ -165,11 +162,15 @@ class BridgeConnector(BasicConnector):
         # Ignore stale close events from previous connections
         if self.ws_client and self.ws_client.ws and self.ws_client.ws != ws:
             return
+        if self.ws_client and self.ws_client.is_stopping:
+            return
 
         reason_text = f"({reason})" if reason else ""
         self.logger.info(f"{self.log_prefix} 连接已断开 {reason_text}")
 
-        # Schedule a persistent reconnect loop in a background thread
+        # Schedule a persistent reconnect loop in a background thread.
+        # WebSocketClient's retry loop is disabled for this connector to avoid
+        # competing reconnect strategies and duplicate bridge clients.
         if self.reconnect > 0 and self.enable and not self._is_reconnecting:
             self._is_reconnecting = True
             self.logger.info(f"{self.log_prefix} 将在 {self.reconnect} 秒后重连...")

@@ -223,6 +223,8 @@ class QQWebSocketConnector(BasicConnector):
         error : Exception
             The error that occurred.
         """
+        if self.ws_client and getattr(self.ws_client, "is_stopping", False):
+            return
         status_code = getattr(error, "status_code", None)
         if status_code in (401, 403):
             error = (
@@ -250,6 +252,9 @@ class QQWebSocketConnector(BasicConnector):
         close_info = self.server.tr(
             "gugubot.connector.QQ.close_connect", status_code=status_code, reason=reason
         )
+        if self.ws_client and getattr(self.ws_client, "is_stopping", False):
+            self.logger.info(f"{self.log_prefix} {close_info}")
+            return
         self.logger.warning(f"{self.log_prefix} {close_info}")
 
     async def _send_message(self, message: Any) -> None:

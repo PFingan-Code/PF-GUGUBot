@@ -76,6 +76,11 @@ class WebSocketClient:
         self._on_reconnect_callback = on_reconnect
         self._stop_event = threading.Event()
 
+    @property
+    def is_stopping(self) -> bool:
+        """Whether disconnect() has requested the listener loop to stop."""
+        return self._stop_event.is_set()
+
     def connect(
             self,
             reconnect: int = 5,
@@ -119,10 +124,12 @@ class WebSocketClient:
         self.logger.debug(f"正在连接到WebSocket服务器: {self.url}")
 
         self._stop_event.clear()
+        connected_event = threading.Event()
         has_connected = False
 
         def on_open(ws):
             nonlocal has_connected
+            connected_event.set()
             callback = self._on_open_callback
             if has_connected and self._on_reconnect_callback:
                 callback = self._on_reconnect_callback
@@ -167,8 +174,13 @@ class WebSocketClient:
         def run():
             retries = 0
             while not self._stop_event.is_set():
+                connected_event.clear()
                 self.ws.run_forever(**run_kwargs)
-                if self._stop_event.is_set() or reconnect <= 0:
+                if self._stop_event.is_set():
+                    return
+                if connected_event.is_set():
+                    retries = 0
+                if reconnect <= 0:
                     return
                 if reconnect_attempts > 0 and retries >= reconnect_attempts:
                     self.logger.error(
