@@ -23,6 +23,7 @@ connector:
       ca_certs: "" # 证书路径
       sslopt: { } # SSL选项
       reconnect: 5 # 重连时间
+      max_reconnect_attempts: 5 # 最大重连次数 :: 0为无限重连
       max_wait_time: 5 # 最大等待时间
       token: "" # QQ 令牌
     permissions:

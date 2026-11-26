@@ -27,6 +27,7 @@ class WebSocketFactory:
             on_error: Optional[Callable] = None,
             on_close: Optional[Callable] = None,
             logger: Optional[logging.Logger] = None,
+            on_reconnect: Optional[Callable] = None,
     ) -> WebSocketClient:
         """Create a WebSocket client.
 
@@ -46,6 +47,8 @@ class WebSocketFactory:
             Connection closed callback.
         logger : Optional[logging.Logger]
             Logger instance.
+        on_reconnect : Optional[Callable]
+            Successful reconnection callback.
 
         Returns
         -------
@@ -62,6 +65,7 @@ class WebSocketFactory:
             on_error=on_error,
             on_close=on_close,
             logger=logger,
+            on_reconnect=on_reconnect,
         )
 
     @staticmethod

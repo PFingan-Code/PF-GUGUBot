@@ -46,6 +46,7 @@ for _k in [
 
 try:
     from gugubot.connector import OpenQQBotConnector
+    from gugubot.connector.bridge_connector import BridgeConnector
     from gugubot.connector.open_qq_bot import common
     # 保留真实 api_client 模块对象：测试需用 mock.patch.object 就地修改
     # random_send_delay。字符串路径 patch 会经 sys.modules 重新解析模块，
@@ -2744,7 +2745,57 @@ class TestQQConnectorEnableGuard(unittest.TestCase):
             factory.return_value = fake_client
             asyncio.run(conn.connect())
             factory.assert_called_once()
+            self.assertEqual(
+                factory.call_args.kwargs["on_reconnect"], conn._on_reconnect
+            )
             fake_client.connect.assert_called_once()
+            self.assertEqual(
+                fake_client.connect.call_args.kwargs["reconnect_attempts"], 5
+            )
+
+    def test_intentional_close_is_not_logged_as_warning(self):
+        conn = self._build(enable=True)
+        conn.ws_client = mock.Mock(is_stopping=True)
+        conn.logger.info = mock.Mock()
+        conn.logger.warning = mock.Mock()
+
+        conn._on_close(None, 1000, "normal closure")
+
+        conn.logger.info.assert_called_once()
+        conn.logger.warning.assert_not_called()
+
+
+class TestBridgeClientReplacement(unittest.TestCase):
+    def test_replacement_stops_old_client_even_when_disconnected(self):
+        bridge = BridgeConnector.__new__(BridgeConnector)
+        bridge.ws_client = mock.Mock()
+        bridge.ws_client.is_connected.return_value = False
+        bridge._connect_count = 0
+        bridge._client_id = "test"
+        bridge.source = "Bridge"
+        bridge.log_prefix = "[连接器Bridge]"
+        bridge.config = {}
+        bridge.logger = FakeLogger()
+        bridge.reconnect = 5
+        bridge.ping_interval = 5
+        bridge.ping_timeout = 5
+        bridge.use_ssl = False
+        bridge.verify = True
+        bridge.ca_certs = None
+        bridge.extra_sslopt = {}
+        new_client = mock.Mock()
+        old_client = bridge.ws_client
+
+        with mock.patch.object(
+            WebSocketFactory, "create_bridge_client", return_value=new_client
+        ):
+            bridge._connect_to_server()
+
+        old_client.disconnect.assert_called_once_with(timeout=1)
+        self.assertIs(bridge.ws_client, new_client)
+        self.assertEqual(
+            new_client.connect.call_args.kwargs["reconnect"], 0
+        )
 
 
 class TestReviewRegressions(unittest.TestCase):

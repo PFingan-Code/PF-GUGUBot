@@ -6,6 +6,7 @@ import unittest
 import time
 import logging
 from typing import List, Dict
+from unittest import mock
 
 try:
     from gugubot.ws import WebSocketServer, WebSocketClient, WebSocketFactory
@@ -134,6 +135,98 @@ class TestWebSocketFactory(unittest.TestCase):
         self.assertIsInstance(client, WebSocketClient)
         self.assertIsNone(client.headers)
 
+    def test_on_reconnect_callback_runs_after_reconnection(self):
+        on_open = mock.Mock()
+        on_reconnect = mock.Mock()
+        client = WebSocketFactory.create_client(
+            url="ws://localhost:8080",
+            on_open=on_open,
+            on_reconnect=on_reconnect,
+            logger=self.logger,
+        )
+        fake_app = mock.Mock()
+
+        with mock.patch(
+            "gugubot.ws.websocket_client.websocket.WebSocketApp",
+            return_value=fake_app,
+        ) as app_factory, mock.patch(
+            "gugubot.ws.websocket_client.threading.Thread"
+        ) as thread_factory:
+            client.connect(reconnect=0)
+            open_callback = app_factory.call_args.kwargs["on_open"]
+            fake_app.run_forever.side_effect = lambda **kwargs: open_callback(fake_app)
+            thread_factory.call_args.kwargs["target"]()
+
+        on_open.assert_called_once_with(fake_app)
+        on_reconnect.assert_not_called()
+
+    def test_reconnect_attempt_limit_is_enforced(self):
+        on_open = mock.Mock()
+        on_reconnect = mock.Mock()
+        client = WebSocketFactory.create_client(
+            url="ws://localhost:8080",
+            on_open=on_open,
+            on_reconnect=on_reconnect,
+            logger=self.logger,
+        )
+        fake_app = mock.Mock()
+
+        with mock.patch(
+            "gugubot.ws.websocket_client.websocket.WebSocketApp",
+            return_value=fake_app,
+        ) as app_factory, mock.patch(
+            "gugubot.ws.websocket_client.threading.Thread"
+        ) as thread_factory:
+            client.connect(reconnect=1, reconnect_attempts=2)
+            client._stop_event.wait = mock.Mock(return_value=False)
+            thread_factory.call_args.kwargs["target"]()
+
+        self.assertEqual(fake_app.run_forever.call_count, 3)
+        on_open.assert_not_called()
+        on_reconnect.assert_not_called()
+
+    def test_retry_budget_resets_after_successful_reconnection(self):
+        on_open = mock.Mock()
+        on_reconnect = mock.Mock()
+        client = WebSocketFactory.create_client(
+            url="ws://localhost:8080",
+            on_open=on_open,
+            on_reconnect=on_reconnect,
+            logger=self.logger,
+        )
+        fake_app = mock.Mock()
+        with mock.patch(
+            "gugubot.ws.websocket_client.websocket.WebSocketApp",
+            return_value=fake_app,
+        ) as app_factory, mock.patch(
+            "gugubot.ws.websocket_client.threading.Thread"
+        ) as thread_factory:
+            client.connect(reconnect=1, reconnect_attempts=1)
+            on_open_callback = app_factory.call_args.kwargs["on_open"]
+            calls = {"count": 0}
+
+            def open_then_disconnect(**kwargs):
+                calls["count"] += 1
+                on_open_callback(fake_app)
+                if calls["count"] == 4:
+                    client._stop_event.set()
+
+            fake_app.run_forever.side_effect = open_then_disconnect
+            client._stop_event.wait = mock.Mock(return_value=False)
+            thread_factory.call_args.kwargs["target"]()
+
+        self.assertEqual(fake_app.run_forever.call_count, 4)
+        on_open.assert_called_once_with(fake_app)
+        self.assertEqual(on_reconnect.call_count, 3)
+
+    def test_disconnect_marks_client_as_stopping(self):
+        client = WebSocketFactory.create_client(
+            url="ws://localhost:8080",
+            logger=self.logger,
+        )
+        client.disconnect()
+        self.assertTrue(client.is_stopping)
+
 
 if __name__ == '__main__':
     # 配置日志
@@ -143,4 +236,3 @@ if __name__ == '__main__':
     )
     
     unittest.main()
-

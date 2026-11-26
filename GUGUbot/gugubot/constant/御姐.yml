@@ -34,7 +34,8 @@ gugubot:
       close_info: "QQ连接关了，姐姐去休息一会儿。"
       error_close: "关连接的时候出错了: {error}...真麻烦。"
       message_handle_failed: "消息处理失败了: {error}\n{trace}...没关系，姐姐再试一次。"
-      connect_success: "~ 连接成功了，姐姐很欣慰~"
+      connect_success: "WebSocket 握手已经建立了。"
+      reconnect_success: "WebSocket 通道重新建立了呢。"
 
   system:
     # 通用帮助系统

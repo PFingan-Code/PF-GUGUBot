@@ -30,7 +30,8 @@ gugubot:
             close_info: "QQ connection closed"
             error_close: "Error closing connection: {error}"
             message_handle_failed: "Failed to handle message: {error}\n{trace}"
-            connect_success: "~ Connected successfully ~"
+            connect_success: "WebSocket handshake established"
+            reconnect_success: "WebSocket reconnection handshake established"
         open-qq-bot:
             try_connect: "Connecting to QQ official bot gateway"
             connect_success: "~ Connected successfully, bot: {username} ~"
