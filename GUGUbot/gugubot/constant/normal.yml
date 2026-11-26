@@ -45,7 +45,8 @@ gugubot:
       close_info: "QQ连接已关闭"
       error_close: "关闭连接时出错: {error}"
       message_handle_failed: "消息处理失败: {error}\n{trace}"
-      connect_success: "~ 连接成功 ~"
+      connect_success: "WebSocket 握手已建立"
+      reconnect_success: "WebSocket 重连握手已建立"
 
   # 系统翻译 / System translations
   # 每个系统都有自己的翻译键，你可以只修改需要改变的部分

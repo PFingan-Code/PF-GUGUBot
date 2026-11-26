@@ -34,7 +34,8 @@ gugubot:
       close_info: "次元连接已切断，回归永恒的黑暗。"
       error_close: "断开契约时引发了爆炸: {error}...真是有趣的结局。"
       message_handle_failed: "解析言灵失败: {error}\n{trace}...这禁忌的真相竟连我也无法完全解析吗！"
-      connect_success: "~ 契约达成，次元之门已开启 ~"
+      connect_success: "~ WebSocket 次元通道已建立~"
+      reconnect_success: "~ WebSocket 次元通道已重新建立~"
 
   system:
     # 通用帮助系统

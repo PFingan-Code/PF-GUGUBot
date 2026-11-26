@@ -128,6 +128,9 @@ class QQWebSocketConnector(BasicConnector):
         self.reconnect = config.get_keys(
             ["connector", "QQ", "connection", "reconnect"], 5
         )
+        self.reconnect_attempts = config.get_keys(
+            ["connector", "QQ", "connection", "max_reconnect_attempts"], 5
+        )
         self.ping_interval = config.get_keys(
             ["connector", "QQ", "connection", "ping_interval"], 20
         )
@@ -179,11 +182,13 @@ class QQWebSocketConnector(BasicConnector):
             on_error=self._on_error,
             on_close=self._on_close,
             logger=self.logger,
+            on_reconnect=self._on_reconnect,
         )
 
         # Disable ping/pong; the OneBot server does not require it.
         self.ws_client.connect(
             reconnect=self.reconnect,
+            reconnect_attempts=self.reconnect_attempts,
             ping_interval=0,
             ping_timeout=0,
             use_ssl=self.use_ssl,
@@ -202,6 +207,12 @@ class QQWebSocketConnector(BasicConnector):
             f"{self.log_prefix} {self.server.tr('gugubot.connector.QQ.connect_success')}"
         )
 
+    def _on_reconnect(self, _):
+        self.logger.info(
+            f"{self.log_prefix} "
+            f"{self.server.tr('gugubot.connector.QQ.reconnect_success')}"
+        )
+
     def _on_error(self, _: Any, error: Exception) -> None:
         """Handle a WebSocket error.
 
@@ -212,6 +223,12 @@ class QQWebSocketConnector(BasicConnector):
         error : Exception
             The error that occurred.
         """
+        status_code = getattr(error, "status_code", None)
+        if status_code in (401, 403):
+            error = (
+                f"HTTP {status_code}: 服务端拒绝 WebSocket 鉴权，"
+                "请检查 connector.QQ.connection.token 及服务端认证配置"
+            )
         self.logger.error(
             f"{self.log_prefix} {self.server.tr('gugubot.connector.QQ.error_connect', error=error)}"
         )
@@ -233,7 +250,7 @@ class QQWebSocketConnector(BasicConnector):
         close_info = self.server.tr(
             "gugubot.connector.QQ.close_connect", status_code=status_code, reason=reason
         )
-        self.logger.debug(f"{self.log_prefix} {close_info}")
+        self.logger.warning(f"{self.log_prefix} {close_info}")
 
     async def _send_message(self, message: Any) -> None:
         """Send a raw message through the WebSocket connection."""

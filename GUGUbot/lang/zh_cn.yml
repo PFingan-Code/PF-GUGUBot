@@ -30,7 +30,8 @@ gugubot:
             close_info: "QQ连接已关闭"
             error_close: "关闭连接时出错: {error}"
             message_handle_failed: "消息处理失败: {error}\n{trace}"
-            connect_success: "~ 连接成功 ~"
+            connect_success: "WebSocket 握手已建立"
+            reconnect_success: "WebSocket 重连握手已建立"
         open-qq-bot:
             try_connect: "尝试连接 QQ 官方机器人网关"
             connect_success: "~ 连接成功，机器人：{username} ~"

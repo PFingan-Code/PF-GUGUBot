@@ -39,6 +39,7 @@ class WebSocketClient:
             on_error: Optional[Callable] = None,
             on_close: Optional[Callable] = None,
             logger: Optional[logging.Logger] = None,
+            on_reconnect: Optional[Callable] = None,
     ):
         """Initialize the WebSocket client.
 
@@ -58,6 +59,8 @@ class WebSocketClient:
             Connection closed callback.
         logger : logging.Logger, optional
             Logger instance.
+        on_reconnect : Callable, optional
+            Callback invoked after a successful reconnection.
         """
         self.url = url
         self.headers = headers
@@ -70,6 +73,8 @@ class WebSocketClient:
         self._on_open_callback = on_open
         self._on_error_callback = on_error
         self._on_close_callback = on_close
+        self._on_reconnect_callback = on_reconnect
+        self._stop_event = threading.Event()
 
     def connect(
             self,
@@ -82,6 +87,7 @@ class WebSocketClient:
             extra_sslopt: Optional[Dict[str, Any]] = None,
             thread_name: str = "WebSocketClient",
             suppress_origin: bool = True,
+            reconnect_attempts: int = 0,
     ) -> None:
         """Establish a WebSocket connection.
 
@@ -89,6 +95,9 @@ class WebSocketClient:
         ----------
         reconnect : int, optional
             Reconnect interval in seconds, default ``5``.
+        reconnect_attempts : int, optional
+            Maximum number of retries after the initial connection. ``0``
+            means unlimited retries.
         ping_interval : int, optional
             Ping interval in seconds, default ``20``.
         ping_timeout : int, optional
@@ -109,19 +118,28 @@ class WebSocketClient:
         """
         self.logger.debug(f"正在连接到WebSocket服务器: {self.url}")
 
+        self._stop_event.clear()
+        has_connected = False
+
+        def on_open(ws):
+            nonlocal has_connected
+            callback = self._on_open_callback
+            if has_connected and self._on_reconnect_callback:
+                callback = self._on_reconnect_callback
+            has_connected = True
+            if callback:
+                callback(ws)
+
         self.ws = websocket.WebSocketApp(
             self.url,
             header=self.headers,
             on_message=self._on_message_callback,
-            on_open=self._on_open_callback,
+            on_open=on_open,
             on_error=self._on_error_callback,
             on_close=self._on_close_callback,
         )
 
         run_kwargs = {}
-
-        if reconnect > 0:
-            run_kwargs["reconnect"] = reconnect
 
         if ping_interval > 0:
             run_kwargs["ping_interval"] = ping_interval
@@ -146,9 +164,32 @@ class WebSocketClient:
         if suppress_origin:
             run_kwargs["suppress_origin"] = True
 
+        def run():
+            retries = 0
+            while not self._stop_event.is_set():
+                self.ws.run_forever(**run_kwargs)
+                if self._stop_event.is_set() or reconnect <= 0:
+                    return
+                if reconnect_attempts > 0 and retries >= reconnect_attempts:
+                    self.logger.error(
+                        "WebSocket 重连次数已达上限（%s），停止重连；"
+                        "修复配置后可执行 !!MCDR plugin reloadall 重新连接",
+                        reconnect_attempts,
+                    )
+                    return
+                retries += 1
+                self.logger.warning(
+                    "WebSocket 连接断开，%ss 后进行第 %s 次重连%s",
+                    reconnect,
+                    retries,
+                    f"/{reconnect_attempts}" if reconnect_attempts > 0 else "",
+                )
+                if self._stop_event.wait(reconnect):
+                    return
+
         # Start listener thread
         self.listener_thread = threading.Thread(
-            target=self.ws.run_forever, name=thread_name, kwargs=run_kwargs
+            target=run, name=thread_name
         )
         self.listener_thread.daemon = True
         self.listener_thread.start()
@@ -190,6 +231,7 @@ class WebSocketClient:
             Timeout in seconds for waiting the thread to close.
         """
         try:
+            self._stop_event.set()
             if self.ws:
                 self.ws.close()
             if self.listener_thread and self.listener_thread.is_alive():

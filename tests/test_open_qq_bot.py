@@ -2744,7 +2744,13 @@ class TestQQConnectorEnableGuard(unittest.TestCase):
             factory.return_value = fake_client
             asyncio.run(conn.connect())
             factory.assert_called_once()
+            self.assertEqual(
+                factory.call_args.kwargs["on_reconnect"], conn._on_reconnect
+            )
             fake_client.connect.assert_called_once()
+            self.assertEqual(
+                fake_client.connect.call_args.kwargs["reconnect_attempts"], 5
+            )
 
 
 class TestReviewRegressions(unittest.TestCase):
